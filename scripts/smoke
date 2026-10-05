@@ -4,12 +4,16 @@
 #   - it is the GIMP version Flathub's recipe pins;
 #   - it uses its own user profile (~/.var/app/<app id>/config/GIMP), not the
 #     official GIMP's ~/.config/GIMP/3.x, so it starts as plain GIMP;
-#   - its launcher is named GIMPhoto.
+#   - its launcher is named GIMPhoto;
+#   - the plug-ins it ships (plugins/) are registered, e.g. the Layer Style
+#     procedures the Layers panel's fx button runs.
 # Exit 0 when all hold. Needs a display (or xvfb-run, as in CI).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 app="io.github.diegochagas.GIMPhoto"
+# one procedure per shipped plug-in that a feature depends on
+procedures=(layer-style-dialog layer-style-drop-shadow)
 want="$(python3 tools/upstream_info.py gimp-version)"
 report="$(mktemp /tmp/gimphoto-smoke.XXXXXX)"
 trap 'rm -f "$report"' EXIT
@@ -21,7 +25,7 @@ fi
 
 # -i no UI, -d no data loading; fonts stay on (text layers need them)
 flatpak run "$app" -i -d --batch-interpreter=python-fu-eval \
-    -b "open('$report', 'w').write(Gimp.version() + '\n' + Gimp.directory() + '\n')" \
+    -b "open('$report', 'w').write(Gimp.version() + '\n' + Gimp.directory() + '\n' + ' '.join(p for p in '${procedures[*]}'.split() if not Gimp.get_pdb().procedure_exists(p)) + '\n')" \
     --quit >/dev/null 2>&1 || true
 
 status=0
@@ -37,6 +41,13 @@ if [[ "$profile" == "$HOME/.var/app/$app/config/GIMP" ]]; then
     echo "ok   own user profile: $profile"
 else
     echo "FAIL expected GIMPhoto's own profile, got '${profile:-nothing}'" >&2
+    status=1
+fi
+missing="$(sed -n 3p "$report")"
+if [[ -n "$version" && -z "$missing" ]]; then
+    echo "ok   shipped plug-ins registered: ${procedures[*]}"
+else
+    echo "FAIL plug-in procedures not registered: ${missing:-${procedures[*]}}" >&2
     status=1
 fi
 desktop="$(flatpak run --command=cat "$app" "/app/share/applications/$app.desktop" 2>/dev/null || true)"

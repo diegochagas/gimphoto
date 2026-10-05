@@ -44,6 +44,19 @@ class TransformTest(unittest.TestCase):
             self.assertEqual(ours, theirs)
         self.assertEqual(len(self.out["modules"]), len(UPSTREAM["modules"]))
 
+    def test_plugins_module_comes_last_and_installs_each_plugin(self):
+        out = make_manifest.transform(UPSTREAM, [], ["layer-style"])
+        self.assertEqual(out["modules"][:-1], make_manifest.transform(UPSTREAM, [])["modules"])
+        module = out["modules"][-1]
+        self.assertEqual(module["name"], "gimphoto-plug-ins")
+        self.assertEqual(module["sources"], [{"type": "dir", "path": "../plugins"}])
+        dest = "${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/layer-style"
+        self.assertIn(f"chmod 755 {dest}/layer-style.py", module["build-commands"])
+
+    def test_every_plugin_folder_has_its_executable(self):
+        for name in make_manifest.plugin_names():
+            self.assertTrue((ROOT / "plugins" / name / f"{name}.py").is_file(), name)
+
     def test_sandbox_is_flathubs_plus_only_the_own_profile(self):
         self.assertEqual(self.out["finish-args"][:-1], UPSTREAM["finish-args"])
         self.assertEqual(

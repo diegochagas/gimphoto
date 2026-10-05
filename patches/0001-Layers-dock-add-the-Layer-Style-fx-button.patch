@@ -1,0 +1,199 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Diego Chagas <drochachagas@gmail.com>
+Date: Sun, 4 Oct 2026 22:07:03 -0300
+Subject: [PATCH] Layers dock: add the Layer Style (fx) button
+
+Photoshop's Layers panel has an fx button that opens a menu of layer
+effects. Add the same button to GIMP's Layers dock, before the mask
+button, with the same menu: Blending Options, Bevel & Emboss, Stroke,
+Inner Shadow, Inner Glow, Color/Gradient/Pattern Overlay, Outer Glow,
+Drop Shadow, and Copy/Paste/Clear Layer Style.
+
+Each entry activates a "plug-in" action of the Layer Style plug-in
+(layer-style-*, shipped by GIMPhoto in plug-ins/layer-style) through the
+dock's UI manager, which already holds the plug-in action group. The menu
+is rebuilt on every click, so an entry is insensitive when its procedure
+is not installed or cannot run on the current selection.
+
+Only app/widgets/gimplayertreeview.c changes: two private fields, the
+button in constructed(), and the menu code at the end of the file.
+
+Test: open an image, click fx in the Layers dock, pick Drop Shadow; the
+Layer Style dialog opens on Drop Shadow and the shadow previews.
+
+Closes: https://github.com/diegochagas/gimphoto/issues/1
+
+diff --git a/app/widgets/gimplayertreeview.c b/app/widgets/gimplayertreeview.c
+index 2af1d7f29b..8ffcb9c2a3 100644
+--- a/app/widgets/gimplayertreeview.c
++++ b/app/widgets/gimplayertreeview.c
+@@ -57,6 +57,7 @@
+ 
+ #include "file/file-open.h"
+ 
++#include "gimpaction.h"
+ #include "gimpactiongroup.h"
+ #include "gimpcellrendererviewable.h"
+ #include "gimpcontainertreestore.h"
+@@ -80,6 +81,8 @@ struct _GimpLayerTreeViewPrivate
+   GtkAdjustment   *opacity_adjustment;
+   GtkWidget       *anchor_button;
+   GtkWidget       *delete_mask_button;
++  GtkWidget       *style_button;
++  GtkWidget       *style_menu;
+ 
+   gint             model_column_mask;
+   gint             model_column_mask_visible;
+@@ -98,6 +101,9 @@ struct _GimpLayerTreeViewPrivate
+ 
+ static void       gimp_layer_tree_view_view_iface_init            (GimpContainerViewInterface *iface);
+ 
++static void       gimp_layer_tree_view_style_clicked              (GtkWidget                  *button,
++                                                                   GimpLayerTreeView          *view);
++
+ static void       gimp_layer_tree_view_constructed                (GObject                    *object);
+ static void       gimp_layer_tree_view_finalize                   (GObject                    *object);
+ 
+@@ -410,6 +416,19 @@ gimp_layer_tree_view_constructed (GObject *object)
+   gtk_box_reorder_child (gimp_editor_get_button_box (GIMP_EDITOR (layer_view)),
+                          button, 7);
+ 
++  /*  GIMPhoto: the Layer Style (fx) button, before the mask button as in
++   *  Photoshop. Its menu runs the Layer Style plug-in's procedures.
++   */
++  button = gimp_editor_add_button (GIMP_EDITOR (layer_view),
++                                   GIMP_ICON_EFFECT,
++                                   _("Add a layer style"), NULL,
++                                   G_CALLBACK (gimp_layer_tree_view_style_clicked),
++                                   NULL,
++                                   G_OBJECT (layer_view));
++  layer_view->priv->style_button = button;
++  gtk_box_reorder_child (gimp_editor_get_button_box (GIMP_EDITOR (layer_view)),
++                         button, 7);
++
+   button = gimp_editor_add_action_button (GIMP_EDITOR (layer_view), "layers",
+                                           "layers-mask-delete", NULL);
+   layer_view->priv->delete_mask_button = button;
+@@ -450,6 +469,15 @@ gimp_layer_tree_view_finalize (GObject *object)
+       layer_view->priv->bold_attrs = NULL;
+     }
+ 
++  /*  GIMPhoto: the fx menu must not outlive the view it points back to  */
++  if (layer_view->priv->style_menu)
++    {
++      g_object_remove_weak_pointer (G_OBJECT (layer_view->priv->style_menu),
++                                    (gpointer *) &layer_view->priv->style_menu);
++      gtk_widget_destroy (layer_view->priv->style_menu);
++      layer_view->priv->style_menu = NULL;
++    }
++
+   G_OBJECT_CLASS (parent_class)->finalize (object);
+ }
+ 
+@@ -1744,3 +1772,106 @@ gimp_layer_tree_view_alpha_changed (GimpLayer         *layer,
+                                           layers);
+     }
+ }
++
++
++/*  GIMPhoto: Layer Style (fx) button  */
++
++typedef struct
++{
++  const gchar *label;
++  const gchar *procedure;   /* NULL: separator */
++} GimpLayerStyleItem;
++
++/*  Photoshop's fx menu, in Photoshop's order. The procedures belong to the
++ *  Layer Style plug-in (plug-ins/layer-style); an entry whose procedure is
++ *  not installed, or cannot run now, is insensitive.
++ */
++static const GimpLayerStyleItem layer_style_items[] =
++{
++  { N_("Blending Options..."),  "layer-style-dialog"           },
++  { NULL,                       NULL                           },
++  { N_("Bevel & Emboss..."),    "layer-style-bevel"            },
++  { N_("Stroke..."),            "layer-style-stroke"           },
++  { N_("Inner Shadow..."),      "layer-style-inner-shadow"     },
++  { N_("Inner Glow..."),        "layer-style-inner-glow"       },
++  { N_("Color Overlay..."),     "layer-style-color-overlay"    },
++  { N_("Gradient Overlay..."),  "layer-style-gradient-overlay" },
++  { N_("Pattern Overlay..."),   "layer-style-pattern-overlay"  },
++  { N_("Outer Glow..."),        "layer-style-outer-glow"       },
++  { N_("Drop Shadow..."),       "layer-style-drop-shadow"      },
++  { NULL,                       NULL                           },
++  { N_("Copy Layer Style"),     "layer-style-copy"             },
++  { N_("Paste Layer Style"),    "layer-style-paste"            },
++  { N_("Clear Layer Style"),    "layer-style-clear"            },
++};
++
++static void
++gimp_layer_tree_view_style_activate (GtkMenuItem       *item,
++                                     GimpLayerTreeView *view)
++{
++  GimpUIManager *manager   = gimp_editor_get_ui_manager (GIMP_EDITOR (view));
++  const gchar   *procedure = g_object_get_data (G_OBJECT (item),
++                                                "gimphoto-procedure");
++
++  if (manager && procedure)
++    gimp_ui_manager_activate_action (manager, "plug-in", procedure);
++}
++
++static void
++gimp_layer_tree_view_style_clicked (GtkWidget         *button,
++                                    GimpLayerTreeView *view)
++{
++  GimpUIManager *manager = gimp_editor_get_ui_manager (GIMP_EDITOR (view));
++  GtkWidget     *menu;
++  gint           i;
++
++  /*  Rebuilt on every click: which entries can run depends on the plug-ins
++   *  installed and on the selected layers.
++   */
++  if (view->priv->style_menu)
++    gtk_widget_destroy (view->priv->style_menu);
++
++  menu = gtk_menu_new ();
++  view->priv->style_menu = menu;
++  gtk_menu_attach_to_widget (GTK_MENU (menu), button, NULL);
++  g_object_add_weak_pointer (G_OBJECT (menu),
++                             (gpointer *) &view->priv->style_menu);
++
++  for (i = 0; i < G_N_ELEMENTS (layer_style_items); i++)
++    {
++      const GimpLayerStyleItem *entry = &layer_style_items[i];
++      GtkWidget                *item;
++      GimpAction               *action = NULL;
++
++      if (! entry->procedure)
++        {
++          gtk_menu_shell_append (GTK_MENU_SHELL (menu),
++                                 gtk_separator_menu_item_new ());
++          continue;
++        }
++
++      item = gtk_menu_item_new_with_label (_(entry->label));
++
++      if (manager)
++        action = gimp_ui_manager_find_action (manager, "plug-in",
++                                              entry->procedure);
++
++      gtk_widget_set_sensitive (item,
++                                action && gimp_action_is_sensitive (action,
++                                                                    NULL));
++      g_object_set_data (G_OBJECT (item), "gimphoto-procedure",
++                         (gpointer) entry->procedure);
++      g_signal_connect (item, "activate",
++                        G_CALLBACK (gimp_layer_tree_view_style_activate),
++                        view);
++      gtk_menu_shell_append (GTK_MENU_SHELL (menu), item);
++    }
++
++  gtk_widget_show_all (menu);
++
++  /*  Like Photoshop, the menu opens upwards from the button  */
++  gtk_menu_popup_at_widget (GTK_MENU (menu), button,
++                            GDK_GRAVITY_NORTH_WEST,
++                            GDK_GRAVITY_SOUTH_WEST,
++                            NULL);
++}

@@ -4,15 +4,26 @@
 GIMP's own source with a small series of changes on top, one feature at a
 time, and kept up to date with each official GIMP release.
 
-> **Status: just started.** GIMPhoto currently builds **unmodified GIMP
-> 3.2.6** through its own pipeline: the base every feature will be added
-> to. Planned features are tracked as
-> [GitHub issues](../../issues) on the [project board](https://github.com/users/diegochagas/projects/1).
+> **Status: early.** GIMPhoto is GIMP 3.2.6 plus the features below, added
+> one at a time. Planned features are tracked as
+> [GitHub issues](../../issues) on the
+> [project board](https://github.com/users/diegochagas/projects/1).
 
-GIMPhoto is not affiliated with the GIMP project or with Adobe. "GIMP" is
-the GNU Image Manipulation Program; Photoshop is a trademark of Adobe Inc.,
-mentioned only to describe the goal. It is also unrelated to "Gimphoto",
-an earlier Photoshop-style GIMP modification (2008–2015).
+## Features
+
+Every change GIMPhoto makes to GIMP, each with its own page: how to use
+it, before/after screenshots, what changed in GIMP's code, limits.
+
+| Feature | Photoshop equivalent | Where | Docs |
+|---|---|---|---|
+| **Layer Style (fx) button** in the Layers panel, opening a Photoshop-style Layer Style dialog (shadows, glows, stroke, bevel, overlays) | Layers panel › fx | core patch + plug-in | [layer-style-fx-button.md](docs/features/layer-style-fx-button.md) |
+
+Apart from these, GIMPhoto is plain GIMP: its own user profile, GIMP's
+default theme, layout and shortcuts.
+
+### Layer Style (fx) button
+
+![The fx button's menu in GIMPhoto's Layers panel](docs/images/fx-button-menu.png)
 
 ## Why a patched build?
 

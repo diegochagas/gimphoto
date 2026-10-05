@@ -23,9 +23,19 @@ fi
 
 echo "== python"
 python3 -m py_compile "${py_files[@]}"
+# ruff from PATH, else through uvx; CI always has it, so a local run
+# without it says so instead of passing what CI will reject
 if command -v ruff >/dev/null; then
-    ruff check "${py_files[@]}"
-    ruff format --check "${py_files[@]}"
+    ruff=(ruff)
+elif command -v uvx >/dev/null; then
+    ruff=(uvx --quiet ruff)
+else
+    ruff=()
+    echo "WARNING: ruff not found (pipx install ruff): lint skipped, CI will run it" >&2
+fi
+if ((${#ruff[@]})); then
+    "${ruff[@]}" check "${py_files[@]}"
+    "${ruff[@]}" format --check "${py_files[@]}"
 fi
 python3 -m unittest discover -s tests -q
 

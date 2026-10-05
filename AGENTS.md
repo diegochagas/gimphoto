@@ -15,9 +15,13 @@ by hand) + a patch series (`patches/`) + a generator
   line has to be re-applied on each GIMP update.
 - **Flathub's recipe stays Flathub's.** Changes to the build go through the
   generator, and its tests in `tests/` pin what may differ (app ID, launcher
-  name, patches). Updating GIMP = `scripts/sync-flathub`.
+  name, own user profile, patches, the `plugins/` module). Updating GIMP =
+  `scripts/sync-flathub`.
 - GIMP's code style (GNU) inside patches; no reformatting of lines a feature
   does not need to touch.
+- **Every modification is documented**: `docs/features/<feature>.md` with
+  before/after screenshots of it in use, plus its row and screenshot in the
+  README's feature table. A feature PR without them is not done.
 - No personal paths, IPs, tokens or real user data in code, tests or docs.
 
 ## Testing and shipping (dev-playbook)

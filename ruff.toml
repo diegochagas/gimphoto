@@ -4,3 +4,8 @@ line-length = 120
 
 [lint]
 select = ["E", "F", "W", "EXE", "RUF100"]
+
+[lint.per-file-ignores]
+# GIMP plug-ins must call gi.require_version() before importing from
+# gi.repository, so their imports cannot all be at the top.
+"plugins/**/*.py" = ["E402"]
