@@ -8,7 +8,9 @@
 #                               branding/icons/<size>.png
 # branding/splash-source.svg -> branding/splash.png
 # The rendered files are committed; the build installs them over GIMP's
-# (tools/make_manifest.py, module gimphoto-defaults). Font: DejaVu Sans Bold.
+# (tools/make_manifest.py, module gimphoto-branding). Font: DejaVu Sans.
+# The splash's by-line carries the release year (v.YYYY): update it in
+# splash-source.svg for a new year's release.
 set -euo pipefail
 cd "$(dirname "$0")/../branding"
 

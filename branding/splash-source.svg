@@ -21,5 +21,6 @@
   <text x="440" y="470" font-family="DejaVu Sans" font-weight="bold" font-size="150"
         letter-spacing="-4" fill="url(#ink)">GIMPhoto</text>
   <text x="446" y="545" font-family="DejaVu Sans" font-size="38" fill="#d9d2e6">Photoshop-style tools and interface, built on GIMP</text>
-  <text x="448" y="600" font-family="DejaVu Sans" font-size="24" fill="#8f86a0">A fork of GIMP, the GNU Image Manipulation Program · GPL-3.0</text>
+  <text x="448" y="622" font-family="DejaVu Sans" font-size="34" fill="#ffffff">by <tspan font-weight="bold">Diego Chagas</tspan><tspan fill="#8f86a0">&#160;&#160;|&#160;&#160;</tspan>diegochagas.com<tspan fill="#8f86a0">&#160;&#160;|&#160;&#160;</tspan><tspan font-weight="bold">v.2026</tspan></text>
+  <text x="448" y="672" font-family="DejaVu Sans" font-size="24" fill="#8f86a0">A fork of GIMP, the GNU Image Manipulation Program · GPL-3.0</text>
 </svg>

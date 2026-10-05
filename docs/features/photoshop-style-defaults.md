@@ -56,6 +56,9 @@ has none of its own. The manifest's `gimphoto-defaults` module installs
 
 **Branding** (`branding/`, GIMPhoto's own artwork):
 
+- the splash carries the author's by-line, as PhotoGIMP's does for
+  Diolinux: "by Diego Chagas | diegochagas.com | v.2026", the year of the
+  release (update it in `splash-source.svg` for a new year's release);
 - `icon-source.svg` / `splash-source.svg`, rendered by
   `tools/make_branding.sh` (Inkscape, DejaVu Sans Bold, text as paths) to
   `icon.svg`, `icons/<size>.png` and `splash.png`;
