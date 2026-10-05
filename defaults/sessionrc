@@ -1,0 +1,77 @@
+# GIMPhoto's default window layout (sessionrc), Photoshop-style: one window,
+# maximized; the toolbox alone in a narrow column on the left; on the right,
+# Tool Options (as Photoshop's Properties) over Layers, Channels and Paths.
+#
+# The dock layout is PhotoGIMP 3.0's (github.com/Diolinux/PhotoGIMP,
+# GPL-3.0, commit eca3a8f), on GIMP 3.2's own sessionrc. Left out: its
+# window positions and sizes (they were for one monitor) and its dialog
+# positions; "gimp-vectors-list" is GIMP 3.2's "gimp-path-list"; the window
+# starts maximized. GIMP reads this file from /app/etc/gimp/3.0 when the
+# profile has no sessionrc of its own, and saves yours there on exit.
+
+(session-info "toplevel"
+    (factory-entry "gimp-empty-image-window")
+    (position 200 100)
+    (size 640 480))
+(session-info "toplevel"
+    (factory-entry "gimp-single-image-window")
+    (position 0 0)
+    (size 1280 800)
+    (open-on-exit)
+    (aux-info
+        (left-docks-width "66")
+        (right-docks-width "360")
+        (maximized "yes"))
+    (gimp-toolbox
+        (side left))
+    (gimp-dock
+        (side right)
+        (book
+            (current-page 0)
+            (dockable "gimp-tool-options"
+                (locked)
+                (tab-style icon)
+                (aux-info
+                    (show-button-bar "true")))
+            (dockable "gimp-font-list"
+                (tab-style icon)
+                (aux-info
+                    (show-button-bar "true")))
+            (dockable "gimp-brush-grid"
+                (tab-style preview)
+                (aux-info
+                    (show-button-bar "true")))
+            (dockable "gimp-pattern-grid"
+                (tab-style preview)
+                (aux-info
+                    (show-button-bar "true")))
+            (dockable "gimp-gradient-list"
+                (tab-style preview)
+                (aux-info
+                    (show-button-bar "true"))))
+        (book
+            (position 360)
+            (current-page 0)
+            (dockable "gimp-layer-list"
+                (tab-style icon)
+                (preview-size 32)
+                (aux-info
+                    (show-button-bar "true")))
+            (dockable "gimp-channel-list"
+                (tab-style icon)
+                (preview-size 32)
+                (aux-info
+                    (show-button-bar "true")))
+            (dockable "gimp-path-list"
+                (tab-style icon)
+                (preview-size 32)
+                (aux-info
+                    (show-button-bar "true"))))))
+
+(hide-docks no)
+(single-window-mode yes)
+(show-tabs yes)
+(tabs-position 0)
+(last-tip-shown 0)
+
+# end of sessionrc

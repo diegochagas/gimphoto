@@ -14,6 +14,9 @@
 #   - GIMPhoto's GEGL operations (gegl/) draw Gradient and Pattern Overlay,
 #     also after saving and reopening an XCF;
 #   - Layer via Copy / Cut (Ctrl+J / Ctrl+Shift+J) work on a selection;
+#   - it ships GIMPhoto's Photoshop-style toolbox, layout and settings over
+#     GIMP's system ones, a new profile gets them, and GIMPhoto's splash
+#     screen and icon replace GIMP's;
 #   - it ships GIMPhoto's default shortcuts (defaults/shortcutsrc) where its
 #     patched GIMP looks for them.
 # Exit 0 when all hold. Needs a display (or xvfb-run, as in CI).
@@ -112,6 +115,38 @@ if [[ "$via_result" == ok ]]; then
     echo "ok   layer via copy / cut"
 else
     echo "FAIL layer via copy / cut: ${via_result:-did not run}" >&2
+    status=1
+fi
+# Photoshop-style defaults (toolbox, layout, settings) and branding
+defaults_ok=true
+for f in sessionrc toolrc; do
+    if [[ "$(flatpak run --command=cat "$app" "/app/etc/gimp/3.0/$f" 2>/dev/null)" != "$(cat "defaults/$f")" ]]; then
+        echo "FAIL /app/etc/gimp/3.0/$f is not defaults/$f" >&2
+        defaults_ok=false
+    fi
+done
+fresh="$(mktemp -d /tmp/gimphoto-smoke.XXXXXX)"
+flatpak run --env=GIMP3_DIRECTORY="$fresh" "$app" -i -d --batch-interpreter=python-fu-eval \
+    -b "open('$fresh/answer', 'w').write(Gimp.gimprc_query('layer-preview-size') + ' ' + Gimp.gimprc_query('import-add-alpha'))" \
+    --quit >/dev/null 2>&1 || true
+answer="$(cat "$fresh/answer" 2>/dev/null || true)"
+rm -rf "$fresh"
+if [[ "$answer" != "extra-large yes" ]]; then
+    echo "FAIL a new profile does not get GIMPhoto's gimprc settings (got '${answer:-nothing}')" >&2
+    defaults_ok=false
+fi
+if ! flatpak run --command=cat "$app" /app/share/gimp/3.0/images/gimp-splash.png 2>/dev/null | cmp -s - branding/splash.png; then
+    echo "FAIL the splash screen is not branding/splash.png" >&2
+    defaults_ok=false
+fi
+icon="$(flatpak info --user --show-location "$app")/export/share/icons/hicolor/256x256/apps/$app.png"
+if ! cmp -s "$icon" branding/icons/256.png; then
+    echo "FAIL the launcher icon is not branding/icons/256.png" >&2
+    defaults_ok=false
+fi
+if [[ "$defaults_ok" == true ]]; then
+    echo "ok   Photoshop-style toolbox, layout and settings for new profiles; GIMPhoto splash and icon"
+else
     status=1
 fi
 desktop="$(flatpak run --command=cat "$app" "/app/share/applications/$app.desktop" 2>/dev/null || true)"

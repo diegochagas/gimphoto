@@ -1,0 +1,28 @@
+
+# GIMPhoto's defaults, appended to GIMP's system gimprc by the build (your
+# own gimprc, Edit > Preferences, still wins). From PhotoGIMP 3.0's gimprc
+# (github.com/Diolinux/PhotoGIMP, GPL-3.0, commit eca3a8f): larger layer
+# previews and thumbnails, an alpha channel on imported images (Photoshop
+# layers have transparency), a dark canvas padding like Photoshop's
+# pasteboard, no layer boundary, snapping to the canvas. Left out: its
+# monitor resolution, its padding colour's embedded monitor profile, the
+# image view opening fullscreen, and its last-used fill and stroke options.
+
+(undo-levels 8)
+(undo-preview-size medium)
+(layer-preview-size extra-large)
+(thumbnail-size large)
+(import-add-alpha yes)
+(toolbox-foo-area yes)
+(default-view
+    (show-layer-boundary no)
+    (snap-to-canvas yes)
+    (padding-mode custom)
+    (padding-color (color-rgb 0.106 0.106 0.122))
+    (padding-in-show-all no))
+(default-fullscreen-view
+    (show-layer-boundary no)
+    (snap-to-canvas yes)
+    (padding-mode custom)
+    (padding-color (color-rgb 0.106 0.106 0.122))
+    (padding-in-show-all no))
