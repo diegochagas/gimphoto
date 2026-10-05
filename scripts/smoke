@@ -31,6 +31,7 @@ fi
 
 # -i no UI, -d no data loading; fonts stay on (text layers need them)
 flatpak run "$app" -i -d --batch-interpreter=python-fu-eval \
+    -b "open(Gimp.directory() + '/gimphoto-smoke-marker', 'w').write('x')" \
     -b "open('$report', 'w').write(Gimp.version() + '\n' + Gimp.directory() + '\n' + ' '.join(p for p in '${procedures[*]}'.split() if not Gimp.get_pdb().procedure_exists(p)) + '\n')" \
     --quit >/dev/null 2>&1 || true
 
@@ -44,10 +45,17 @@ else
     status=1
 fi
 own_profile="$HOME/.var/app/$app/config/GIMPhoto"
-if [[ "$profile" == "$own_profile" && "$own_profile/pluginrc" -nt "$report" ]]; then
+# a file written to GIMP's profile from inside must show up there on the host
+marker="$own_profile/gimphoto-smoke-marker"
+marker_seen=false
+if [[ -e "$marker" ]]; then
+    marker_seen=true
+    rm -f "$marker"
+fi
+if [[ "$profile" == "$own_profile" && "$marker_seen" == true ]]; then
     echo "ok   own user profile: $profile"
 elif [[ "$profile" == "$own_profile" ]]; then
-    echo "FAIL the profile path is right inside the sandbox but GIMP did not write to $own_profile on the host" >&2
+    echo "FAIL the profile path is right inside the sandbox, but a file GIMP wrote there is not in $own_profile on the host" >&2
     status=1
 else
     echo "FAIL expected GIMPhoto's own profile, got '${profile:-nothing}'" >&2
