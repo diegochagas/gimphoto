@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Local gate: runs scripts/check before every push, the same check CI runs.
+# Enable once per clone: git config core.hooksPath .githooks
+set -euo pipefail
+
+# Skip pushes that only delete remote branches (local sha is all zeros).
+zero="0000000000000000000000000000000000000000"
+has_updates=0
+while read -r _local_ref local_sha _remote_ref _remote_sha; do
+    [[ "$local_sha" != "$zero" ]] && has_updates=1
+done
+[[ "$has_updates" -eq 0 ]] && exit 0
+
+root="$(git rev-parse --show-toplevel)"
+if [[ -x "$root/scripts/check" ]]; then
+    echo "pre-push: running scripts/check"
+    "$root/scripts/check"
+else
+    echo "pre-push: scripts/check not found, skipping" >&2
+fi

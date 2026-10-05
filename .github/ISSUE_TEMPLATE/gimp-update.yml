@@ -1,0 +1,21 @@
+name: GIMP update
+description: Follow a new GIMP release (or Flathub recipe update)
+labels: [gimp-update]
+title: "Update to GIMP <version>"
+body:
+  - type: input
+    id: version
+    attributes:
+      label: New GIMP version
+      placeholder: "3.2.7"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Checklist
+      value: |
+        - [ ] `scripts/sync-flathub`
+        - [ ] Patches that no longer apply adapted (add the `needs-patch-update` label while pending)
+        - [ ] `scripts/build` + `scripts/smoke`
+        - [ ] Every feature tried in the new build

@@ -1,0 +1,6 @@
+# Lint rules for the build tools and tests (scripts/check runs ruff when
+# installed; CI always does).
+line-length = 120
+
+[lint]
+select = ["E", "F", "W", "EXE", "RUF100"]

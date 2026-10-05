@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Install what scripts/build needs, per user, no sudo: Flathub's
+# flatpak-builder app (the same builder Flathub builds GIMP with) and the
+# GNOME runtime + SDK version Flathub's GIMP recipe asks for.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+sdk="$(python3 -c 'import json; m = json.load(open("flatpak/upstream/org.gimp.GIMP.json")); print(m["sdk"] + "//" + m["runtime-version"])')"
+echo "Installing org.flatpak.Builder, $sdk and its runtime (about 1.5 GB the first time)..."
+flatpak install --user -y --noninteractive flathub org.flatpak.Builder "$sdk" "${sdk/Sdk/Platform}"
+flatpak run --command=flatpak-builder org.flatpak.Builder --version

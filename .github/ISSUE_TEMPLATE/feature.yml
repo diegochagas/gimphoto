@@ -1,0 +1,45 @@
+name: Photoshop feature
+description: Propose a Photoshop tool, panel or behaviour for GIMPhoto
+labels: [feature]
+body:
+  - type: markdown
+    attributes:
+      value: >
+        One issue = one feature = one patch (or plug-in) = one pull request.
+        Search the open issues first: the feature may already be planned.
+  - type: textarea
+    id: photoshop
+    attributes:
+      label: What Photoshop does
+      description: The tool or behaviour, where it is in Photoshop, and how it is used. Screenshots help.
+    validations:
+      required: true
+  - type: textarea
+    id: gimp
+    attributes:
+      label: What GIMP does today
+      description: The closest thing in GIMP (if any) and what is missing.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: >
+        How it should look and work in GIMPhoto. Say if it needs a change to GIMP's
+        interface code (toolbox, docks, canvas tools, windows) or could be a plug-in.
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where it would live
+      options:
+        - Not sure
+        - GIMP core patch (toolbox, docks, canvas tools, windows)
+        - Plug-in (menus and dialogs)
+        - Both (plug-in + small core hook)
+  - type: checkboxes
+    id: work
+    attributes:
+      label: Contribution
+      options:
+        - label: I would like to implement this myself

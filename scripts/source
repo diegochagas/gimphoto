@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# Check out GIMP's source at the version GIMPhoto builds, with GIMPhoto's
+# patches applied as git commits, in work/gimp. This is where features are
+# written: edit, commit (one commit per feature), then scripts/export-patches.
+#
+#   scripts/source           create or refresh work/gimp (branch "gimphoto")
+#   scripts/source --force   the same, even if work/gimp has work that was
+#                            not exported to patches/ yet (it is discarded)
+#   scripts/source --check   only verify that every patch still applies, in a
+#                            temporary git worktree (exit 1 naming the first
+#                            that does not); work/gimp itself is not touched
+#
+# The version (tag + commit) is the one in Flathub's recipe,
+# flatpak/upstream/org.gimp.GIMP.json, so the patches are made against
+# exactly what scripts/build compiles. Flathub's own patch is applied first,
+# as in the build, as the "gimphoto-base" commit.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+mode="${1:-}"
+work="work/gimp"
+# -c values so commits work without a configured git identity
+ident=(-c user.name="GIMPhoto scripts" -c user.email="gimphoto@localhost")
+
+read -r url tag commit < <(python3 tools/upstream_info.py gimp-source)
+
+if [[ ! -d "$work/.git" ]]; then
+    mkdir -p work
+    git clone --quiet --filter=blob:none --no-checkout "$url" "$work"
+fi
+git -C "$work" fetch --quiet --filter=blob:none origin "refs/tags/$tag:refs/tags/$tag"
+if [[ "$(git -C "$work" rev-parse "$tag^{commit}")" != "$commit" ]]; then
+    echo "tag $tag does not point at $commit as Flathub's recipe says" >&2
+    exit 1
+fi
+
+tree="$work"
+if [[ "$mode" == "--check" ]]; then
+    tree="$(mktemp -d)/gimp"
+    git -C "$work" worktree add --quiet --detach "$tree" "$commit"
+    trap 'git -C "$work" worktree remove --force "$tree"; rm -rf "$(dirname "$tree")"' EXIT
+elif [[ "$mode" != "--force" ]] && git -C "$work" rev-parse --verify --quiet gimphoto >/dev/null; then
+    if [[ -n "$(git -C "$work" status --porcelain --untracked-files=no)" ]]; then
+        echo "work/gimp has uncommitted changes: commit them and run scripts/export-patches first (or --force)" >&2
+        exit 1
+    fi
+    if ! scripts/export-patches --check >/dev/null 2>&1; then
+        echo "work/gimp has commits not exported to patches/: run scripts/export-patches first (or --force)" >&2
+        exit 1
+    fi
+fi
+
+root="$(pwd)"
+if [[ "$tree" == "$work" ]]; then
+    # a series stopped at a conflict by an earlier run: start over cleanly
+    if [[ -d "$(git -C "$work" rev-parse --absolute-git-dir)/rebase-apply" ]]; then
+        git -C "$work" am --abort
+    fi
+    git -C "$tree" checkout --quiet --force -B gimphoto "$commit"
+fi
+while read -r patch; do
+    git -C "$tree" apply --index "$root/flatpak/$patch"
+done < <(python3 tools/upstream_info.py flathub-patches)
+git -C "$tree" "${ident[@]}" commit --quiet --allow-empty \
+    -m "Flathub packaging patches (flatpak/upstream/patches)"
+if [[ "$tree" == "$work" ]]; then
+    git -C "$tree" branch --quiet --force gimphoto-base
+fi
+
+# The whole series in one "git am": on a conflict it stops at that patch,
+# like a rebase. In --check mode that is the answer; otherwise work/gimp is
+# left mid-way for the conflict to be fixed (CONTRIBUTING.md, "Updating GIMP").
+mapfile -t series < <(sed -e 's/#.*//' -e '/^[[:space:]]*$/d' patches/series)
+status=0
+if ((${#series[@]})); then
+    if ! git -C "$tree" "${ident[@]}" am --quiet --3way "${series[@]/#/$root/patches/}"; then
+        status=1
+        failing="$(git -C "$tree" am --show-current-patch=raw 2>/dev/null | sed -n 's/^Subject: //p' | head -1)"
+        if [[ "$mode" == "--check" ]]; then
+            git -C "$tree" am --abort
+            echo "patch \"$failing\" does not apply to $tag" >&2
+        else
+            echo "patch \"$failing\" does not apply to $tag; work/gimp is stopped at it:" >&2
+            echo "  fix the conflicts in work/gimp, git add them, git -C work/gimp am --continue," >&2
+            echo "  then scripts/export-patches (CONTRIBUTING.md, \"Updating GIMP\")" >&2
+        fi
+    fi
+fi
+
+if [[ "$mode" == "--check" ]]; then
+    if [[ $status -eq 0 ]]; then
+        echo "all patches apply to $tag"
+    fi
+elif [[ $status -eq 0 ]]; then
+    echo "work/gimp: $tag + $(git -C "$work" rev-list --count gimphoto-base..gimphoto) GIMPhoto patch(es) on branch gimphoto"
+fi
+exit $status

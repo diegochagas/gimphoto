@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# The one gate (dev-playbook): what the pre-push hook and CI run.
+#
+#   scripts/check    lint the scripts, run the unit tests, verify the
+#                    generated manifest is current and, when work/gimp exists
+#                    (or GIMPHOTO_CHECK_PATCHES=1, as in CI), that every patch
+#                    applies to the GIMP version being built.
+#
+# Building GIMP takes about an hour, so it is not part of this gate:
+# scripts/build + scripts/smoke run separately (CI builds on pull requests).
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+mapfile -t shell_files < <(printf '%s\n' scripts/* .githooks/*)
+mapfile -t py_files < <(git ls-files --cached --others --exclude-standard '*.py')
+
+echo "== shellcheck"
+shellcheck "${shell_files[@]}"
+if command -v shfmt >/dev/null; then
+    echo "== shfmt"
+    shfmt -d -i 4 "${shell_files[@]}"
+fi
+
+echo "== python"
+python3 -m py_compile "${py_files[@]}"
+if command -v ruff >/dev/null; then
+    ruff check "${py_files[@]}"
+    ruff format --check "${py_files[@]}"
+fi
+python3 -m unittest discover -s tests -q
+
+echo "== manifest"
+python3 tools/make_manifest.py --check
+python3 -c 'import json, sys; json.load(open(sys.argv[1]))' flatpak/io.github.diegochagas.GIMPhoto.json
+
+if [[ -d work/gimp/.git || "${GIMPHOTO_CHECK_PATCHES:-0}" == 1 ]]; then
+    echo "== patches"
+    scripts/source --check
+else
+    echo "== patches: skipped (no work/gimp; scripts/source creates it)"
+fi
+echo "check: OK"

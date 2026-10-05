@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Bug in GIMP itself
+    url: https://gitlab.gnome.org/GNOME/gimp/-/issues
+    about: If the official GIMP has the same problem, report it to the GIMP project.

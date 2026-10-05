@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Update GIMPhoto to Flathub's current GIMP recipe: new GIMP release, new
+# library versions, new Flathub fixes. This is step 1 of "Updating GIMP"
+# in CONTRIBUTING.md.
+#
+#   scripts/sync-flathub            Flathub's latest commit (master)
+#   scripts/sync-flathub <commit>   a given commit of flathub/org.gimp.GIMP
+#
+# Replaces flatpak/upstream/ with Flathub's files, pins flatpak/shared-modules
+# to the commit Flathub pins, regenerates GIMPhoto's manifest, and checks
+# that every GIMPhoto patch still applies to the new GIMP source. Nothing is
+# committed: review `git diff`, adapt patches if the check says so, build.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+repo="https://github.com/flathub/org.gimp.GIMP.git"
+ref="${1:-master}"
+old_version="$(python3 tools/upstream_info.py gimp-version)"
+old_commit="$(cat flatpak/upstream/FLATHUB_COMMIT)"
+
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+git clone --quiet --filter=blob:none --no-checkout "$repo" "$tmp/flathub"
+git -C "$tmp/flathub" checkout --quiet "$ref"
+commit="$(git -C "$tmp/flathub" rev-parse HEAD)"
+modules="$(git -C "$tmp/flathub" ls-tree HEAD shared-modules | awk '{print $3}')"
+
+if [[ "$commit" == "$old_commit" ]]; then
+    echo "Already at Flathub commit $commit (GIMP $old_version)."
+    exit 0
+fi
+
+rm -rf flatpak/upstream
+mkdir -p flatpak/upstream
+cp "$tmp/flathub/org.gimp.GIMP.json" flatpak/upstream/
+if [[ -d "$tmp/flathub/patches" ]]; then
+    cp -r "$tmp/flathub/patches" flatpak/upstream/
+fi
+echo "$commit" >flatpak/upstream/FLATHUB_COMMIT
+
+git submodule update --init --quiet flatpak/shared-modules
+git -C flatpak/shared-modules fetch --quiet origin
+git -C flatpak/shared-modules checkout --quiet "$modules"
+git add flatpak/shared-modules
+
+python3 tools/make_manifest.py
+new_version="$(python3 tools/upstream_info.py gimp-version)"
+echo "Flathub ${old_commit:0:7} -> ${commit:0:7}: GIMP $old_version -> $new_version"
+
+if scripts/source --check; then
+    echo "Next: scripts/build, test it, then commit flatpak/ (and any adapted patches/)."
+else
+    echo "Next: scripts/source --force, fix the patch in work/gimp, scripts/export-patches." >&2
+    exit 1
+fi

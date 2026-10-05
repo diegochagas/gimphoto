@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Turn the commits on work/gimp's "gimphoto" branch (made after
+# scripts/source) into the patch series the build applies:
+# patches/NNNN-<subject>.patch, listed in order in patches/series.
+#
+#   scripts/export-patches          rewrite patches/ from the commits
+#   scripts/export-patches --check  exit 1 if patches/ and the commits differ
+#
+# One commit = one patch = one feature. The output is stable (no commit ids
+# or dates that change on every export), so a PR's diff of patches/ only
+# shows real changes. Then run tools/make_manifest.py (scripts/check says so).
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+work="work/gimp"
+if ! git -C "$work" rev-parse --verify --quiet gimphoto-base >/dev/null; then
+    echo "no work/gimp checkout: run scripts/source first" >&2
+    exit 1
+fi
+
+out="$(mktemp -d)"
+trap 'rm -rf "$out"' EXIT
+git -C "$work" format-patch --quiet --zero-commit --no-signature --no-stat --no-numbered \
+    --output-directory "$out" gimphoto-base..gimphoto
+# format-patch writes the author date: keep it (it records when the change
+# was made), but drop nothing else that varies between exports.
+{
+    echo "# GIMPhoto patch series: applied to GIMP's source in this order, after"
+    echo "# Flathub's own patch. One feature per patch, made with scripts/export-patches."
+    for f in "$out"/*.patch; do
+        [[ -e "$f" ]] && basename "$f"
+    done
+} >"$out/series"
+
+if [[ "${1:-}" == "--check" ]]; then
+    if ! diff -r -q "$out" patches >/dev/null; then
+        echo "patches/ differs from the commits in work/gimp: run scripts/export-patches" >&2
+        exit 1
+    fi
+    exit 0
+fi
+
+rm -f patches/*.patch
+cp "$out"/*.patch patches/ 2>/dev/null || true
+cp "$out/series" patches/series
+python3 tools/make_manifest.py
+echo "patches/: $(sed -e '/^#/d' -e '/^$/d' patches/series | wc -l) patch(es)"

@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Smoke test of the installed GIMPhoto build (after scripts/build):
+#   - it starts, headless, and runs a Python plug-in batch command;
+#   - it is the GIMP version Flathub's recipe pins;
+#   - it uses the normal GIMP 3 user profile (~/.config/GIMP/3.x), so plug-ins,
+#     themes and shortcuts installed for GIMP (e.g. by gimp-setup) apply;
+#   - its launcher is named GIMPhoto.
+# Exit 0 when all hold. Needs a display (or xvfb-run, as in CI).
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+app="io.github.diegochagas.GIMPhoto"
+want="$(python3 tools/upstream_info.py gimp-version)"
+report="$(mktemp /tmp/gimphoto-smoke.XXXXXX)"
+trap 'rm -f "$report"' EXIT
+
+if ! flatpak info --user "$app" >/dev/null 2>&1; then
+    echo "FAIL $app is not installed: run scripts/build" >&2
+    exit 1
+fi
+
+# -i no UI, -d no data loading; fonts stay on (text layers need them)
+flatpak run "$app" -i -d --batch-interpreter=python-fu-eval \
+    -b "open('$report', 'w').write(Gimp.version() + '\n' + Gimp.directory() + '\n')" \
+    --quit >/dev/null 2>&1 || true
+
+status=0
+version="$(sed -n 1p "$report")"
+profile="$(sed -n 2p "$report")"
+if [[ "$version" == "$want" ]]; then
+    echo "ok   starts and runs Python batch: GIMP $version"
+else
+    echo "FAIL expected GIMP $want, got '${version:-nothing}' (did it start?)" >&2
+    status=1
+fi
+if [[ "$profile" =~ /GIMP/3\.[0-9]+$ ]]; then
+    echo "ok   user profile: $profile"
+else
+    echo "FAIL unexpected user profile '${profile:-nothing}'" >&2
+    status=1
+fi
+desktop="$(flatpak run --command=cat "$app" "/app/share/applications/$app.desktop" 2>/dev/null || true)"
+if grep -qx "Name=GIMPhoto" <<<"$desktop"; then
+    echo "ok   launcher name: GIMPhoto"
+else
+    echo "FAIL launcher is not named GIMPhoto" >&2
+    status=1
+fi
+exit $status

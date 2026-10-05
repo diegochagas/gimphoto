@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Build GIMPhoto and install it for the current user.
+#
+#   scripts/build              build + install (flatpak run io.github.diegochagas.GIMPhoto)
+#   scripts/build --no-install build only, into build-dir/
+#
+# Needs Flathub's builder app and the GNOME SDK: scripts/bootstrap-tools.
+# The first build compiles GIMP and its libraries (about an hour);
+# later builds reuse .flatpak-builder/ and ccache and only redo what changed.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+manifest="flatpak/io.github.diegochagas.GIMPhoto.json"
+python3 tools/make_manifest.py --check
+
+# Flathub's builder app. It asks the host's flatpak for the SDK and passes
+# its own environment along, where XDG_DATA_HOME is the app's private folder
+# (Flatpak resets it inside the sandbox, ignoring --env): set the real one in
+# a shell inside the sandbox, or a user-installed SDK is "not installed".
+if ! flatpak info --user org.flatpak.Builder >/dev/null 2>&1; then
+    echo "org.flatpak.Builder is not installed: run scripts/bootstrap-tools" >&2
+    exit 1
+fi
+data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
+# shellcheck disable=SC2016  # $0/$@ belong to the inner shell
+builder=(flatpak run --command=sh org.flatpak.Builder -c
+    'XDG_DATA_HOME="$0" exec flatpak-builder "$@"' "$data_home")
+
+args=(--user --force-clean --ccache --state-dir=.flatpak-builder)
+if [[ "${1:-}" != "--no-install" ]]; then
+    args+=(--install)
+fi
+
+git submodule update --init --checkout flatpak/shared-modules
+"${builder[@]}" "${args[@]}" build-dir "$manifest"

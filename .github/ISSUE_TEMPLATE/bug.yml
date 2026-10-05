@@ -1,0 +1,32 @@
+name: Bug
+description: Something in GIMPhoto does not work
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Steps to reproduce, what you expected, what you got. Screenshots help.
+    validations:
+      required: true
+  - type: dropdown
+    id: official
+    attributes:
+      label: Does the official GIMP (Flathub) do the same?
+      description: If it does, the bug is GIMP's own and belongs at https://gitlab.gnome.org/GNOME/gimp/-/issues
+      options:
+        - "No, only GIMPhoto"
+        - "Yes, the official GIMP too"
+        - Not checked
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: "Output of: flatpak info --user io.github.diegochagas.GIMPhoto | grep -E 'Version|Commit'"
+  - type: input
+    id: system
+    attributes:
+      label: Distribution and desktop
+      placeholder: e.g. Linux Mint 22 Cinnamon, X11
