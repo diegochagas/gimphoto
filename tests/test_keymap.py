@@ -126,6 +126,19 @@ class TheRealKeymap(unittest.TestCase):
             self.assertIn(f'(action "{action}" "{accels[0]}"', text)
 
 
+class PluginActions(unittest.TestCase):
+    def test_gimphotos_own_procedures_are_actions(self):
+        actions = make_keymap.plugin_actions()
+        self.assertEqual(actions.get("gimphoto-layer-via-copy"), [])
+        self.assertEqual(actions.get("gimphoto-layer-via-cut"), [])
+
+    def test_ctrl_j_is_layer_via_copy(self):
+        rows = make_keymap.read_keymap(make_keymap.KEYMAP.read_text())
+        keys = {make_keymap.normalize(a): action for action, accels, _ in rows for a in accels}
+        self.assertEqual(keys["<Primary>j"], "gimphoto-layer-via-copy")
+        self.assertEqual(keys["<Primary><Shift>j"], "gimphoto-layer-via-cut")
+
+
 class DocsTable(unittest.TestCase):
     def test_only_the_part_between_markers_changes(self):
         doc = f"intro\n{make_keymap.DOC_START}old\n{make_keymap.DOC_END}\noutro\n"

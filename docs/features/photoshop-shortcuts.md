@@ -5,8 +5,8 @@
 **Keymap:** [`defaults/photoshop-keymap.tsv`](../../defaults/photoshop-keymap.tsv)
 
 GIMPhoto starts with Photoshop's keyboard shortcuts: **Ctrl+D** deselects
-(in GIMP it duplicates the whole image into a new tab), **Ctrl+J**
-duplicates the layer, **Ctrl+T** transforms, **V** is the Move tool,
+(in GIMP it duplicates the whole image into a new tab), **Ctrl+J** /
+**Ctrl+Shift+J** make a layer via copy / cut ([Layer via Copy / Cut](layer-via-copy-cut.md)), **Ctrl+T** transforms, **V** is the Move tool,
 **B** the brush, **Ctrl+L / M / U** open Levels, Curves and Hue-Saturation,
 and so on. Menus show the new shortcuts next to their entries, as GIMP's
 own did.
@@ -91,7 +91,8 @@ own GIMP shortcut too, unless Photoshop uses that key for something else.
 | Image > Image Size (Ctrl+Alt+I) | Ctrl+Alt+I | `image-scale` | – |
 | Image > Canvas Size (Ctrl+Alt+C) | Ctrl+Alt+C | `image-resize` | – |
 | Layer > New > Layer (Ctrl+Shift+N) | Ctrl+Shift+N | `layers-new` | Ctrl+Shift+N |
-| Layer > New > Layer via Copy (Ctrl+J) | Ctrl+J | `layers-duplicate` | Ctrl+Shift+D |
+| Layer > New > Layer via Copy (Ctrl+J; no selection: duplicate the layer) | Ctrl+J | `gimphoto-layer-via-copy` | – |
+| Layer > New > Layer via Cut (Ctrl+Shift+J) | Ctrl+Shift+J | `gimphoto-layer-via-cut` | – |
 | Layer > Group Layers (Ctrl+G) | Ctrl+G | `layers-new-group` | – |
 | Layer > Merge Down (Ctrl+E) | Ctrl+E | `layers-merge-down` | – |
 | Layer > Merge Visible (Ctrl+Shift+E) | Ctrl+Shift+E | `image-merge-layers` | Ctrl+M |
@@ -131,7 +132,8 @@ The ones a GIMP user will notice:
 | Ctrl+I | Select > Invert | Colors > Invert (Select > Invert: Ctrl+Shift+I) |
 | Ctrl+M | Image > Merge Visible Layers | Colors > Curves |
 | Ctrl+L | Layers dialog | Colors > Levels (Layers dialog: F7) |
-| Ctrl+J | View > Shrink Wrap | Layer > Duplicate |
+| Ctrl+J | View > Shrink Wrap | Layer > Layer via Copy (no selection: duplicate the layer) |
+| Ctrl+Shift+J | View > Zoom > Fit Image in Window | Layer > Layer via Cut (Fit in Window: Ctrl+0) |
 | Ctrl+G | Gradients dialog | Layer > New Layer Group |
 | Ctrl+B | Toolbox | Colors > Color Balance |
 | Ctrl+T | View > Show Selection | Free transform (Unified Transform); Show Selection: Ctrl+H |

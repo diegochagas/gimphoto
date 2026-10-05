@@ -12,6 +12,7 @@ Each folder is one plug-in; GIMP runs the file named after the folder
 | Plug-in | Used by | Origin |
 |---|---|---|
 | `layer-style/` | The Layers panel's **fx** button ([docs](../docs/features/layer-style-fx-button.md)); also *Layer > Layer Style* | gimp-setup's [Layer Style](https://github.com/diegochagas/gimp-setup/blob/main/docs/LAYER_STYLE.md) plug-in |
+| `layer-via/` | Layer via Copy / Cut on Ctrl+J / Ctrl+Shift+J ([docs](../docs/features/layer-via-copy-cut.md)) | GIMPhoto |
 
 ## layer-style
 

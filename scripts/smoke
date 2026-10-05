@@ -8,6 +8,7 @@
 #     applications menu hides a launcher whose program does not exist);
 #   - the plug-ins it ships (plugins/) are registered, e.g. the Layer Style
 #     procedures the Layers panel's fx button runs;
+#   - Layer via Copy / Cut (Ctrl+J / Ctrl+Shift+J) work on a selection;
 #   - it ships GIMPhoto's default shortcuts (defaults/shortcutsrc) where its
 #     patched GIMP looks for them.
 # Exit 0 when all hold. Needs a display (or xvfb-run, as in CI).
@@ -16,7 +17,7 @@ cd "$(dirname "$0")/.."
 
 app="io.github.diegochagas.GIMPhoto"
 # one procedure per shipped plug-in that a feature depends on
-procedures=(layer-style-dialog layer-style-drop-shadow)
+procedures=(layer-style-dialog layer-style-drop-shadow gimphoto-layer-via-copy gimphoto-layer-via-cut)
 want="$(python3 tools/upstream_info.py gimp-version)"
 report="$(mktemp /tmp/gimphoto-smoke.XXXXXX)"
 trap 'rm -f "$report"' EXIT
@@ -70,6 +71,18 @@ if [[ -n "$installed_keys" && "$installed_keys" == "$(cat defaults/shortcutsrc)"
     echo "ok   default shortcuts installed: Photoshop's"
 else
     echo "FAIL /app/share/gimp/3.0/gimphoto/shortcutsrc is missing or not defaults/shortcutsrc" >&2
+    status=1
+fi
+# Layer via Copy / Cut (Ctrl+J / Ctrl+Shift+J) with and without a selection
+via_report="$(mktemp /tmp/gimphoto-smoke.XXXXXX)"
+flatpak run --env=GIMPHOTO_SMOKE_OUT="$via_report" "$app" -i --batch-interpreter=python-fu-eval \
+    -b "exec(open('$PWD/tests/smoke_layer_via.py').read())" --quit >/dev/null 2>&1 || true
+via_result="$(cat "$via_report")"
+rm -f "$via_report"
+if [[ "$via_result" == ok ]]; then
+    echo "ok   layer via copy / cut"
+else
+    echo "FAIL layer via copy / cut: ${via_result:-did not run}" >&2
     status=1
 fi
 desktop="$(flatpak run --command=cat "$app" "/app/share/applications/$app.desktop" 2>/dev/null || true)"
