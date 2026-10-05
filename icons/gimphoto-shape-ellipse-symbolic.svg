@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- GIMPhoto's ellipse shape tool icon (GPL-3.0, github.com/diegochagas/gimphoto) -->
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <g fill="#bebebe"><ellipse cx="8" cy="8" rx="6.2" ry="5"/></g>
+</svg>

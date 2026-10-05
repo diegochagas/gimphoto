@@ -1,0 +1,907 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Diego Chagas <drochachagas@gmail.com>
+Date: Mon, 5 Oct 2026 18:10:59 -0300
+Subject: [PATCH] Shape tools: one per shape, grouped in the toolbox as in
+ Photoshop
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Photoshop's shape tools as seven tools in one toolbox group: Rectangle,
+Ellipse, Triangle, Polygon, Star, Line and Custom Shape (heart, star,
+arrow, speech bubble, burst, check mark, lightning, cross). Each is a
+GimpShapeTool subclass setting its shape, with GIMPhoto's own icons
+(gimphoto-shape-*), and its tool options show only its shape's settings:
+corner radius, sides, points and indent, line weight (Shift for 45°
+steps), the custom shape. The preview while dragging is the outline of
+the very shape the release draws.
+
+diff --git a/app/tools/gimpshapeoptions.c b/app/tools/gimpshapeoptions.c
+index 4629eb221e..15a04fa2bc 100644
+--- a/app/tools/gimpshapeoptions.c
++++ b/app/tools/gimpshapeoptions.c
+@@ -45,8 +45,11 @@
+ enum
+ {
+   PROP_0,
+-  PROP_SHAPE_TYPE,
+-  PROP_CORNER_RADIUS
++  PROP_CORNER_RADIUS,
++  PROP_SIDES,
++  PROP_STAR_INDENT,
++  PROP_LINE_WEIGHT,
++  PROP_CUSTOM_SHAPE
+ };
+ 
+ 
+@@ -78,13 +81,23 @@ gimp_shape_type_get_type (void)
+   {
+     { GIMP_SHAPE_RECTANGLE, "GIMP_SHAPE_RECTANGLE", "rectangle" },
+     { GIMP_SHAPE_ELLIPSE,   "GIMP_SHAPE_ELLIPSE",   "ellipse"   },
++    { GIMP_SHAPE_TRIANGLE,  "GIMP_SHAPE_TRIANGLE",  "triangle"  },
++    { GIMP_SHAPE_POLYGON,   "GIMP_SHAPE_POLYGON",   "polygon"   },
++    { GIMP_SHAPE_STAR,      "GIMP_SHAPE_STAR",      "star"      },
++    { GIMP_SHAPE_LINE,      "GIMP_SHAPE_LINE",      "line"      },
++    { GIMP_SHAPE_CUSTOM,    "GIMP_SHAPE_CUSTOM",    "custom"    },
+     { 0, NULL, NULL }
+   };
+ 
+   static const GimpEnumDesc descs[] =
+   {
+-    { GIMP_SHAPE_RECTANGLE, NC_("shape-type", "Rectangle"), NULL },
+-    { GIMP_SHAPE_ELLIPSE,   NC_("shape-type", "Ellipse"),   NULL },
++    { GIMP_SHAPE_RECTANGLE, NC_("shape-type", "Rectangle"),    NULL },
++    { GIMP_SHAPE_ELLIPSE,   NC_("shape-type", "Ellipse"),      NULL },
++    { GIMP_SHAPE_TRIANGLE,  NC_("shape-type", "Triangle"),     NULL },
++    { GIMP_SHAPE_POLYGON,   NC_("shape-type", "Polygon"),      NULL },
++    { GIMP_SHAPE_STAR,      NC_("shape-type", "Star"),         NULL },
++    { GIMP_SHAPE_LINE,      NC_("shape-type", "Line"),         NULL },
++    { GIMP_SHAPE_CUSTOM,    NC_("shape-type", "Custom Shape"), NULL },
+     { 0, NULL, NULL }
+   };
+ 
+@@ -101,6 +114,48 @@ gimp_shape_type_get_type (void)
+ }
+ 
+ 
++GType
++gimp_custom_shape_get_type (void)
++{
++  static const GEnumValue values[] =
++  {
++    { GIMP_CUSTOM_SHAPE_HEART,         "GIMP_CUSTOM_SHAPE_HEART",         "heart"         },
++    { GIMP_CUSTOM_SHAPE_STAR,          "GIMP_CUSTOM_SHAPE_STAR",          "star"          },
++    { GIMP_CUSTOM_SHAPE_ARROW,         "GIMP_CUSTOM_SHAPE_ARROW",         "arrow"         },
++    { GIMP_CUSTOM_SHAPE_SPEECH_BUBBLE, "GIMP_CUSTOM_SHAPE_SPEECH_BUBBLE", "speech-bubble" },
++    { GIMP_CUSTOM_SHAPE_BURST,         "GIMP_CUSTOM_SHAPE_BURST",         "burst"         },
++    { GIMP_CUSTOM_SHAPE_CHECK_MARK,    "GIMP_CUSTOM_SHAPE_CHECK_MARK",    "check-mark"    },
++    { GIMP_CUSTOM_SHAPE_LIGHTNING,     "GIMP_CUSTOM_SHAPE_LIGHTNING",     "lightning"     },
++    { GIMP_CUSTOM_SHAPE_CROSS,         "GIMP_CUSTOM_SHAPE_CROSS",         "cross"         },
++    { 0, NULL, NULL }
++  };
++
++  static const GimpEnumDesc descs[] =
++  {
++    { GIMP_CUSTOM_SHAPE_HEART,         NC_("custom-shape", "Heart"),         NULL },
++    { GIMP_CUSTOM_SHAPE_STAR,          NC_("custom-shape", "Star"),          NULL },
++    { GIMP_CUSTOM_SHAPE_ARROW,         NC_("custom-shape", "Arrow"),         NULL },
++    { GIMP_CUSTOM_SHAPE_SPEECH_BUBBLE, NC_("custom-shape", "Speech Bubble"), NULL },
++    { GIMP_CUSTOM_SHAPE_BURST,         NC_("custom-shape", "Burst"),         NULL },
++    { GIMP_CUSTOM_SHAPE_CHECK_MARK,    NC_("custom-shape", "Check Mark"),    NULL },
++    { GIMP_CUSTOM_SHAPE_LIGHTNING,     NC_("custom-shape", "Lightning"),     NULL },
++    { GIMP_CUSTOM_SHAPE_CROSS,         NC_("custom-shape", "Cross"),         NULL },
++    { 0, NULL, NULL }
++  };
++
++  static GType type = 0;
++
++  if (G_UNLIKELY (! type))
++    {
++      type = g_enum_register_static ("GimpCustomShape", values);
++      gimp_type_set_translation_context (type, "custom-shape");
++      gimp_enum_set_value_descriptions (type, descs);
++    }
++
++  return type;
++}
++
++
+ static void
+ gimp_shape_options_class_init (GimpShapeOptionsClass *klass)
+ {
+@@ -109,20 +164,41 @@ gimp_shape_options_class_init (GimpShapeOptionsClass *klass)
+   object_class->set_property = gimp_shape_options_set_property;
+   object_class->get_property = gimp_shape_options_get_property;
+ 
+-  GIMP_CONFIG_PROP_ENUM (object_class, PROP_SHAPE_TYPE,
+-                         "shape-type",
+-                         _("Shape"),
+-                         NULL,
+-                         GIMP_TYPE_SHAPE_TYPE,
+-                         GIMP_SHAPE_RECTANGLE,
+-                         GIMP_PARAM_STATIC_STRINGS);
+-
+   GIMP_CONFIG_PROP_DOUBLE (object_class, PROP_CORNER_RADIUS,
+                            "corner-radius",
+                            _("Corner radius"),
+                            _("Radius of the rectangle's rounded corners"),
+                            0.0, 10000.0, 0.0,
+                            GIMP_PARAM_STATIC_STRINGS);
++
++  GIMP_CONFIG_PROP_INT (object_class, PROP_SIDES,
++                        "sides",
++                        _("Sides"),
++                        _("Number of the polygon's sides, or of the star's points"),
++                        3, 100, 5,
++                        GIMP_PARAM_STATIC_STRINGS);
++
++  GIMP_CONFIG_PROP_DOUBLE (object_class, PROP_STAR_INDENT,
++                           "star-indent",
++                           _("Indent sides by"),
++                           _("How deep the star's points are, in percent"),
++                           1.0, 99.0, 50.0,
++                           GIMP_PARAM_STATIC_STRINGS);
++
++  GIMP_CONFIG_PROP_DOUBLE (object_class, PROP_LINE_WEIGHT,
++                           "line-weight",
++                           _("Weight"),
++                           _("Thickness of the line, in pixels"),
++                           1.0, 1000.0, 3.0,
++                           GIMP_PARAM_STATIC_STRINGS);
++
++  GIMP_CONFIG_PROP_ENUM (object_class, PROP_CUSTOM_SHAPE,
++                         "custom-shape",
++                         _("Custom shape"),
++                         NULL,
++                         GIMP_TYPE_CUSTOM_SHAPE,
++                         GIMP_CUSTOM_SHAPE_HEART,
++                         GIMP_PARAM_STATIC_STRINGS);
+ }
+ 
+ static void
+@@ -168,12 +244,21 @@ gimp_shape_options_set_property (GObject      *object,
+ 
+   switch (property_id)
+     {
+-    case PROP_SHAPE_TYPE:
+-      options->shape_type = g_value_get_enum (value);
+-      break;
+     case PROP_CORNER_RADIUS:
+       options->corner_radius = g_value_get_double (value);
+       break;
++    case PROP_SIDES:
++      options->sides = g_value_get_int (value);
++      break;
++    case PROP_STAR_INDENT:
++      options->star_indent = g_value_get_double (value);
++      break;
++    case PROP_LINE_WEIGHT:
++      options->line_weight = g_value_get_double (value);
++      break;
++    case PROP_CUSTOM_SHAPE:
++      options->custom_shape = g_value_get_enum (value);
++      break;
+     default:
+       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
+       break;
+@@ -190,33 +275,79 @@ gimp_shape_options_get_property (GObject    *object,
+ 
+   switch (property_id)
+     {
+-    case PROP_SHAPE_TYPE:
+-      g_value_set_enum (value, options->shape_type);
+-      break;
+     case PROP_CORNER_RADIUS:
+       g_value_set_double (value, options->corner_radius);
+       break;
++    case PROP_SIDES:
++      g_value_set_int (value, options->sides);
++      break;
++    case PROP_STAR_INDENT:
++      g_value_set_double (value, options->star_indent);
++      break;
++    case PROP_LINE_WEIGHT:
++      g_value_set_double (value, options->line_weight);
++      break;
++    case PROP_CUSTOM_SHAPE:
++      g_value_set_enum (value, options->custom_shape);
++      break;
+     default:
+       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
+       break;
+     }
+ }
+ 
+-GtkWidget *
+-gimp_shape_options_gui (GimpToolOptions *tool_options)
++/*  The options of one shape tool: its shape's settings, then the vector
++ *  layer's fill and stroke.
++ */
++static GtkWidget *
++gimp_shape_options_gui (GimpToolOptions *tool_options,
++                        GimpShapeType    shape)
+ {
+   GObject         *config  = G_OBJECT (tool_options);
+   GimpPathOptions *options = GIMP_PATH_OPTIONS (tool_options);
+   GtkWidget       *vbox    = gimp_tool_options_gui (tool_options);
+   GtkWidget       *frame;
+   GtkWidget       *scale;
++  GtkWidget       *widget;
++
++  switch (shape)
++    {
++    case GIMP_SHAPE_RECTANGLE:
++      scale = gimp_prop_spin_scale_new (config, "corner-radius", 1.0, 10.0, 1);
++      gimp_spin_scale_set_scale_limits (GIMP_SPIN_SCALE (scale), 0.0, 200.0);
++      gtk_box_pack_start (GTK_BOX (vbox), scale, FALSE, FALSE, 0);
++      break;
+ 
+-  frame = gimp_prop_enum_radio_frame_new (config, "shape-type", NULL, 0, 0);
+-  gtk_box_pack_start (GTK_BOX (vbox), frame, FALSE, FALSE, 0);
++    case GIMP_SHAPE_POLYGON:
++      scale = gimp_prop_spin_scale_new (config, "sides", 1.0, 1.0, 0);
++      gimp_spin_scale_set_scale_limits (GIMP_SPIN_SCALE (scale), 3.0, 20.0);
++      gtk_box_pack_start (GTK_BOX (vbox), scale, FALSE, FALSE, 0);
++      break;
+ 
+-  scale = gimp_prop_spin_scale_new (config, "corner-radius", 1.0, 10.0, 1);
+-  gimp_spin_scale_set_scale_limits (GIMP_SPIN_SCALE (scale), 0.0, 200.0);
+-  gtk_box_pack_start (GTK_BOX (vbox), scale, FALSE, FALSE, 0);
++    case GIMP_SHAPE_STAR:
++      scale = gimp_prop_spin_scale_new (config, "sides", 1.0, 1.0, 0);
++      gimp_spin_scale_set_label (GIMP_SPIN_SCALE (scale), _("Points"));
++      gimp_spin_scale_set_scale_limits (GIMP_SPIN_SCALE (scale), 3.0, 20.0);
++      gtk_box_pack_start (GTK_BOX (vbox), scale, FALSE, FALSE, 0);
++      scale = gimp_prop_spin_scale_new (config, "star-indent", 1.0, 10.0, 0);
++      gtk_box_pack_start (GTK_BOX (vbox), scale, FALSE, FALSE, 0);
++      break;
++
++    case GIMP_SHAPE_LINE:
++      scale = gimp_prop_spin_scale_new (config, "line-weight", 1.0, 10.0, 1);
++      gimp_spin_scale_set_scale_limits (GIMP_SPIN_SCALE (scale), 1.0, 100.0);
++      gtk_box_pack_start (GTK_BOX (vbox), scale, FALSE, FALSE, 0);
++      break;
++
++    case GIMP_SHAPE_CUSTOM:
++      widget = gimp_prop_enum_combo_box_new (config, "custom-shape", 0, 0);
++      gtk_box_pack_start (GTK_BOX (vbox), widget, FALSE, FALSE, 0);
++      break;
++
++    case GIMP_SHAPE_ELLIPSE:
++    case GIMP_SHAPE_TRIANGLE:
++      break;
++    }
+ 
+   /*  the vector layer's fill and stroke, as the Paths tool has them  */
+   {
+@@ -275,3 +406,45 @@ gimp_shape_options_gui (GimpToolOptions *tool_options)
+ 
+   return vbox;
+ }
++
++GtkWidget *
++gimp_shape_options_rectangle_gui (GimpToolOptions *tool_options)
++{
++  return gimp_shape_options_gui (tool_options, GIMP_SHAPE_RECTANGLE);
++}
++
++GtkWidget *
++gimp_shape_options_ellipse_gui (GimpToolOptions *tool_options)
++{
++  return gimp_shape_options_gui (tool_options, GIMP_SHAPE_ELLIPSE);
++}
++
++GtkWidget *
++gimp_shape_options_triangle_gui (GimpToolOptions *tool_options)
++{
++  return gimp_shape_options_gui (tool_options, GIMP_SHAPE_TRIANGLE);
++}
++
++GtkWidget *
++gimp_shape_options_polygon_gui (GimpToolOptions *tool_options)
++{
++  return gimp_shape_options_gui (tool_options, GIMP_SHAPE_POLYGON);
++}
++
++GtkWidget *
++gimp_shape_options_star_gui (GimpToolOptions *tool_options)
++{
++  return gimp_shape_options_gui (tool_options, GIMP_SHAPE_STAR);
++}
++
++GtkWidget *
++gimp_shape_options_line_gui (GimpToolOptions *tool_options)
++{
++  return gimp_shape_options_gui (tool_options, GIMP_SHAPE_LINE);
++}
++
++GtkWidget *
++gimp_shape_options_custom_gui (GimpToolOptions *tool_options)
++{
++  return gimp_shape_options_gui (tool_options, GIMP_SHAPE_CUSTOM);
++}
+diff --git a/app/tools/gimpshapeoptions.h b/app/tools/gimpshapeoptions.h
+index 391bb06e3f..2ed9b410be 100644
+--- a/app/tools/gimpshapeoptions.h
++++ b/app/tools/gimpshapeoptions.h
+@@ -26,12 +26,32 @@
+ typedef enum
+ {
+   GIMP_SHAPE_RECTANGLE,
+-  GIMP_SHAPE_ELLIPSE
++  GIMP_SHAPE_ELLIPSE,
++  GIMP_SHAPE_TRIANGLE,
++  GIMP_SHAPE_POLYGON,
++  GIMP_SHAPE_STAR,
++  GIMP_SHAPE_LINE,
++  GIMP_SHAPE_CUSTOM
+ } GimpShapeType;
+ 
+-#define GIMP_TYPE_SHAPE_TYPE (gimp_shape_type_get_type ())
++/*  Photoshop's default custom shapes  */
++typedef enum
++{
++  GIMP_CUSTOM_SHAPE_HEART,
++  GIMP_CUSTOM_SHAPE_STAR,
++  GIMP_CUSTOM_SHAPE_ARROW,
++  GIMP_CUSTOM_SHAPE_SPEECH_BUBBLE,
++  GIMP_CUSTOM_SHAPE_BURST,
++  GIMP_CUSTOM_SHAPE_CHECK_MARK,
++  GIMP_CUSTOM_SHAPE_LIGHTNING,
++  GIMP_CUSTOM_SHAPE_CROSS
++} GimpCustomShape;
++
++#define GIMP_TYPE_SHAPE_TYPE   (gimp_shape_type_get_type ())
++#define GIMP_TYPE_CUSTOM_SHAPE (gimp_custom_shape_get_type ())
+ 
+-GType gimp_shape_type_get_type (void) G_GNUC_CONST;
++GType gimp_shape_type_get_type   (void) G_GNUC_CONST;
++GType gimp_custom_shape_get_type (void) G_GNUC_CONST;
+ 
+ 
+ #define GIMP_TYPE_SHAPE_OPTIONS            (gimp_shape_options_get_type ())
+@@ -50,11 +70,21 @@ struct _GimpShapeOptions
+ {
+   GimpPathOptions parent_instance;
+ 
+-  GimpShapeType   shape_type;
+   gdouble         corner_radius;
++  gint            sides;
++  gdouble         star_indent;
++  gdouble         line_weight;
++  GimpCustomShape custom_shape;
+ };
+ 
+ 
+ GType       gimp_shape_options_get_type (void) G_GNUC_CONST;
+ 
+-GtkWidget * gimp_shape_options_gui      (GimpToolOptions *tool_options);
++/*  one per shape tool: each shows only its shape's settings  */
++GtkWidget * gimp_shape_options_rectangle_gui (GimpToolOptions *tool_options);
++GtkWidget * gimp_shape_options_ellipse_gui   (GimpToolOptions *tool_options);
++GtkWidget * gimp_shape_options_triangle_gui  (GimpToolOptions *tool_options);
++GtkWidget * gimp_shape_options_polygon_gui   (GimpToolOptions *tool_options);
++GtkWidget * gimp_shape_options_star_gui      (GimpToolOptions *tool_options);
++GtkWidget * gimp_shape_options_line_gui      (GimpToolOptions *tool_options);
++GtkWidget * gimp_shape_options_custom_gui    (GimpToolOptions *tool_options);
+diff --git a/app/tools/gimpshapetool.c b/app/tools/gimpshapetool.c
+index fd7b921b0f..2757580bf7 100644
+--- a/app/tools/gimpshapetool.c
++++ b/app/tools/gimpshapetool.c
+@@ -2,8 +2,9 @@
+  * Copyright (C) 1995 Spencer Kimball and Peter Mattis
+  *
+  * gimpshapetool.c: Photoshop's shape tools. Drag on the canvas to draw a
+- * rectangle or an ellipse as a new vector layer, with the fill and stroke
+- * set in the tool options. Shift: square / circle; Alt: from the centre.
++ * rectangle, an ellipse, a triangle, a polygon or star, a line or a custom
++ * shape as a new vector layer, with the fill and stroke set in the tool
++ * options. Shift: square / circle / 45° lines; Alt: from the centre.
+  * Copyright (C) 2026 GIMPhoto contributors
+  *
+  * This program is free software: you can redistribute it and/or modify
+@@ -90,6 +91,8 @@ static void   gimp_shape_tool_get_box        (GimpShapeTool         *shape,
+                                               gdouble               *y1,
+                                               gdouble               *x2,
+                                               gdouble               *y2);
++static GimpStroke * gimp_shape_tool_build    (GimpShapeTool         *shape,
++                                              const gchar          **name);
+ static void   gimp_shape_tool_create         (GimpShapeTool         *shape,
+                                               GimpDisplay           *display);
+ 
+@@ -99,21 +102,89 @@ G_DEFINE_TYPE (GimpShapeTool, gimp_shape_tool, GIMP_TYPE_DRAW_TOOL)
+ #define parent_class gimp_shape_tool_parent_class
+ 
+ 
++/*  The shape tools, each a subclass of GimpShapeTool setting its shape  */
++#define SHAPE_TOOL(TypeName, type_name, SHAPE)                             \
++  typedef GimpShapeTool      TypeName;                                     \
++  typedef GimpShapeToolClass TypeName##Class;                              \
++  GType type_name##_get_type (void) G_GNUC_CONST;                          \
++  G_DEFINE_TYPE (TypeName, type_name, GIMP_TYPE_SHAPE_TOOL)                \
++  static void type_name##_class_init (TypeName##Class *klass)              \
++  {                                                                        \
++    klass->shape = SHAPE;                                                  \
++  }                                                                        \
++  static void type_name##_init (TypeName *tool)                            \
++  {                                                                        \
++  }
++
++SHAPE_TOOL (GimpRectangleShapeTool, gimp_rectangle_shape_tool, GIMP_SHAPE_RECTANGLE)
++SHAPE_TOOL (GimpEllipseShapeTool,   gimp_ellipse_shape_tool,   GIMP_SHAPE_ELLIPSE)
++SHAPE_TOOL (GimpTriangleShapeTool,  gimp_triangle_shape_tool,  GIMP_SHAPE_TRIANGLE)
++SHAPE_TOOL (GimpPolygonShapeTool,   gimp_polygon_shape_tool,   GIMP_SHAPE_POLYGON)
++SHAPE_TOOL (GimpStarShapeTool,      gimp_star_shape_tool,      GIMP_SHAPE_STAR)
++SHAPE_TOOL (GimpLineShapeTool,      gimp_line_shape_tool,      GIMP_SHAPE_LINE)
++SHAPE_TOOL (GimpCustomShapeTool,    gimp_custom_shape_tool,    GIMP_SHAPE_CUSTOM)
++
+ void
+ gimp_shape_tool_register (GimpToolRegisterCallback  callback,
+                           gpointer                  data)
+ {
+-  (* callback) (GIMP_TYPE_SHAPE_TOOL,
+-                GIMP_TYPE_SHAPE_OPTIONS,
+-                gimp_shape_options_gui,
+-                GIMP_CONTEXT_PROP_MASK_PATTERN,
+-                "gimp-shape-tool",
+-                _("Shape"),
+-                _("Shape Tool: Draw rectangles and ellipses as vector layers"),
+-                N_("S_hape"), NULL,
+-                NULL, "gimp-shape-tool",
+-                GIMP_ICON_SHAPE_SQUARE,
+-                data);
++  const struct
++  {
++    GType                   type;
++    GimpToolOptionsGUIFunc  gui;
++    const gchar            *identifier;
++    const gchar            *label;
++    const gchar            *tooltip;
++    const gchar            *menu_label;
++    const gchar            *menu_accel;
++    const gchar            *icon_name;
++  }
++  tools[] =
++  {
++    { gimp_rectangle_shape_tool_get_type (), gimp_shape_options_rectangle_gui,
++      "gimp-shape-rectangle-tool", _("Rectangle"),
++      _("Rectangle Tool: Draw a rectangle as a vector layer"),
++      N_("_Rectangle"), NULL, "gimphoto-shape-rectangle" },
++    { gimp_ellipse_shape_tool_get_type (), gimp_shape_options_ellipse_gui,
++      "gimp-shape-ellipse-tool", _("Ellipse"),
++      _("Ellipse Tool: Draw an ellipse as a vector layer"),
++      N_("_Ellipse"), NULL, "gimphoto-shape-ellipse" },
++    { gimp_triangle_shape_tool_get_type (), gimp_shape_options_triangle_gui,
++      "gimp-shape-triangle-tool", _("Triangle"),
++      _("Triangle Tool: Draw a triangle as a vector layer"),
++      N_("_Triangle"), NULL, "gimphoto-shape-triangle" },
++    { gimp_polygon_shape_tool_get_type (), gimp_shape_options_polygon_gui,
++      "gimp-shape-polygon-tool", _("Polygon"),
++      _("Polygon Tool: Draw a regular polygon as a vector layer"),
++      N_("_Polygon"), NULL, "gimphoto-shape-polygon" },
++    { gimp_star_shape_tool_get_type (), gimp_shape_options_star_gui,
++      "gimp-shape-star-tool", _("Star"),
++      _("Star Tool: Draw a star as a vector layer"),
++      N_("_Star"), NULL, "gimphoto-shape-star" },
++    { gimp_line_shape_tool_get_type (), gimp_shape_options_line_gui,
++      "gimp-shape-line-tool", _("Line"),
++      _("Line Tool: Draw a line as a vector layer"),
++      N_("_Line"), NULL, "gimphoto-shape-line" },
++    { gimp_custom_shape_tool_get_type (), gimp_shape_options_custom_gui,
++      "gimp-shape-custom-tool", _("Custom Shape"),
++      _("Custom Shape Tool: Draw a heart, an arrow, a speech bubble... "
++        "as a vector layer"),
++      N_("C_ustom Shape"), NULL, "gimphoto-shape-custom" },
++  };
++  gint i;
++
++  for (i = 0; i < G_N_ELEMENTS (tools); i++)
++    (* callback) (tools[i].type,
++                  GIMP_TYPE_SHAPE_OPTIONS,
++                  tools[i].gui,
++                  GIMP_CONTEXT_PROP_MASK_PATTERN,
++                  tools[i].identifier,
++                  tools[i].label,
++                  tools[i].tooltip,
++                  tools[i].menu_label, tools[i].menu_accel,
++                  NULL, "gimp-shape-tool",
++                  tools[i].icon_name,
++                  data);
+ }
+ 
+ static void
+@@ -268,18 +339,36 @@ gimp_shape_tool_button_release (GimpTool              *tool,
+ static void
+ gimp_shape_tool_draw (GimpDrawTool *draw_tool)
+ {
+-  GimpShapeTool    *shape   = GIMP_SHAPE_TOOL (draw_tool);
+-  GimpShapeOptions *options = GIMP_SHAPE_TOOL_GET_OPTIONS (shape);
+-  gdouble           x1, y1, x2, y2;
++  GimpShapeTool *shape = GIMP_SHAPE_TOOL (draw_tool);
++  GimpStroke    *stroke;
++  GArray        *coords;
++  gboolean       closed;
++
++  /*  the outline of the very shape the release will draw  */
++  stroke = gimp_shape_tool_build (shape, NULL);
++  if (! stroke)
++    return;
+ 
+-  gimp_shape_tool_get_box (shape, &x1, &y1, &x2, &y2);
++  coords = gimp_stroke_interpolate (stroke, 1.0, &closed);
+ 
+-  if (options->shape_type == GIMP_SHAPE_ELLIPSE)
+-    gimp_draw_tool_add_arc (draw_tool, FALSE,
+-                            x1, y1, x2 - x1, y2 - y1, 0.0, 2.0 * G_PI);
+-  else
+-    gimp_draw_tool_add_rectangle (draw_tool, FALSE,
+-                                  x1, y1, x2 - x1, y2 - y1);
++  if (coords && coords->len > 1)
++    {
++      if (closed)
++        {
++          GimpCoords first = g_array_index (coords, GimpCoords, 0);
++
++          g_array_append_val (coords, first);
++        }
++
++      gimp_draw_tool_add_strokes (draw_tool,
++                                  &g_array_index (coords, GimpCoords, 0),
++                                  coords->len, NULL, FALSE);
++    }
++
++  if (coords)
++    g_array_free (coords, TRUE);
++
++  g_object_unref (stroke);
+ }
+ 
+ /*  The box the shape fills, from the drag and the modifiers.  */
+@@ -386,41 +475,299 @@ rectangle_stroke (gdouble x1,
+   return stroke;
+ }
+ 
+-static void
+-gimp_shape_tool_create (GimpShapeTool *shape,
+-                        GimpDisplay   *display)
++/*  A closed polygon through n points.  */
++static GimpStroke *
++polygon_stroke (const GimpVector2 *points,
++                gint               n)
+ {
+-  GimpShapeOptions *options      = GIMP_SHAPE_TOOL_GET_OPTIONS (shape);
+-  GimpPathOptions  *path_options = GIMP_PATH_OPTIONS (options);
+-  GimpImage        *image        = gimp_display_get_image (display);
+-  GimpContext      *context      = gimp_get_user_context (image->gimp);
+-  GimpPath         *path;
+-  GimpStroke       *stroke;
+-  GimpVectorLayer  *layer;
+-  const gchar      *name;
++  GimpStroke *stroke;
++  GimpCoords  c = point (points[0].x, points[0].y);
++  gint        i;
++
++  stroke = gimp_bezier_stroke_new_moveto (&c);
++
++  for (i = 1; i < n; i++)
++    {
++      c = point (points[i].x, points[i].y);
++      gimp_bezier_stroke_lineto (stroke, &c);
++    }
++
++  gimp_stroke_close (stroke);
++
++  return stroke;
++}
++
++/*  A regular polygon, or a star, inscribed in the box's ellipse, a point
++ *  up, as Photoshop's Polygon tool draws it.
++ */
++static GimpStroke *
++regular_polygon_stroke (gdouble  x1,
++                        gdouble  y1,
++                        gdouble  x2,
++                        gdouble  y2,
++                        gint     sides,
++                        gboolean star,
++                        gdouble  indent)
++{
++  GimpStroke  *stroke;
++  GimpVector2 *points;
++  gdouble      cx    = (x1 + x2) / 2.0;
++  gdouble      cy    = (y1 + y2) / 2.0;
++  gdouble      rx    = (x2 - x1) / 2.0;
++  gdouble      ry    = (y2 - y1) / 2.0;
++  gint         n     = MAX (sides, 3);
++  gint         steps = star ? n * 2 : n;
++  gint         i;
++
++  points = g_new (GimpVector2, steps);
++
++  for (i = 0; i < steps; i++)
++    {
++      gdouble a = -G_PI / 2.0 + i * 2.0 * G_PI / steps;
++      gdouble f = (star && i % 2) ? 1.0 - indent / 100.0 : 1.0;
++
++      points[i].x = cx + rx * f * cos (a);
++      points[i].y = cy + ry * f * sin (a);
++    }
++
++  stroke = polygon_stroke (points, steps);
++  g_free (points);
++
++  return stroke;
++}
++
++/*  Photoshop-like custom shapes in a unit square, as path data: absolute
++ *  M, L, C and Z only (from gimp-setup's Shape Tool plug-in).  The star
++ *  and the burst are regular stars instead.
++ */
++static const gchar *custom_shapes[] =
++{
++  [GIMP_CUSTOM_SHAPE_HEART] =
++    "M 0.5 0.95 C 0.1 0.66 0 0.42 0 0.27 C 0 0.1 0.13 0 0.28 0 "
++    "C 0.39 0 0.47 0.07 0.5 0.16 C 0.53 0.07 0.61 0 0.72 0 "
++    "C 0.87 0 1 0.1 1 0.27 C 1 0.42 0.9 0.66 0.5 0.95 Z",
++  [GIMP_CUSTOM_SHAPE_STAR]          = NULL,
++  [GIMP_CUSTOM_SHAPE_ARROW] =
++    "M 0 0.32 L 0.58 0.32 L 0.58 0.05 L 1 0.5 L 0.58 0.95 L 0.58 0.68 "
++    "L 0 0.68 Z",
++  [GIMP_CUSTOM_SHAPE_SPEECH_BUBBLE] =
++    "M 0.18 0 L 0.82 0 C 0.92 0 1 0.08 1 0.18 L 1 0.58 "
++    "C 1 0.68 0.92 0.76 0.82 0.76 L 0.42 0.76 L 0.2 1 L 0.25 0.76 "
++    "L 0.18 0.76 C 0.08 0.76 0 0.68 0 0.58 L 0 0.18 "
++    "C 0 0.08 0.08 0 0.18 0 Z",
++  [GIMP_CUSTOM_SHAPE_BURST]         = NULL,
++  [GIMP_CUSTOM_SHAPE_CHECK_MARK] =
++    "M 0 0.55 L 0.14 0.41 L 0.38 0.65 L 0.86 0.08 L 1 0.22 L 0.38 0.94 Z",
++  [GIMP_CUSTOM_SHAPE_LIGHTNING] =
++    "M 0.55 0 L 0.12 0.58 L 0.45 0.58 L 0.32 1 L 0.88 0.36 L 0.52 0.36 "
++    "L 0.7 0 Z",
++  [GIMP_CUSTOM_SHAPE_CROSS] =
++    "M 0.35 0 L 0.65 0 L 0.65 0.35 L 1 0.35 L 1 0.65 L 0.65 0.65 "
++    "L 0.65 1 L 0.35 1 L 0.35 0.65 L 0 0.65 L 0 0.35 L 0.35 0.35 Z",
++};
++
++/*  Unit-square path data, fitted to the box.  */
++static GimpStroke *
++path_data_stroke (const gchar *data,
++                  gdouble      x1,
++                  gdouble      y1,
++                  gdouble      x2,
++                  gdouble      y2)
++{
++  GimpStroke  *stroke = NULL;
++  gchar      **tokens = g_strsplit_set (data, " ", -1);
++  gint         i      = 0;
++
++#define NEXT_POINT(c)                                                    \
++  G_STMT_START {                                                        \
++    gdouble px = g_ascii_strtod (tokens[i++], NULL);                    \
++    gdouble py = g_ascii_strtod (tokens[i++], NULL);                    \
++    c = point (x1 + px * (x2 - x1), y1 + py * (y2 - y1));              \
++  } G_STMT_END
++
++  while (tokens[i])
++    {
++      const gchar *cmd = tokens[i++];
++      GimpCoords   a, b, c;
++
++      if (! *cmd)
++        continue;
++
++      switch (*cmd)
++        {
++        case 'M':
++          NEXT_POINT (a);
++          if (! stroke)
++            stroke = gimp_bezier_stroke_new_moveto (&a);
++          break;
++
++        case 'L':
++          NEXT_POINT (a);
++          gimp_bezier_stroke_lineto (stroke, &a);
++          break;
++
++        case 'C':
++          NEXT_POINT (a);
++          NEXT_POINT (b);
++          NEXT_POINT (c);
++          gimp_bezier_stroke_cubicto (stroke, &a, &b, &c);
++          break;
++
++        case 'Z':
++          gimp_stroke_close (stroke);
++          break;
++        }
++    }
++
++#undef NEXT_POINT
++
++  g_strfreev (tokens);
++
++  return stroke;
++}
++
++/*  A line from the press to the release, weight pixels wide; Shift
++ *  snaps it to 45° steps, as Photoshop's Line tool does.
++ */
++static GimpStroke *
++line_stroke (GimpShapeTool *shape,
++             gdouble        weight)
++{
++  gdouble     dx     = shape->end_x - shape->start_x;
++  gdouble     dy     = shape->end_y - shape->start_y;
++  gdouble     length = sqrt (dx * dx + dy * dy);
++  gdouble     nx, ny;
++  GimpVector2 points[4];
++
++  if (length < 1.0)
++    return NULL;
++
++  if (shape->state & gimp_get_extend_selection_mask ())
++    {
++      gdouble angle = RINT (atan2 (dy, dx) / (G_PI / 4.0)) * (G_PI / 4.0);
++
++      dx = length * cos (angle);
++      dy = length * sin (angle);
++    }
++
++  /*  half the weight on each side of the line  */
++  nx = -dy / length * weight / 2.0;
++  ny =  dx / length * weight / 2.0;
++
++  points[0].x = shape->start_x + nx;      points[0].y = shape->start_y + ny;
++  points[1].x = shape->start_x + dx + nx; points[1].y = shape->start_y + dy + ny;
++  points[2].x = shape->start_x + dx - nx; points[2].y = shape->start_y + dy - ny;
++  points[3].x = shape->start_x - nx;      points[3].y = shape->start_y - ny;
++
++  return polygon_stroke (points, 4);
++}
++
++/*  The stroke of the shape being drawn, NULL while there is nothing to
++ *  draw; name: what the shape is called, for its layer.
++ */
++static GimpStroke *
++gimp_shape_tool_build (GimpShapeTool  *shape,
++                       const gchar   **name)
++{
++  GimpShapeOptions *options = GIMP_SHAPE_TOOL_GET_OPTIONS (shape);
++  GimpShapeType     type    = GIMP_SHAPE_TOOL_GET_CLASS (shape)->shape;
++  const gchar      *label;
+   gdouble           x1, y1, x2, y2;
+ 
++  if (type == GIMP_SHAPE_LINE)
++    {
++      if (name)
++        *name = C_("shape-type", "Line");
++
++      return line_stroke (shape, options->line_weight);
++    }
++
+   gimp_shape_tool_get_box (shape, &x1, &y1, &x2, &y2);
+ 
+   /*  a click without a drag draws nothing  */
+   if (x2 - x1 < 1.0 || y2 - y1 < 1.0)
+-    return;
++    return NULL;
+ 
+-  if (options->shape_type == GIMP_SHAPE_ELLIPSE)
++  switch (type)
+     {
+-      GimpCoords center = point ((x1 + x2) / 2.0, (y1 + y2) / 2.0);
++    case GIMP_SHAPE_ELLIPSE:
++      {
++        GimpCoords center = point ((x1 + x2) / 2.0, (y1 + y2) / 2.0);
+ 
+-      name   = C_("shape-type", "Ellipse");
+-      stroke = gimp_bezier_stroke_new_ellipse (&center,
++        if (name)
++          *name = C_("shape-type", "Ellipse");
++
++        return gimp_bezier_stroke_new_ellipse (&center,
+                                                (x2 - x1) / 2.0,
+                                                (y2 - y1) / 2.0,
+                                                0.0);
++      }
++
++    case GIMP_SHAPE_TRIANGLE:
++      {
++        GimpVector2 points[3] = { { (x1 + x2) / 2.0, y1 },
++                                  { x2, y2 },
++                                  { x1, y2 } };
++
++        if (name)
++          *name = C_("shape-type", "Triangle");
++
++        return polygon_stroke (points, 3);
++      }
++
++    case GIMP_SHAPE_POLYGON:
++      if (name)
++        *name = C_("shape-type", "Polygon");
++
++      return regular_polygon_stroke (x1, y1, x2, y2, options->sides,
++                                     FALSE, 0.0);
++
++    case GIMP_SHAPE_STAR:
++      if (name)
++        *name = C_("shape-type", "Star");
++
++      return regular_polygon_stroke (x1, y1, x2, y2, options->sides,
++                                     TRUE, options->star_indent);
++
++    case GIMP_SHAPE_CUSTOM:
++      gimp_enum_get_value (GIMP_TYPE_CUSTOM_SHAPE, options->custom_shape,
++                           NULL, NULL, &label, NULL);
++      if (name)
++        *name = label;
++
++      if (options->custom_shape == GIMP_CUSTOM_SHAPE_STAR)
++        return regular_polygon_stroke (x1, y1, x2, y2, 5, TRUE, 55.0);
++      if (options->custom_shape == GIMP_CUSTOM_SHAPE_BURST)
++        return regular_polygon_stroke (x1, y1, x2, y2, 16, TRUE, 22.0);
++
++      return path_data_stroke (custom_shapes[options->custom_shape],
++                               x1, y1, x2, y2);
++
++    case GIMP_SHAPE_RECTANGLE:
++    default:
++      if (name)
++        *name = C_("shape-type", "Rectangle");
++
++      return rectangle_stroke (x1, y1, x2, y2, options->corner_radius);
+     }
+-  else
+-    {
+-      name   = C_("shape-type", "Rectangle");
+-      stroke = rectangle_stroke (x1, y1, x2, y2, options->corner_radius);
+-    }
++}
++
++static void
++gimp_shape_tool_create (GimpShapeTool *shape,
++                        GimpDisplay   *display)
++{
++  GimpShapeOptions *options      = GIMP_SHAPE_TOOL_GET_OPTIONS (shape);
++  GimpPathOptions  *path_options = GIMP_PATH_OPTIONS (options);
++  GimpImage        *image        = gimp_display_get_image (display);
++  GimpContext      *context      = gimp_get_user_context (image->gimp);
++  GimpPath         *path;
++  GimpStroke       *stroke;
++  GimpVectorLayer  *layer;
++  const gchar      *name = NULL;
++
++  stroke = gimp_shape_tool_build (shape, &name);
++  if (! stroke)
++    return;
+ 
+   /*  one undo step, as the Paths tool's "Create New Vector Layer"  */
+   gimp_image_undo_group_start (image, GIMP_UNDO_GROUP_DRAWABLE, name);
+diff --git a/app/tools/gimpshapetool.h b/app/tools/gimpshapetool.h
+index 0277df414c..9bcd618a03 100644
+--- a/app/tools/gimpshapetool.h
++++ b/app/tools/gimpshapetool.h
+@@ -21,6 +21,7 @@
+ #pragma once
+ 
+ #include "gimpdrawtool.h"
++#include "gimpshapeoptions.h"
+ 
+ 
+ #define GIMP_TYPE_SHAPE_TOOL            (gimp_shape_tool_get_type ())
+@@ -47,9 +48,14 @@ struct _GimpShapeTool
+   GdkModifierType state;
+ };
+ 
++/*  One tool per shape, as Photoshop's shape tools, grouped in the toolbox;
++ *  each subclass only sets its shape.
++ */
+ struct _GimpShapeToolClass
+ {
+   GimpDrawToolClass parent_class;
++
++  GimpShapeType     shape;
+ };
+ 
+ 

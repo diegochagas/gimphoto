@@ -882,7 +882,8 @@
                         "../patches/0001-Layers-dock-add-the-Layer-Style-fx-button.patch",
                         "../patches/0002-Photoshop-shortcuts-by-default.patch",
                         "../patches/0003-Layers-dock-list-each-layer-s-effects-under-it-with-.patch",
-                        "../patches/0004-Shape-tool-draw-rectangles-and-ellipses-as-vector-la.patch"
+                        "../patches/0004-Shape-tool-draw-rectangles-and-ellipses-as-vector-la.patch",
+                        "../patches/0005-Shape-tools-one-per-shape-grouped-in-the-toolbox-as-.patch"
                     ]
                 }
             ],
@@ -974,6 +975,20 @@
                 "install -Dm 644 icons/256.png ${FLATPAK_DEST}/share/icons/hicolor/256x256/apps/gimp.png",
                 "install -Dm 644 icons/512.png ${FLATPAK_DEST}/share/icons/hicolor/512x512/apps/gimp.png",
                 "install -Dm 644 icon.svg ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/gimp.svg"
+            ]
+        },
+        {
+            "name": "gimphoto-icons",
+            "buildsystem": "simple",
+            "sources": [
+                {
+                    "type": "dir",
+                    "path": "../icons"
+                }
+            ],
+            "build-commands": [
+                "install -Dm 644 -t ${FLATPAK_DEST}/share/gimp/3.0/icons/Default/scalable/apps *.svg",
+                "install -Dm 644 -t ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps *.svg"
             ]
         }
     ]

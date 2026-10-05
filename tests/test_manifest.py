@@ -84,6 +84,21 @@ class TransformTest(unittest.TestCase):
                 f"install -Dm 644 icons/{n}.png ${{FLATPAK_DEST}}/share/icons/hicolor/{n}x{n}/apps/gimp.png", commands
             )
 
+    def test_icons_go_into_gimps_icon_theme(self):
+        module = make_manifest.transform(UPSTREAM, [], icons=True)["modules"][-1]
+        self.assertEqual(module["name"], "gimphoto-icons")
+        self.assertIn(
+            "install -Dm 644 -t ${FLATPAK_DEST}/share/gimp/3.0/icons/Default/scalable/apps *.svg",
+            module["build-commands"],
+        )
+
+    def test_every_icon_has_its_symbolic_variant(self):
+        # GIMP's dark theme asks for <name>-symbolic
+        names = {p.name for p in make_manifest.ICONS.glob("*.svg")}
+        for name in names:
+            if not name.endswith("-symbolic.svg"):
+                self.assertIn(name.replace(".svg", "-symbolic.svg"), names)
+
     def test_branding_and_default_files_exist(self):
         for name in make_manifest.SYSCONF_FILES + ["gimprc"]:
             self.assertTrue((make_manifest.DEFAULTS / name).is_file(), name)
