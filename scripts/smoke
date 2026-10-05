@@ -50,6 +50,18 @@ else
     echo "FAIL plug-in procedures not registered: ${missing:-${procedures[*]}}" >&2
     status=1
 fi
+# Layer Style effects on an opaque layer without alpha (regression test)
+style_report="$(mktemp /tmp/gimphoto-smoke.XXXXXX)"
+flatpak run --env=GIMPHOTO_SMOKE_OUT="$style_report" "$app" -i --batch-interpreter=python-fu-eval \
+    -b "exec(open('$PWD/tests/smoke_layer_style.py').read())" --quit >/dev/null 2>&1 || true
+style_result="$(cat "$style_report")"
+rm -f "$style_report"
+if [[ "$style_result" == ok ]]; then
+    echo "ok   layer style draws outside an opaque layer without alpha"
+else
+    echo "FAIL layer style on a layer without alpha: ${style_result:-did not run}" >&2
+    status=1
+fi
 desktop="$(flatpak run --command=cat "$app" "/app/share/applications/$app.desktop" 2>/dev/null || true)"
 if grep -qx "Name=GIMPhoto" <<<"$desktop"; then
     echo "ok   launcher name: GIMPhoto"

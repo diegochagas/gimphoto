@@ -20,7 +20,7 @@ menu, opening a Photoshop-style Layer Style dialog.
 2. Pick an effect: the Layer Style dialog opens on it, already ticked, and
    previews on the canvas while you change its settings.
 
-![The fx menu](../images/fx-button-menu.png)
+![GIMPhoto with the fx button's menu open](../images/fx-button-in-use.png)
 
 ![The Layer Style dialog opened from the fx menu](../images/fx-button-dialog.png)
 
@@ -54,6 +54,13 @@ with the settings they were made with. OK in the dialog is one undo step.
 **Plug-in** (`plugins/layer-style/`, installed by the build as a system
 plug-in): the Layer Style dialog and its renderer, from gimp-setup; see
 [plugins/README.md](../../plugins/README.md).
+
+## Layers without transparency
+
+A layer from a JPEG or an opaque PNG has no alpha channel, so a drop shadow,
+an outer glow or an outside stroke would have nowhere to paint. Like
+Photoshop, where every layer has transparency, the Layer Style adds an alpha
+channel to the layer first (*Layer → Transparency → Add Alpha Channel*).
 
 ## Limits
 
