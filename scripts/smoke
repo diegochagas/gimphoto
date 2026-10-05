@@ -14,7 +14,7 @@
 #   - GIMPhoto's GEGL operations (gegl/) draw Gradient and Pattern Overlay,
 #     also after saving and reopening an XCF;
 #   - Layer via Copy / Cut (Ctrl+J / Ctrl+Shift+J) work on a selection;
-#   - GIMPhoto's Shape tool is compiled in (drawing with it needs the GUI);
+#   - GIMPhoto's shape tools are compiled in (drawing with it needs the GUI);
 #   - it ships GIMPhoto's Photoshop-style toolbox, layout and settings over
 #     GIMP's system ones, a new profile gets them, and GIMPhoto's splash
 #     screen and icon replace GIMP's;
@@ -118,10 +118,10 @@ else
     echo "FAIL layer via copy / cut: ${via_result:-did not run}" >&2
     status=1
 fi
-if flatpak run --command=sh "$app" -c 'grep -q gimp-shape-tool /app/bin/gimp-3.*' 2>/dev/null; then
-    echo "ok   Shape tool compiled in"
+if flatpak run --command=sh "$app" -c 'grep -q gimp-shape-rectangle-tool /app/bin/gimp-3.*' 2>/dev/null; then
+    echo "ok   shape tools compiled in"
 else
-    echo "FAIL the Shape tool (gimp-shape-tool) is not in GIMP" >&2
+    echo "FAIL the shape tools (gimp-shape-rectangle-tool...) are not in GIMP" >&2
     status=1
 fi
 # Photoshop-style defaults (toolbox, layout, settings) and branding

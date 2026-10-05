@@ -80,7 +80,7 @@
 (action "tools-path" "p")
 (action "tools-pencil" "<Shift>b" "N")
 (action "tools-rect-select" "m" "R")
-(action "tools-shape" "u")
+(action "tools-shape-rectangle" "u")
 (action "tools-smudge")
 (action "tools-text" "t")
 (action "tools-transform-3d")

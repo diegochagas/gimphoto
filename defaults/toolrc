@@ -1,6 +1,6 @@
 # GIMPhoto's default toolbox (toolrc): tools grouped and ordered like
 # Photoshop's toolbar. From PhotoGIMP 3.0 (github.com/Diolinux/PhotoGIMP,
-# GPL-3.0, commit eca3a8f), plus GIMPhoto's Shape tool after Text, as in
+# GPL-3.0, commit eca3a8f), plus GIMPhoto's shape tools, grouped after Text, as in
 # Photoshop's toolbar. GIMP reads it from /app/etc/gimp/3.0
 # when the profile has no toolrc of its own; your changes are saved there.
 (file-version 1)
@@ -157,9 +157,31 @@
 (GimpToolInfo "gimp-text-tool"
     (icon-name "gimp-tool-text")
     (visible yes))
-(GimpToolInfo "gimp-shape-tool"
-    (icon-name "gimp-shape-square")
-    (visible yes))
+(GimpToolGroup "tool group"
+    (visible yes)
+    (active-tool "gimp-shape-rectangle-tool")
+    (children
+        (GimpToolInfo "gimp-shape-rectangle-tool"
+            (icon-name "gimphoto-shape-rectangle")
+            (visible yes))
+        (GimpToolInfo "gimp-shape-ellipse-tool"
+            (icon-name "gimphoto-shape-ellipse")
+            (visible yes))
+        (GimpToolInfo "gimp-shape-triangle-tool"
+            (icon-name "gimphoto-shape-triangle")
+            (visible yes))
+        (GimpToolInfo "gimp-shape-polygon-tool"
+            (icon-name "gimphoto-shape-polygon")
+            (visible yes))
+        (GimpToolInfo "gimp-shape-star-tool"
+            (icon-name "gimphoto-shape-star")
+            (visible yes))
+        (GimpToolInfo "gimp-shape-line-tool"
+            (icon-name "gimphoto-shape-line")
+            (visible yes))
+        (GimpToolInfo "gimp-shape-custom-tool"
+            (icon-name "gimphoto-shape-custom")
+            (visible yes))))
 (GimpToolGroup "tool group"
     (visible yes)
     (active-tool "gimp-color-picker-tool")

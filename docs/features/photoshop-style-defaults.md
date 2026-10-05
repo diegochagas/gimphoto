@@ -38,7 +38,7 @@ From PhotoGIMP 3.0 (commit eca3a8f), credited in each file:
 
 | PhotoGIMP file | In GIMPhoto | Changes |
 |---|---|---|
-| `toolrc`: toolbox order and groups like Photoshop's | `defaults/toolrc` | GIMPhoto's [Shape tool](shape-tool.md) added after Text |
+| `toolrc`: toolbox order and groups like Photoshop's | `defaults/toolrc` | GIMPhoto's [shape tools](shape-tool.md) grouped after Text |
 | `sessionrc`: one window, toolbox on the left, Tool Options + brushes, patterns, fonts and gradients over Layers, Channels and Paths on the right | `defaults/sessionrc` | on GIMP 3.2's own sessionrc; without its window and dialog positions and sizes (made for one monitor); Paths is GIMP 3.2's `gimp-path-list` (PhotoGIMP's `gimp-vectors-list` no longer exists); the window starts maximized |
 | `gimprc`: layer previews extra large, thumbnails large, undo previews medium, 8 undo levels, alpha channel on imported images, dark canvas padding, no layer boundary, snap to canvas, toolbox brush/pattern/gradient area | `defaults/gimprc` | without its monitor resolution, the padding colour's embedded monitor profile, the image view opening fullscreen, and its fill and stroke options |
 | `shortcutsrc` | — | GIMPhoto has its own Photoshop keymap ([#8](photoshop-shortcuts.md)) |
