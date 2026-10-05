@@ -879,7 +879,8 @@
                     "type": "patch",
                     "use-git-am": true,
                     "paths": [
-                        "../patches/0001-Layers-dock-add-the-Layer-Style-fx-button.patch"
+                        "../patches/0001-Layers-dock-add-the-Layer-Style-fx-button.patch",
+                        "../patches/0002-Photoshop-shortcuts-by-default.patch"
                     ]
                 }
             ],
@@ -910,6 +911,19 @@
                 "install -d ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/layer-style",
                 "find layer-style -maxdepth 1 -type f -exec install -m 644 -t ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/layer-style {} +",
                 "chmod 755 ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/layer-style/layer-style.py"
+            ]
+        },
+        {
+            "name": "gimphoto-defaults",
+            "buildsystem": "simple",
+            "sources": [
+                {
+                    "type": "dir",
+                    "path": "../defaults"
+                }
+            ],
+            "build-commands": [
+                "install -Dm 644 -t ${FLATPAK_DEST}/share/gimp/3.0/gimphoto shortcutsrc"
             ]
         }
     ]

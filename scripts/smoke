@@ -6,7 +6,9 @@
 #     official GIMP's ~/.config/GIMP/3.x, so it starts as plain GIMP;
 #   - its launcher is named GIMPhoto;
 #   - the plug-ins it ships (plugins/) are registered, e.g. the Layer Style
-#     procedures the Layers panel's fx button runs.
+#     procedures the Layers panel's fx button runs;
+#   - it ships GIMPhoto's default shortcuts (defaults/shortcutsrc) where its
+#     patched GIMP looks for them.
 # Exit 0 when all hold. Needs a display (or xvfb-run, as in CI).
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -60,6 +62,13 @@ if [[ "$style_result" == ok ]]; then
     echo "ok   layer style draws outside an opaque layer without alpha"
 else
     echo "FAIL layer style on a layer without alpha: ${style_result:-did not run}" >&2
+    status=1
+fi
+installed_keys="$(flatpak run --command=cat "$app" /app/share/gimp/3.0/gimphoto/shortcutsrc 2>/dev/null || true)"
+if [[ -n "$installed_keys" && "$installed_keys" == "$(cat defaults/shortcutsrc)" ]]; then
+    echo "ok   default shortcuts installed: Photoshop's"
+else
+    echo "FAIL /app/share/gimp/3.0/gimphoto/shortcutsrc is missing or not defaults/shortcutsrc" >&2
     status=1
 fi
 desktop="$(flatpak run --command=cat "$app" "/app/share/applications/$app.desktop" 2>/dev/null || true)"

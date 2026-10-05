@@ -16,9 +16,10 @@ it, before/after screenshots, what changed in GIMP's code, limits.
 | Feature | Photoshop equivalent | Where | Docs |
 |---|---|---|---|
 | **Layer Style (fx) button** in the Layers panel, opening a Photoshop-style Layer Style dialog (shadows, glows, stroke, bevel, overlays) | Layers panel › fx | core patch + plug-in | [layer-style-fx-button.md](docs/features/layer-style-fx-button.md) |
+| **Photoshop shortcuts by default**: Ctrl+D deselects, Ctrl+J duplicates the layer, Ctrl+T transforms, V/M/L/W/B/S/E… pick the same tools, Ctrl+Tab switches images | Photoshop's default keyboard shortcuts | core patch + keymap | [photoshop-shortcuts.md](docs/features/photoshop-shortcuts.md) |
 
 Apart from these, GIMPhoto is plain GIMP: its own user profile, GIMP's
-default theme, layout and shortcuts.
+default theme and layout.
 
 ### Layer Style (fx) button
 
@@ -31,6 +32,13 @@ Each entry opens the Layer Style dialog on that effect, previewing live on
 the canvas:
 
 ![The Layer Style dialog](docs/images/fx-button-dialog.png)
+
+### Photoshop shortcuts by default
+
+Menus show Photoshop's shortcuts, and the keys do what they do in
+Photoshop (here Ctrl+J, Ctrl+G, Ctrl+E, Ctrl+] / Ctrl+[):
+
+![GIMPhoto's Layer menu with Photoshop's shortcuts](docs/images/shortcuts-layer-menu.png)
 
 ## Why a patched build?
 
@@ -63,8 +71,8 @@ GIMPhoto's patches ─────┘                                     │
 - **It installs next to the official GIMP**, not over it, with **its own user
   profile** (`~/.var/app/io.github.diegochagas.GIMPhoto/config/GIMP`). Plug-ins,
   themes and shortcuts installed for the official GIMP (`~/.config/GIMP/3.x`)
-  do not apply: GIMPhoto starts as plain GIMP plus its own features, so each
-  feature can be tested on its own. Flathub's GIMP add-ons (G'MIC,
+  do not apply: GIMPhoto starts as plain GIMP plus its own features
+  (Photoshop's shortcuts included), so each feature can be tested on its own. Flathub's GIMP add-ons (G'MIC,
   Resynthesizer), when installed, load in both.
 - **Updating to a new GIMP** is `scripts/sync-flathub`: it pulls Flathub's
   new recipe and checks that every patch still applies; patches that no
@@ -98,7 +106,8 @@ recompile what changed. To remove it, with its profile:
 | `scripts/source` | Checks out GIMP's source with the patches as git commits in `work/gimp`, to write features |
 | `scripts/export-patches` | Turns those commits back into `patches/` |
 | `scripts/sync-flathub` | Updates to Flathub's latest GIMP recipe and checks the patches still apply |
-| `scripts/check` | The gate: lint, unit tests, manifest up to date, patches apply (pre-push hook and CI) |
+| `scripts/check` | The gate: lint, unit tests, manifest and keymap up to date, patches apply (pre-push hook and CI) |
+| `tools/make_keymap.py` | Turns `defaults/photoshop-keymap.tsv` into GIMPhoto's default `shortcutsrc` and the keymap docs table |
 
 ## Contributing
 

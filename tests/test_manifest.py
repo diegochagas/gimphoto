@@ -53,6 +53,21 @@ class TransformTest(unittest.TestCase):
         dest = "${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/layer-style"
         self.assertIn(f"chmod 755 {dest}/layer-style.py", module["build-commands"])
 
+    def test_defaults_module_comes_last_and_installs_into_gimps_data_folder(self):
+        out = make_manifest.transform(UPSTREAM, [], ["layer-style"], defaults=True)
+        self.assertEqual(out["modules"][:-1], make_manifest.transform(UPSTREAM, [], ["layer-style"])["modules"])
+        module = out["modules"][-1]
+        self.assertEqual(module["name"], "gimphoto-defaults")
+        self.assertEqual(module["sources"], [{"type": "dir", "path": "../defaults"}])
+        # gimp_data_directory_file ("gimphoto", "shortcutsrc") in patch 0002
+        self.assertEqual(
+            module["build-commands"], ["install -Dm 644 -t ${FLATPAK_DEST}/share/gimp/3.0/gimphoto shortcutsrc"]
+        )
+
+    def test_every_default_file_exists(self):
+        for name in make_manifest.DEFAULT_FILES:
+            self.assertTrue((make_manifest.DEFAULTS / name).is_file(), name)
+
     def test_every_plugin_folder_has_its_executable(self):
         for name in make_manifest.plugin_names():
             self.assertTrue((ROOT / "plugins" / name / f"{name}.py").is_file(), name)
