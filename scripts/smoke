@@ -2,8 +2,11 @@
 # Smoke test of the installed GIMPhoto build (after scripts/build):
 #   - it starts, headless, and runs a Python plug-in batch command;
 #   - it is the GIMP version Flathub's recipe pins;
-#   - it uses its own user profile (~/.var/app/<app id>/config/GIMP), not the
-#     official GIMP's ~/.config/GIMP/3.x, so it starts as plain GIMP;
+#   - it uses its own user profile (~/.var/app/<app id>/config/GIMPhoto), not
+#     the official GIMP's ~/.config/GIMP/3.x, so it starts as plain GIMP; and
+#     that folder really is the per-app one on the host (Flathub's
+#     xdg-config/GIMP permission mounts the host's ~/.config/GIMP over
+#     ~/.var/app/<app id>/config/GIMP inside the sandbox);
 #   - its launcher is named GIMPhoto and runs a flatpak the host has (the
 #     applications menu hides a launcher whose program does not exist);
 #   - the plug-ins it ships (plugins/) are registered, e.g. the Layer Style
@@ -29,6 +32,7 @@ fi
 
 # -i no UI, -d no data loading; fonts stay on (text layers need them)
 flatpak run "$app" -i -d --batch-interpreter=python-fu-eval \
+    -b "open(Gimp.directory() + '/gimphoto-smoke-marker', 'w').write('x')" \
     -b "open('$report', 'w').write(Gimp.version() + '\n' + Gimp.directory() + '\n' + ' '.join(p for p in '${procedures[*]}'.split() if not Gimp.get_pdb().procedure_exists(p)) + '\n')" \
     --quit >/dev/null 2>&1 || true
 
@@ -41,8 +45,19 @@ else
     echo "FAIL expected GIMP $want, got '${version:-nothing}' (did it start?)" >&2
     status=1
 fi
-if [[ "$profile" == "$HOME/.var/app/$app/config/GIMP" ]]; then
+own_profile="$HOME/.var/app/$app/config/GIMPhoto"
+# a file written to GIMP's profile from inside must show up there on the host
+marker="$own_profile/gimphoto-smoke-marker"
+marker_seen=false
+if [[ -e "$marker" ]]; then
+    marker_seen=true
+    rm -f "$marker"
+fi
+if [[ "$profile" == "$own_profile" && "$marker_seen" == true ]]; then
     echo "ok   own user profile: $profile"
+elif [[ "$profile" == "$own_profile" ]]; then
+    echo "FAIL the profile path is right inside the sandbox, but a file GIMP wrote there is not in $own_profile on the host" >&2
+    status=1
 else
     echo "FAIL expected GIMPhoto's own profile, got '${profile:-nothing}'" >&2
     status=1

@@ -75,8 +75,20 @@ class TransformTest(unittest.TestCase):
     def test_sandbox_is_flathubs_plus_only_the_own_profile(self):
         self.assertEqual(self.out["finish-args"][:-1], UPSTREAM["finish-args"])
         self.assertEqual(
-            self.out["finish-args"][-1], "--env=GIMP3_DIRECTORY=.var/app/io.github.diegochagas.GIMPhoto/config/GIMP"
+            self.out["finish-args"][-1], "--env=GIMP3_DIRECTORY=.var/app/io.github.diegochagas.GIMPhoto/config/GIMPhoto"
         )
+
+    def test_profile_is_not_under_a_mounted_config_folder(self):
+        # Flathub's xdg-config/<dir> permissions mount the host's
+        # ~/.config/<dir> over ~/.var/app/<id>/config/<dir> in the sandbox
+        mounted = [
+            a.split("=", 1)[1].split(":")[0].removeprefix("xdg-config/")
+            for a in UPSTREAM["finish-args"]
+            if a.startswith("--filesystem=xdg-config/")
+        ]
+        self.assertIn("GIMP", mounted)
+        top = make_manifest.PROFILE.removeprefix(f".var/app/{make_manifest.APP_ID}/config/").split("/")[0]
+        self.assertNotIn(top, mounted)
 
     def test_profile_is_relative_to_home_and_per_app(self):
         # GIMP reads a relative GIMP3_DIRECTORY from the home folder; an
