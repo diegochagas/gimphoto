@@ -7,6 +7,11 @@ interface.** It is to GIMP what Linux Mint is to Ubuntu: the same program
 underneath, GIMP 3.2.6, kept up to date with every official GIMP release,
 with its own tools and interface on top for people who know Photoshop.
 
+> **Only want some Photoshop features on the GIMP you already have?** Use
+> [gimp-setup](https://github.com/diegochagas/gimp-setup): it adds them to
+> the official GIMP as plug-ins, shortcuts and a theme, without replacing
+> it.
+
 ![GIMPhoto open: Photoshop-style toolbox and panels, a text layer with a gradient overlay, stroke and drop shadow listed under it, and shapes drawn with the Shape tool](docs/images/gimphoto.png)
 
 The features are tracked as [GitHub issues](../../issues) on the
