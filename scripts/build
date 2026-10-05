@@ -28,8 +28,18 @@ builder=(flatpak run --command=sh org.flatpak.Builder -c
 
 args=(--user --force-clean --ccache --state-dir=.flatpak-builder)
 if [[ "${1:-}" != "--no-install" ]]; then
-    args+=(--install)
+    # Export to a local repo and install with the host's flatpak: installed
+    # by the builder app's own flatpak, the launcher would run
+    # /app/bin/flatpak (the path inside its sandbox), which the host does
+    # not have, and the applications menu would hide GIMPhoto.
+    args+=(--repo=repo)
 fi
 
 git submodule update --init --checkout flatpak/shared-modules
 "${builder[@]}" "${args[@]}" build-dir "$manifest"
+
+if [[ "${1:-}" != "--no-install" ]]; then
+    flatpak --user remote-add --if-not-exists --no-gpg-verify gimphoto-local repo
+    flatpak --user install --reinstall --noninteractive gimphoto-local \
+        io.github.diegochagas.GIMPhoto io.github.diegochagas.GIMPhoto.Debug
+fi

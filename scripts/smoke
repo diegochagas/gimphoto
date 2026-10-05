@@ -4,7 +4,8 @@
 #   - it is the GIMP version Flathub's recipe pins;
 #   - it uses its own user profile (~/.var/app/<app id>/config/GIMP), not the
 #     official GIMP's ~/.config/GIMP/3.x, so it starts as plain GIMP;
-#   - its launcher is named GIMPhoto;
+#   - its launcher is named GIMPhoto and runs a flatpak the host has (the
+#     applications menu hides a launcher whose program does not exist);
 #   - the plug-ins it ships (plugins/) are registered, e.g. the Layer Style
 #     procedures the Layers panel's fx button runs.
 # Exit 0 when all hold. Needs a display (or xvfb-run, as in CI).
@@ -67,6 +68,14 @@ if grep -qx "Name=GIMPhoto" <<<"$desktop"; then
     echo "ok   launcher name: GIMPhoto"
 else
     echo "FAIL launcher is not named GIMPhoto" >&2
+    status=1
+fi
+launcher="$(flatpak info --user --show-location "$app")/export/share/applications/$app.desktop"
+exec_bin="$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$launcher" 2>/dev/null | head -1)"
+if [[ -n "$exec_bin" && -x "$exec_bin" ]]; then
+    echo "ok   launcher runs $exec_bin (shown in the applications menu)"
+else
+    echo "FAIL launcher runs '${exec_bin:-nothing}', which this system does not have: the menu hides it" >&2
     status=1
 fi
 exit $status
