@@ -13,6 +13,9 @@
 #     procedures the Layers panel's fx button runs;
 #   - GIMPhoto's GEGL operations (gegl/) draw Gradient and Pattern Overlay,
 #     also after saving and reopening an XCF;
+#   - PSD keeps text editable both ways: a GIMP text layer with a Layer
+#     Style exported to PSD is a Photoshop Type layer with its effects, and
+#     opens again as an editable text layer with its Layer Style;
 #   - Layer via Copy / Cut (Ctrl+J / Ctrl+Shift+J) work on a selection;
 #   - GIMPhoto's shape tools are compiled in (drawing with it needs the GUI);
 #   - it ships GIMPhoto's Photoshop-style toolbox, layout and settings over
@@ -26,7 +29,7 @@ cd "$(dirname "$0")/.."
 
 app="io.github.diegochagas.GIMPhoto"
 # one procedure per shipped plug-in that a feature depends on
-procedures=(layer-style-dialog layer-style-drop-shadow gimphoto-layer-via-copy gimphoto-layer-via-cut)
+procedures=(layer-style-dialog layer-style-drop-shadow gimphoto-layer-via-copy gimphoto-layer-via-cut file-psd-text-load file-psd-text-export)
 want="$(python3 tools/upstream_info.py gimp-version)"
 report="$(mktemp /tmp/gimphoto-smoke.XXXXXX)"
 trap 'rm -f "$report"' EXIT
@@ -104,6 +107,18 @@ if [[ "$overlays_result" == ok ]]; then
     echo "ok   gradient / pattern overlay (GEGL operations, XCF, Layer Style)"
 else
     echo "FAIL gradient / pattern overlay: ${overlays_result:-did not run}" >&2
+    status=1
+fi
+# PSD with editable text, both ways (GIMPhoto's Node and ag-psd)
+psd_report="$(mktemp /tmp/gimphoto-smoke.XXXXXX)"
+flatpak run --env=GIMPHOTO_SMOKE_OUT="$psd_report" "$app" -i --batch-interpreter=python-fu-eval \
+    -b "exec(open('$PWD/tests/smoke_psd_text.py').read())" --quit >/dev/null 2>&1 || true
+psd_result="$(cat "$psd_report")"
+rm -f "$psd_report"
+if [[ "$psd_result" == ok ]]; then
+    echo "ok   PSD keeps text editable both ways (Type layer + Layer Style)"
+else
+    echo "FAIL PSD with editable text: ${psd_result:-did not run}" >&2
     status=1
 fi
 # Layer via Copy / Cut (Ctrl+J / Ctrl+Shift+J) with and without a selection

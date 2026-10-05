@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Install what scripts/build needs, per user, no sudo: Flathub's
-# flatpak-builder app (the same builder Flathub builds GIMP with) and the
-# GNOME runtime + SDK version Flathub's GIMP recipe asks for.
+# flatpak-builder app (the same builder Flathub builds GIMP with), the
+# GNOME runtime + SDK version Flathub's GIMP recipe asks for, and the SDK
+# extensions GIMPhoto's manifest adds (Node.js for plug-ins with npm
+# packages), at the branch of the SDK's freedesktop base.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -9,3 +11,12 @@ sdk="$(python3 -c 'import json; m = json.load(open("flatpak/upstream/org.gimp.GI
 echo "Installing org.flatpak.Builder, $sdk and its runtime (about 1.5 GB the first time)..."
 flatpak install --user -y --noninteractive flathub org.flatpak.Builder "$sdk" "${sdk/Sdk/Platform}"
 flatpak run --command=flatpak-builder org.flatpak.Builder --version
+
+# the SDK's freedesktop base version (e.g. 26.08), from its GL extension
+base="$(flatpak info --user --show-metadata "$sdk" | sed -n 's/^versions = \([0-9][0-9]\.[0-9][0-9]\);.*/\1/p' | head -n 1)"
+mapfile -t extensions < <(python3 -c 'import json; print("\n".join(json.load(open("flatpak/io.github.diegochagas.GIMPhoto.json")).get("sdk-extensions", [])))')
+for extension in "${extensions[@]}"; do
+    [[ -n "$extension" ]] || continue
+    echo "Installing $extension//$base..."
+    flatpak install --user -y --noninteractive flathub "$extension//$base"
+done

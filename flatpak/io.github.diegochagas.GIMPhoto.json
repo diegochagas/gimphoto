@@ -916,7 +916,50 @@
                 "chmod 755 ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/layer-style/layer-style.py",
                 "install -d ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/layer-via",
                 "find layer-via -maxdepth 1 -type f -exec install -m 644 -t ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/layer-via {} +",
-                "chmod 755 ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/layer-via/layer-via.py"
+                "chmod 755 ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/layer-via/layer-via.py",
+                "install -d ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/psd-text",
+                "find psd-text -maxdepth 1 -type f -exec install -m 644 -t ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/psd-text {} +",
+                "chmod 755 ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/psd-text/psd-text.py"
+            ]
+        },
+        {
+            "name": "gimphoto-node",
+            "buildsystem": "simple",
+            "build-commands": [
+                "install -Dm 755 /usr/lib/sdk/node24/bin/node ${FLATPAK_DEST}/lib/gimphoto/node/bin/node",
+                "install -Dm 644 /usr/lib/sdk/node24/share/licenses/org.freedesktop.Sdk.Extension.node24/node/LICENSE ${FLATPAK_DEST}/lib/gimphoto/node/LICENSE"
+            ]
+        },
+        {
+            "name": "gimphoto-psd-text-npm",
+            "buildsystem": "simple",
+            "sources": [
+                {
+                    "type": "file",
+                    "url": "https://registry.npmjs.org/ag-psd/-/ag-psd-31.0.2.tgz",
+                    "sha512": "e6ce4fbea6e898f20827d6232faae86f3e79ad3e1160f890930c386eb8acc9911be63ce51c1d442a1e3b20983b808163d1152b0f470c81d9ed33dd3ba9a6635c",
+                    "dest-filename": "ag-psd-31.0.2.tgz"
+                },
+                {
+                    "type": "file",
+                    "url": "https://registry.npmjs.org/base64-js/-/base64-js-1.5.1.tgz",
+                    "sha512": "00aa5a6251e7f2de1255b3870b2f9be7e28a82f478bebb03f2f6efadb890269b3b7ca0d3923903af2ea38b4ad42630b49336cd78f2f0cf1abc8b2a68e35a9e58",
+                    "dest-filename": "base64-js-1.5.1.tgz"
+                },
+                {
+                    "type": "file",
+                    "url": "https://registry.npmjs.org/pako/-/pako-2.1.0.tgz",
+                    "sha512": "c3e7ae7e26755ae25880f5db57f3cedcd08c11cdf1ab2964287ce9f1bc69d6e5b8a9a48d41493098b2c473790ab1fcfc96957517c1eddd4d429bef52ae8836ba",
+                    "dest-filename": "pako-2.1.0.tgz"
+                }
+            ],
+            "build-commands": [
+                "mkdir -p ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/psd-text/node_modules/ag-psd",
+                "tar -xzf ag-psd-31.0.2.tgz -C ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/psd-text/node_modules/ag-psd --strip-components=1",
+                "mkdir -p ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/psd-text/node_modules/base64-js",
+                "tar -xzf base64-js-1.5.1.tgz -C ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/psd-text/node_modules/base64-js --strip-components=1",
+                "mkdir -p ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/psd-text/node_modules/pako",
+                "tar -xzf pako-2.1.0.tgz -C ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/psd-text/node_modules/pako --strip-components=1"
             ]
         },
         {
@@ -1007,5 +1050,8 @@
                 "install -Dm 644 Photoshop/gimp.css ${FLATPAK_DEST}/share/gimp/3.0/themes/Photoshop/gimp-light.css"
             ]
         }
+    ],
+    "sdk-extensions": [
+        "org.freedesktop.Sdk.Extension.node24"
     ]
 }

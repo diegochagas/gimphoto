@@ -36,7 +36,8 @@ class TransformTest(unittest.TestCase):
 
     def test_everything_but_the_gimp_module_and_app_id_is_flathubs(self):
         keys = set(UPSTREAM) | set(self.out)
-        for key in keys - {"app-id", "modules", "finish-args"}:
+        # sdk-extensions: Flathub's Node, added for plug-ins with npm packages
+        for key in keys - {"app-id", "modules", "finish-args", "sdk-extensions"}:
             self.assertEqual(self.out.get(key), UPSTREAM.get(key), key)
         for theirs, ours in zip(UPSTREAM["modules"], self.out["modules"]):
             if isinstance(theirs, dict) and theirs.get("name") == "gimp":
@@ -138,6 +139,61 @@ class TransformTest(unittest.TestCase):
     def test_every_default_file_exists(self):
         for name in make_manifest.DEFAULT_FILES:
             self.assertTrue((make_manifest.DEFAULTS / name).is_file(), name)
+
+    def test_node_only_for_plugins_with_a_lockfile(self):
+        self.assertEqual(make_manifest.node_plugins(["layer-style"]), [])
+        self.assertEqual(make_manifest.node_plugins(["layer-style", "psd-text"]), ["psd-text"])
+        out = make_manifest.transform(UPSTREAM, [], ["layer-style"])
+        self.assertNotIn("sdk-extensions", out)
+        self.assertNotIn("gimphoto-node", [m.get("name") for m in out["modules"] if isinstance(m, dict)])
+
+    def test_node_plugins_get_flathubs_node_copied_into_the_app(self):
+        out = make_manifest.transform(UPSTREAM, [], ["psd-text"])
+        self.assertEqual(out["sdk-extensions"], [*UPSTREAM.get("sdk-extensions", []), make_manifest.NODE_EXTENSION])
+        names = [m.get("name") for m in out["modules"] if isinstance(m, dict)]
+        # after the plug-ins, whose folder the npm packages go into
+        self.assertEqual(names[names.index("gimphoto-plug-ins") + 1 :][:2], ["gimphoto-node", "gimphoto-psd-text-npm"])
+        node = next(m for m in out["modules"] if isinstance(m, dict) and m.get("name") == "gimphoto-node")
+        self.assertIn(
+            "install -Dm 755 /usr/lib/sdk/node24/bin/node ${FLATPAK_DEST}/lib/gimphoto/node/bin/node",
+            node["build-commands"],
+        )
+
+    def test_npm_packages_come_from_the_lockfile_checked(self):
+        lock = {
+            "packages": {
+                "": {},
+                "node_modules/pako": {
+                    "version": "2.1.0",
+                    "resolved": "https://registry.npmjs.org/pako/-/pako-2.1.0.tgz",
+                    "integrity": "sha512-AAEC",
+                },
+                "node_modules/a/node_modules/b": {"version": "1", "resolved": "x", "integrity": "sha512-AA=="},
+            }
+        }
+        module = make_manifest.npm_module("psd-text", lock)
+        self.assertEqual(
+            module["sources"],
+            [
+                {
+                    "type": "file",
+                    "url": "https://registry.npmjs.org/pako/-/pako-2.1.0.tgz",
+                    "sha512": "000102",
+                    "dest-filename": "pako-2.1.0.tgz",
+                }
+            ],
+        )
+        dest = "${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/psd-text/node_modules/pako"
+        self.assertEqual(
+            module["build-commands"], [f"mkdir -p {dest}", f"tar -xzf pako-2.1.0.tgz -C {dest} --strip-components=1"]
+        )
+
+    def test_psd_text_lockfile_is_fully_pinned(self):
+        lock = json.loads((ROOT / "plugins" / "psd-text" / "package-lock.json").read_text())
+        packages = [k for k in lock["packages"] if k.startswith("node_modules/")]
+        self.assertIn("node_modules/ag-psd", packages)
+        for path in packages:
+            self.assertTrue(lock["packages"][path]["integrity"].startswith("sha512-"), path)
 
     def test_every_plugin_folder_has_its_executable(self):
         for name in make_manifest.plugin_names():

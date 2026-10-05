@@ -13,6 +13,7 @@ Each folder is one plug-in; GIMP runs the file named after the folder
 |---|---|---|
 | `layer-style/` | The Layers panel's **fx** button ([docs](../docs/features/layer-style-fx-button.md)); also *Layer > Layer Style* | gimp-setup's [Layer Style](https://github.com/diegochagas/gimp-setup/blob/main/docs/LAYER_STYLE.md) plug-in |
 | `layer-via/` | Layer via Copy / Cut on Ctrl+J / Ctrl+Shift+J ([docs](../docs/features/layer-via-copy-cut.md)) | GIMPhoto |
+| `psd-text/` | PSD with editable text and Layer Styles, open and export ([docs](../docs/features/psd-editable-text.md)) | gimp-setup's [PSD with editable text](https://github.com/diegochagas/gimp-setup/blob/main/docs/PSD_TEXT.md) |
 
 ## layer-style
 
@@ -39,3 +40,26 @@ then changed here:
   (an unused import, a long line and two one-letter names fixed).
 
 Fixes that apply to both copies should be made in both.
+
+## psd-text
+
+Copied from gimp-setup (`assets/plug-ins/psd-text`, after commit 71868f8),
+then changed here:
+
+- Node.js: GIMPhoto's own (`/app/lib/gimphoto/node/bin/node`, from
+  Flathub's Node SDK extension) after `PSD_TEXT_NODE`, then `node` on PATH;
+  gimp-setup's `~/.config/PhotoGIMP/node-path` and nvm lookups removed.
+  ag-psd is installed by the build (`gimphoto-psd-text-npm`), not by npm at
+  install time.
+- Layer Styles through GIMPhoto's own engine, imported from
+  `plug-ins/layer-style` instead of a copy next to the plug-in; the
+  Gradient Overlay's style (linear, radial, angle, reflected, diamond) read
+  from and written to the PSD.
+- The text-language setting is `psd-text-language` in the GIMP profile
+  instead of `~/.config/PhotoGIMP/`.
+- Lint-clean for this repo's `scripts/check` (one-letter names renamed,
+  long lines wrapped, a lambda made a function).
+
+Its `psd_text_gimp.py`, `psd_text_fonts.py` and the `.mjs` scripts come from
+comic-skills' `psd-xcf-convert` (see gimp-setup's
+`assets/plug-ins/psd-text/PATCHES.md`).
