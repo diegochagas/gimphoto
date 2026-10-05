@@ -36,7 +36,7 @@ class TransformTest(unittest.TestCase):
 
     def test_everything_but_the_gimp_module_and_app_id_is_flathubs(self):
         keys = set(UPSTREAM) | set(self.out)
-        for key in keys - {"app-id", "modules"}:
+        for key in keys - {"app-id", "modules", "finish-args"}:
             self.assertEqual(self.out.get(key), UPSTREAM.get(key), key)
         for theirs, ours in zip(UPSTREAM["modules"], self.out["modules"]):
             if isinstance(theirs, dict) and theirs.get("name") == "gimp":
@@ -44,8 +44,17 @@ class TransformTest(unittest.TestCase):
             self.assertEqual(ours, theirs)
         self.assertEqual(len(self.out["modules"]), len(UPSTREAM["modules"]))
 
-    def test_sandbox_permissions_are_flathubs(self):
-        self.assertEqual(self.out["finish-args"], UPSTREAM["finish-args"])
+    def test_sandbox_is_flathubs_plus_only_the_own_profile(self):
+        self.assertEqual(self.out["finish-args"][:-1], UPSTREAM["finish-args"])
+        self.assertEqual(
+            self.out["finish-args"][-1], "--env=GIMP3_DIRECTORY=.var/app/io.github.diegochagas.GIMPhoto/config/GIMP"
+        )
+
+    def test_profile_is_relative_to_home_and_per_app(self):
+        # GIMP reads a relative GIMP3_DIRECTORY from the home folder; an
+        # absolute one would carry one machine's home path into the build
+        self.assertFalse(make_manifest.PROFILE.startswith("/"))
+        self.assertIn(make_manifest.APP_ID, make_manifest.PROFILE)
 
     def test_gimp_source_is_flathubs_pinned_commit(self):
         ours = next(s for s in gimp(self.out)["sources"] if s.get("type") == "git")

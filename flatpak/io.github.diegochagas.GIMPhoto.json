@@ -35,7 +35,8 @@
         "--talk-name=org.freedesktop.FileManager1",
         "--talk-name=org.gnome.Shell.Screenshot",
         "--talk-name=org.kde.kwin.Screenshot",
-        "--talk-name=com.canonical.AppMenu.Registrar"
+        "--talk-name=com.canonical.AppMenu.Registrar",
+        "--env=GIMP3_DIRECTORY=.var/app/io.github.diegochagas.GIMPhoto/config/GIMP"
     ],
     "tags": [
         "GTK+3",

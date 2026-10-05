@@ -14,6 +14,7 @@ Output: flatpak/io.github.diegochagas.GIMPhoto.json, committed so every
 What changes against Flathub's recipe, and nothing else:
   - the app ID and the launcher name, so GIMPhoto installs next to the
     official GIMP instead of replacing it;
+  - its own user profile (GIMP3_DIRECTORY), apart from the official GIMP's;
   - Flathub's own GIMP patch is read from flatpak/upstream/patches/;
   - GIMPhoto's patches are applied to GIMP's source after Flathub's.
 The GIMP version, every library, the build options and the sandbox
@@ -30,6 +31,12 @@ UPSTREAM = ROOT / "flatpak" / "upstream" / "org.gimp.GIMP.json"
 SERIES = ROOT / "patches" / "series"
 APP_ID = "io.github.diegochagas.GIMPhoto"
 APP_NAME = "GIMPhoto"
+# GIMPhoto's own user profile, relative to the home folder (GIMP reads a
+# relative GIMP3_DIRECTORY that way). Without it GIMP, inside any Flatpak,
+# uses the host's ~/.config/GIMP/3.x, the official GIMP's profile with all
+# its plug-ins, theme and shortcuts: GIMPhoto starts as plain GIMP instead,
+# in Flatpak's per-app folder (removed by `flatpak uninstall --delete-data`).
+PROFILE = f".var/app/{APP_ID}/config/GIMP"
 OUTPUT = ROOT / "flatpak" / f"{APP_ID}.json"
 
 
@@ -50,6 +57,7 @@ def read_series():
 def transform(manifest, series):
     m = copy.deepcopy(manifest)
     m["app-id"] = APP_ID
+    m["finish-args"] = [*m["finish-args"], f"--env=GIMP3_DIRECTORY={PROFILE}"]
     # Flathub renames the desktop file, icon and AppStream file to the app
     # ID; flatpak-builder does the same with ours.
     gimp = next((mod for mod in m["modules"] if isinstance(mod, dict) and mod.get("name") == "gimp"), None)

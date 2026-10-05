@@ -37,15 +37,17 @@ GIMPhoto's patches ─────┘                                     │
 - **The base is Flathub's recipe** for the official GIMP Flatpak, vendored
   in `flatpak/upstream/`: same GIMP version, same libraries, same build
   options and sandbox. GIMPhoto's generated manifest differs only in its app
-  ID (`io.github.diegochagas.GIMPhoto`), its launcher name and the patches
-  it applies.
+  ID (`io.github.diegochagas.GIMPhoto`), its launcher name, its own user
+  profile and the patches it applies.
 - **GIMPhoto's changes are a patch series** in `patches/`, applied to GIMP's
   source after Flathub's own patch. One patch = one feature = one pull
   request.
-- **It installs next to the official GIMP**, not over it, and uses the same
-  user profile (`~/.config/GIMP/3.x`): your plug-ins, brushes, theme and
-  shortcuts work in both. Flathub's GIMP add-ons (G'MIC, Resynthesizer)
-  load in GIMPhoto as well.
+- **It installs next to the official GIMP**, not over it, with **its own user
+  profile** (`~/.var/app/io.github.diegochagas.GIMPhoto/config/GIMP`). Plug-ins,
+  themes and shortcuts installed for the official GIMP (`~/.config/GIMP/3.x`)
+  do not apply: GIMPhoto starts as plain GIMP plus its own features, so each
+  feature can be tested on its own. Flathub's GIMP add-ons (G'MIC,
+  Resynthesizer), when installed, load in both.
 - **Updating to a new GIMP** is `scripts/sync-flathub`: it pulls Flathub's
   new recipe and checks that every patch still applies; patches that no
   longer do are adapted in a normal git checkout (see
@@ -65,8 +67,8 @@ flatpak run io.github.diegochagas.GIMPhoto
 ```
 
 GIMPhoto then also appears in the applications menu. Later builds only
-recompile what changed. To remove it:
-`flatpak uninstall --user io.github.diegochagas.GIMPhoto`.
+recompile what changed. To remove it, with its profile:
+`flatpak uninstall --user --delete-data io.github.diegochagas.GIMPhoto`.
 
 ## Scripts
 
@@ -74,7 +76,7 @@ recompile what changed. To remove it:
 |---|---|
 | `scripts/bootstrap-tools` | Installs Flathub's builder app and the SDK the recipe needs (per user) |
 | `scripts/build` | Builds and installs GIMPhoto (`--no-install`: only build) |
-| `scripts/smoke` | Checks the installed build: starts, GIMP version, user profile, launcher name |
+| `scripts/smoke` | Checks the installed build: starts, GIMP version, its own user profile, launcher name |
 | `scripts/source` | Checks out GIMP's source with the patches as git commits in `work/gimp`, to write features |
 | `scripts/export-patches` | Turns those commits back into `patches/` |
 | `scripts/sync-flathub` | Updates to Flathub's latest GIMP recipe and checks the patches still apply |

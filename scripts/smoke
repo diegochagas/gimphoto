@@ -2,8 +2,8 @@
 # Smoke test of the installed GIMPhoto build (after scripts/build):
 #   - it starts, headless, and runs a Python plug-in batch command;
 #   - it is the GIMP version Flathub's recipe pins;
-#   - it uses the normal GIMP 3 user profile (~/.config/GIMP/3.x), so plug-ins,
-#     themes and shortcuts installed for GIMP (e.g. by gimp-setup) apply;
+#   - it uses its own user profile (~/.var/app/<app id>/config/GIMP), not the
+#     official GIMP's ~/.config/GIMP/3.x, so it starts as plain GIMP;
 #   - its launcher is named GIMPhoto.
 # Exit 0 when all hold. Needs a display (or xvfb-run, as in CI).
 set -euo pipefail
@@ -33,10 +33,10 @@ else
     echo "FAIL expected GIMP $want, got '${version:-nothing}' (did it start?)" >&2
     status=1
 fi
-if [[ "$profile" =~ /GIMP/3\.[0-9]+$ ]]; then
-    echo "ok   user profile: $profile"
+if [[ "$profile" == "$HOME/.var/app/$app/config/GIMP" ]]; then
+    echo "ok   own user profile: $profile"
 else
-    echo "FAIL unexpected user profile '${profile:-nothing}'" >&2
+    echo "FAIL expected GIMPhoto's own profile, got '${profile:-nothing}'" >&2
     status=1
 fi
 desktop="$(flatpak run --command=cat "$app" "/app/share/applications/$app.desktop" 2>/dev/null || true)"
