@@ -1,7 +1,7 @@
 # Layer effects listed under each layer
 
 **Issue:** [#6](https://github.com/diegochagas/gimphoto/issues/6) ·
-**Patch:** [`patches/0002-Layers-dock-list-each-layer-s-effects-under-it-with-.patch`](../../patches/0002-Layers-dock-list-each-layer-s-effects-under-it-with-.patch)
+**Patch:** [`patches/0003-Layers-dock-list-each-layer-s-effects-under-it-with-.patch`](../../patches/0003-Layers-dock-list-each-layer-s-effects-under-it-with-.patch)
 
 Like Photoshop's Layers panel, a layer with effects shows them **in the
 Layers list itself**, each with its own eye. GIMP only shows an fx mark
@@ -39,7 +39,7 @@ filters (a centered stroke). Other filters follow, in GIMP's order.
 
 ## What changed
 
-**GIMP's code** (`patches/0002-…`):
+**GIMP's code** (`patches/0003-…`):
 
 - `app/widgets/gimpdrawabletreeview.c`: the effect rows. Each one stores
   its layer's own view renderer, so all the code that reads a row as "a

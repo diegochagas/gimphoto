@@ -1,13 +1,12 @@
 # GIMPhoto
 
-**A GIMP edition with Photoshop-style tools and interface**, built from
-GIMP's own source with a small series of changes on top, one feature at a
-time, and kept up to date with each official GIMP release.
+**GIMPhoto is a fork of GIMP focused on Photoshop-style tools and
+interface.** It is to GIMP what Linux Mint is to Ubuntu: the same program
+underneath, GIMP 3.2.6, kept up to date with every official GIMP release,
+with its own tools and interface on top for people who know Photoshop.
 
-> **Status: early.** GIMPhoto is GIMP 3.2.6 plus the features below, added
-> one at a time. Planned features are tracked as
-> [GitHub issues](../../issues) on the
-> [project board](https://github.com/users/diegochagas/projects/1).
+The features are tracked as [GitHub issues](../../issues) on the
+[project board](https://github.com/users/diegochagas/projects/1).
 
 ## Features
 
@@ -18,13 +17,29 @@ it, before/after screenshots, what changed in GIMP's code, limits.
 |---|---|---|---|
 | **Layer Style (fx) button** in the Layers panel, opening a Photoshop-style Layer Style dialog (shadows, glows, stroke, bevel, overlays) | Layers panel › fx | core patch + plug-in | [layer-style-fx-button.md](docs/features/layer-style-fx-button.md) |
 | **Layer effects listed under each layer** in the Layers panel, collapsible, with an eye per effect and one for all | Layers panel › layer › Effects | core patch | [layer-effects-rows.md](docs/features/layer-effects-rows.md) |
+| **Photoshop shortcuts by default**: Ctrl+D deselects, Ctrl+J duplicates the layer, Ctrl+T transforms, V/M/L/W/B/S/E… pick the same tools, Ctrl+Tab switches images | Photoshop's default keyboard shortcuts | core patch + keymap | [photoshop-shortcuts.md](docs/features/photoshop-shortcuts.md) |
 
 Apart from these, GIMPhoto is plain GIMP: its own user profile, GIMP's
-default theme, layout and shortcuts.
+default theme and layout.
 
 ### Layer Style (fx) button
 
-![The fx button's menu in GIMPhoto's Layers panel](docs/images/fx-button-menu.png)
+The **fx** button at the bottom of the Layers panel, with its menu open, on a
+text layer with a stroke and a drop shadow:
+
+![GIMPhoto with the fx button's menu open in the Layers panel](docs/images/fx-button-in-use.png)
+
+Each entry opens the Layer Style dialog on that effect, previewing live on
+the canvas:
+
+![The Layer Style dialog](docs/images/fx-button-dialog.png)
+
+### Photoshop shortcuts by default
+
+Menus show Photoshop's shortcuts, and the keys do what they do in
+Photoshop (here Ctrl+J, Ctrl+G, Ctrl+E, Ctrl+] / Ctrl+[):
+
+![GIMPhoto's Layer menu with Photoshop's shortcuts](docs/images/shortcuts-layer-menu.png)
 
 ### Layer effects in the Layers list
 
@@ -63,8 +78,8 @@ GIMPhoto's patches ─────┘                                     │
 - **It installs next to the official GIMP**, not over it, with **its own user
   profile** (`~/.var/app/io.github.diegochagas.GIMPhoto/config/GIMP`). Plug-ins,
   themes and shortcuts installed for the official GIMP (`~/.config/GIMP/3.x`)
-  do not apply: GIMPhoto starts as plain GIMP plus its own features, so each
-  feature can be tested on its own. Flathub's GIMP add-ons (G'MIC,
+  do not apply: GIMPhoto starts as plain GIMP plus its own features
+  (Photoshop's shortcuts included), so each feature can be tested on its own. Flathub's GIMP add-ons (G'MIC,
   Resynthesizer), when installed, load in both.
 - **Updating to a new GIMP** is `scripts/sync-flathub`: it pulls Flathub's
   new recipe and checks that every patch still applies; patches that no
@@ -98,7 +113,8 @@ recompile what changed. To remove it, with its profile:
 | `scripts/source` | Checks out GIMP's source with the patches as git commits in `work/gimp`, to write features |
 | `scripts/export-patches` | Turns those commits back into `patches/` |
 | `scripts/sync-flathub` | Updates to Flathub's latest GIMP recipe and checks the patches still apply |
-| `scripts/check` | The gate: lint, unit tests, manifest up to date, patches apply (pre-push hook and CI) |
+| `scripts/check` | The gate: lint, unit tests, manifest and keymap up to date, patches apply (pre-push hook and CI) |
+| `tools/make_keymap.py` | Turns `defaults/photoshop-keymap.tsv` into GIMPhoto's default `shortcutsrc` and the keymap docs table |
 
 ## Contributing
 

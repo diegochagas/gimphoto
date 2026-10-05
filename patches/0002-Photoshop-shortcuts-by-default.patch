@@ -1,0 +1,61 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Diego Chagas <drochachagas@gmail.com>
+Date: Mon, 5 Oct 2026 10:45:16 -0300
+Subject: [PATCH] Photoshop shortcuts by default
+
+A profile without a shortcutsrc of its own (a new one, or after Reset
+Keyboard Shortcuts) loads GIMPhoto's default one, Photoshop's shortcuts,
+from the data folder (gimphoto/shortcutsrc). Ctrl+Tab and Ctrl+Shift+Tab
+on the canvas switch images, as in Photoshop, instead of opening the
+layer picker.
+
+diff --git a/app/display/gimpdisplayshell-tool-events.c b/app/display/gimpdisplayshell-tool-events.c
+index ee4a3ed376..2129f1672b 100644
+--- a/app/display/gimpdisplayshell-tool-events.c
++++ b/app/display/gimpdisplayshell-tool-events.c
+@@ -2186,17 +2186,20 @@ gimp_display_shell_tab_pressed (GimpDisplayShell  *shell,
+   GimpUIManager *manager = menus_get_image_manager_singleton (shell->display->gimp);
+   GimpImage     *image   = gimp_display_get_image (shell->display);
+ 
++  /*  GIMPhoto: Ctrl+Tab switches images, as in Photoshop, instead of
++   *  opening GIMP's layer picker
++   */
+   if (kevent->state & GDK_CONTROL_MASK)
+     {
+-      if (image && ! gimp_image_is_empty (image))
++      if (image)
+         {
+           if (kevent->keyval == GDK_KEY_Tab ||
+               kevent->keyval == GDK_KEY_KP_Tab)
+-            gimp_display_shell_layer_select_init (shell, (GdkEvent *) kevent,
+-                                                  1);
++            gimp_ui_manager_activate_action (manager, "windows",
++                                             "windows-show-display-next");
+           else
+-            gimp_display_shell_layer_select_init (shell, (GdkEvent *) kevent,
+-                                                  -1);
++            gimp_ui_manager_activate_action (manager, "windows",
++                                             "windows-show-display-previous");
+ 
+           return TRUE;
+         }
+diff --git a/app/menus/menus.c b/app/menus/menus.c
+index 5f727618df..601bfa909d 100644
+--- a/app/menus/menus.c
++++ b/app/menus/menus.c
+@@ -437,6 +437,15 @@ menus_restore (Gimp *gimp)
+ 
+   file = gimp_directory_file ("shortcutsrc", NULL);
+ 
++  /*  GIMPhoto: a profile without shortcuts of its own (a new one, or
++   *  after "Reset Keyboard Shortcuts") starts with GIMPhoto's, Photoshop's
++   */
++  if (! g_file_query_exists (file, NULL))
++    {
++      g_object_unref (file);
++      file = gimp_data_directory_file ("gimphoto", "shortcutsrc", NULL);
++    }
++
+   if (gimp->be_verbose)
+     g_print ("Parsing '%s'\n", gimp_file_get_utf8_name (file));
+ 
