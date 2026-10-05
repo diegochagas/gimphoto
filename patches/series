@@ -1,2 +1,3 @@
 # GIMPhoto patch series: applied to GIMP's source in this order, after
 # Flathub's own patch. One feature per patch, made with scripts/export-patches.
+0001-Layers-dock-add-the-Layer-Style-fx-button.patch

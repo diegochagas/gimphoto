@@ -874,6 +874,13 @@
                     "paths": [
                         "upstream/patches/gimp-extension-path.patch"
                     ]
+                },
+                {
+                    "type": "patch",
+                    "use-git-am": true,
+                    "paths": [
+                        "../patches/0001-Layers-dock-add-the-Layer-Style-fx-button.patch"
+                    ]
                 }
             ],
             "buildsystem": "meson",
@@ -888,6 +895,21 @@
                 "install -d ${FLATPAK_DEST}/extensions/plug-ins",
                 "for gimp_api_version in ${FLATPAK_DEST}/share/gimp/*; do install -d $gimp_api_version/help; done",
                 "desktop-file-edit --set-name=GIMPhoto ${FLATPAK_DEST}/share/applications/gimp.desktop"
+            ]
+        },
+        {
+            "name": "gimphoto-plug-ins",
+            "buildsystem": "simple",
+            "sources": [
+                {
+                    "type": "dir",
+                    "path": "../plugins"
+                }
+            ],
+            "build-commands": [
+                "install -d ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/layer-style",
+                "find layer-style -maxdepth 1 -type f -exec install -m 644 -t ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/layer-style {} +",
+                "chmod 755 ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/layer-style/layer-style.py"
             ]
         }
     ]

@@ -55,7 +55,20 @@ scripts/check
 - `scripts/source` refuses to throw away work that was not exported yet;
   `--force` overrides that.
 
-## 4. Open the pull request
+## 4. Document it
+
+Every modification GIMPhoto makes to GIMP is documented, with screenshots
+of it in use:
+
+- **`docs/features/<feature>.md`**: what it does (as in Photoshop), how to
+  use it, before/after screenshots, what changed in GIMP's code (files,
+  functions) and in `plugins/`, limits, and how to test it.
+- **The feature table in `README.md`**: one row linking to that page, plus
+  one screenshot under it.
+- Screenshots go in `docs/images/`, taken from GIMPhoto built with the PR,
+  using neutral images you are allowed to publish (no copyrighted art).
+
+## 5. Open the pull request
 
 - One feature per PR: the patch, `patches/series`, the regenerated
   `flatpak/io.github.diegochagas.GIMPhoto.json`, and any docs.

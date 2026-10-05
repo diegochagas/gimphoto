@@ -4,6 +4,10 @@
 ## Where it lives
 <!-- core patch (patches/NNNN-*.patch) | plug-in | build/tooling | docs -->
 
+## Documentation
+- [ ] `docs/features/<feature>.md` (what, how to use, before/after screenshots, code changes, limits)
+- [ ] Row + screenshot in the README's feature table
+
 ## Evidence
 - [ ] `scripts/check` passes
 - [ ] `scripts/build` + `scripts/smoke` pass with this change
