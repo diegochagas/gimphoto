@@ -1,6 +1,7 @@
 # GIMPhoto's default toolbox (toolrc): tools grouped and ordered like
 # Photoshop's toolbar. From PhotoGIMP 3.0 (github.com/Diolinux/PhotoGIMP,
-# GPL-3.0, commit eca3a8f), unchanged. GIMP reads it from /app/etc/gimp/3.0
+# GPL-3.0, commit eca3a8f), plus GIMPhoto's Shape tool after Text, as in
+# Photoshop's toolbar. GIMP reads it from /app/etc/gimp/3.0
 # when the profile has no toolrc of its own; your changes are saved there.
 (file-version 1)
 
@@ -155,6 +156,9 @@
     (visible yes))
 (GimpToolInfo "gimp-text-tool"
     (icon-name "gimp-tool-text")
+    (visible yes))
+(GimpToolInfo "gimp-shape-tool"
+    (icon-name "gimp-shape-square")
     (visible yes))
 (GimpToolGroup "tool group"
     (visible yes)
