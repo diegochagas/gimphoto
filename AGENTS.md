@@ -7,6 +7,12 @@ by hand) + a patch series (`patches/`) + a generator
 
 ## Ground rules
 
+- **Issues:** every new issue is assigned to the maintainer (`gh issue create
+  --assignee diegochagas`) and added to the
+  [project board](https://github.com/users/diegochagas/projects/1). A pull
+  request closes its issue (`Closes #N`); a feature split over several pull
+  requests gets a parent issue with one sub-issue per pull request.
+
 - **One feature per patch, one patch per PR**, linked to its GitHub issue.
   Patches are made in `work/gimp` (`scripts/source`) as one commit each and
   exported with `scripts/export-patches`; never edit `patches/*.patch` by hand.
