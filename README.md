@@ -76,7 +76,7 @@ GIMPhoto's patches ─────┘                                     │
   source after Flathub's own patch. One patch = one feature = one pull
   request.
 - **It installs next to the official GIMP**, not over it, with **its own user
-  profile** (`~/.var/app/io.github.diegochagas.GIMPhoto/config/GIMP`). Plug-ins,
+  profile** (`~/.var/app/io.github.diegochagas.GIMPhoto/config/GIMPhoto`). Plug-ins,
   themes and shortcuts installed for the official GIMP (`~/.config/GIMP/3.x`)
   do not apply: GIMPhoto starts as plain GIMP plus its own features
   (Photoshop's shortcuts included), so each feature can be tested on its own. Flathub's GIMP add-ons (G'MIC,

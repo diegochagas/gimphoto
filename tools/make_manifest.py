@@ -44,7 +44,10 @@ APP_NAME = "GIMPhoto"
 # uses the host's ~/.config/GIMP/3.x, the official GIMP's profile with all
 # its plug-ins, theme and shortcuts: GIMPhoto starts as plain GIMP instead,
 # in Flatpak's per-app folder (removed by `flatpak uninstall --delete-data`).
-PROFILE = f".var/app/{APP_ID}/config/GIMP"
+# Not config/GIMP: Flathub's xdg-config/GIMP permission mounts the host's
+# ~/.config/GIMP there inside the sandbox, so that "own" profile would be
+# the host's ~/.config/GIMP, next to the official GIMP's.
+PROFILE = f".var/app/{APP_ID}/config/GIMPhoto"
 OUTPUT = ROOT / "flatpak" / f"{APP_ID}.json"
 
 
