@@ -17,6 +17,7 @@ it, before/after screenshots, what changed in GIMP's code, limits.
 |---|---|---|---|
 | **Layer Style (fx) button** in the Layers panel, opening a Photoshop-style Layer Style dialog (shadows, glows, stroke, bevel, overlays) | Layers panel › fx | core patch + plug-in | [layer-style-fx-button.md](docs/features/layer-style-fx-button.md) |
 | **Layer effects listed under each layer** in the Layers panel, collapsible, with an eye per effect and one for all | Layers panel › layer › Effects | core patch | [layer-effects-rows.md](docs/features/layer-effects-rows.md) |
+| **Gradient Overlay and Pattern Overlay** in the Layer Style dialog: Photoshop's gradient styles, GIMP's patterns, live preview, saved in the XCF | Layer Style › Gradient / Pattern Overlay | GEGL operations + plug-in | [gradient-pattern-overlay.md](docs/features/gradient-pattern-overlay.md) |
 | **Photoshop shortcuts by default**: Ctrl+D deselects, Ctrl+J / Ctrl+Shift+J make a layer via copy / cut, Ctrl+T transforms, V/M/L/W/B/S/E… pick the same tools, Ctrl+Tab switches images | Photoshop's default keyboard shortcuts | core patch + keymap | [photoshop-shortcuts.md](docs/features/photoshop-shortcuts.md) |
 | **Layer via Copy / Layer via Cut** (Ctrl+J / Ctrl+Shift+J): a new layer from the selected area, in place; Cut also removes it from the original | Layer › New › Layer via Copy / Cut | plug-in + keymap | [layer-via-copy-cut.md](docs/features/layer-via-copy-cut.md) |
 
@@ -34,6 +35,13 @@ Each entry opens the Layer Style dialog on that effect, previewing live on
 the canvas:
 
 ![The Layer Style dialog](docs/images/fx-button-dialog.png)
+
+### Gradient and Pattern Overlay
+
+Drawn by GIMPhoto's own GEGL operations, like any other layer effect: here
+a radial Gradient Overlay, previewing live:
+
+![A radial Gradient Overlay on a text layer](docs/images/gradient-overlay.png)
 
 ### Photoshop shortcuts by default
 

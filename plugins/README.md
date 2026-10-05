@@ -20,9 +20,16 @@ Copied from gimp-setup (`assets/plug-ins/layer-style`, commit 8287f63),
 then changed here:
 
 - effects whose GEGL operations this GIMP does not have are shown greyed
-  out, with what they need, instead of doing nothing. Gradient Overlay and
-  Pattern Overlay use `lb:effects`, from LinuxBeaver's GEGL plug-ins, which a
-  plain GIMP does not ship.
+  out, with what they need, instead of doing nothing.
+
+- Gradient Overlay and Pattern Overlay are drawn by GIMPhoto's own GEGL
+  operations, `gimphoto:gradient-overlay` and `gimphoto:pattern-overlay`
+  (`gegl/`), instead of `lb:effects` from LinuxBeaver's GEGL plug-ins, which
+  GIMP does not ship. Gradient Overlay gains Photoshop's styles (Linear,
+  Radial, Angle, Reflected, Diamond); Pattern Overlay takes a GIMP pattern
+  (exported once to the profile's `gimphoto-patterns/`) or an image file,
+  and a scale. Pattern, Gradient and Color Overlay stack as in Photoshop
+  (Color on top). gimp-setup's copy keeps `lb:effects`.
 
 - effects are added with the selection set aside (and put back): GIMP
   crops a filter to the selection there is when it is added, so with a

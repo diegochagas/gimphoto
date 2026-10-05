@@ -66,9 +66,8 @@ channel to the layer first (*Layer → Transparency → Add Alpha Channel*).
 
 ## Limits
 
-- **Gradient Overlay and Pattern Overlay** are drawn by `lb:effects`, from
-  LinuxBeaver's GEGL plug-ins, which plain GIMP does not have: in GIMPhoto
-  they show greyed out, saying so.
+- **Gradient Overlay and Pattern Overlay** are drawn by GIMPhoto's own GEGL
+  operations: see [Gradient and Pattern Overlay](gradient-pattern-overlay.md).
 - Satin, Contours and the blend modes of shadows and glows have no GEGL
   counterpart (see the plug-in's
   [documentation](https://github.com/diegochagas/gimp-setup/blob/main/docs/LAYER_STYLE.md#limits)).

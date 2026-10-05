@@ -918,6 +918,21 @@
             ]
         },
         {
+            "name": "gimphoto-gegl-ops",
+            "buildsystem": "simple",
+            "sources": [
+                {
+                    "type": "dir",
+                    "path": "../gegl"
+                }
+            ],
+            "build-commands": [
+                "cc -shared -fPIC -O2 -Wall -I. -DGETTEXT_PACKAGE='\"gimphoto\"' $(pkg-config --cflags gegl-0.4) -o gradient-overlay.so gradient-overlay.c $(pkg-config --libs gegl-0.4) -lm",
+                "cc -shared -fPIC -O2 -Wall -I. -DGETTEXT_PACKAGE='\"gimphoto\"' $(pkg-config --cflags gegl-0.4) -o pattern-overlay.so pattern-overlay.c $(pkg-config --libs gegl-0.4) -lm",
+                "install -Dm 755 -t ${FLATPAK_DEST}/lib/gegl-0.4 gradient-overlay.so pattern-overlay.so"
+            ]
+        },
+        {
             "name": "gimphoto-defaults",
             "buildsystem": "simple",
             "sources": [

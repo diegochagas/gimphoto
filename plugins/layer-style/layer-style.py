@@ -191,7 +191,7 @@ class LayerStyleDialog:
             if missing:
                 # not drawable here: show it, greyed, saying what it needs
                 check.set_sensitive(False)
-                row.set_tooltip_text("Needs the GEGL operation %s (LinuxBeaver's GEGL plug-ins)" % ", ".join(missing))
+                row.set_tooltip_text("Needs the GEGL operation %s, which this GIMP does not have" % ", ".join(missing))
             check.connect("toggled", lambda b, k=key: self._enable(k, b.get_active(), from_check=True))
             self.checks[key] = check
             box.pack_start(check, False, False, 0)
@@ -387,7 +387,7 @@ class LayerStyleDialog:
             note.set_max_width_chars(60)
             note.set_markup(
                 "<b>Not available in this GIMP.</b> It is drawn by the GEGL operation "
-                "<tt>%s</tt>, from LinuxBeaver's GEGL plug-ins, which are not installed."
+                "<tt>%s</tt>, which this GIMP does not have (GIMPhoto ships it)."
                 % GLib.markup_escape_text(", ".join(missing))
             )
             page.pack_start(note, False, False, 4)
@@ -458,16 +458,36 @@ class LayerStyleDialog:
             self.color(page, key, "color1", "From")
             self.color(page, key, "color2", "To")
             self.check(page, key, "reverse", "Reverse")
+            self.choice(page, key, "style", "Style", E.GRADIENT_STYLES)
             self.angle(page, key, global_light=False)
             self.slider(page, key, "scale", "Scale", 10, 150, "%")
         elif key == "pattern_overlay":
             self.blend(page, key)
             self.slider(page, key, "opacity", "Opacity", 0, 100, "%")
-            chooser = Gtk.FileChooserButton(title="Pattern image", action=Gtk.FileChooserAction.OPEN)
+            # Photoshop starts with a pattern chosen: GIMP's current one
+            if not E.DEFAULTS[key]["pattern"]:
+                current = Gimp.context_get_pattern()
+                E.DEFAULTS[key]["pattern"] = current.get_name() if current else ""
+            name = self._value(key, "pattern")
+            pattern = Gimp.Pattern.get_by_name(name) if name else None
+            patterns = GimpUi.PatternChooser.new(None, None, pattern)
+
+            def pattern_set(chooser, resource, *_args):
+                if resource is not None:
+                    self._changed(key, "pattern", resource.get_name())
+                    # a GIMP pattern replaces an image file
+                    if self._value(key, "image"):
+                        files.unselect_all()
+                        self._changed(key, "image", "")
+
+            patterns.connect("resource-set", pattern_set)
+            self._add(page, "Pattern", patterns)
+            files = Gtk.FileChooserButton(title="Pattern image", action=Gtk.FileChooserAction.OPEN)
             if self._value(key, "image"):
-                chooser.set_filename(self._value(key, "image"))
-            chooser.connect("file-set", lambda c: self._changed(key, "image", c.get_filename() or ""))
-            self._add(page, "Pattern", chooser)
+                files.set_filename(self._value(key, "image"))
+            files.connect("file-set", lambda c: self._changed(key, "image", c.get_filename() or ""))
+            self._add(page, "Or an image", files)
+            self.slider(page, key, "scale", "Scale", 1, 1000, "%")
         self.reset_button(page, key)
         return page
 

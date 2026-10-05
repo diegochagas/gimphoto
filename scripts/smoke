@@ -11,6 +11,8 @@
 #     applications menu hides a launcher whose program does not exist);
 #   - the plug-ins it ships (plugins/) are registered, e.g. the Layer Style
 #     procedures the Layers panel's fx button runs;
+#   - GIMPhoto's GEGL operations (gegl/) draw Gradient and Pattern Overlay,
+#     also after saving and reopening an XCF;
 #   - Layer via Copy / Cut (Ctrl+J / Ctrl+Shift+J) work on a selection;
 #   - it ships GIMPhoto's default shortcuts (defaults/shortcutsrc) where its
 #     patched GIMP looks for them.
@@ -86,6 +88,18 @@ if [[ -n "$installed_keys" && "$installed_keys" == "$(cat defaults/shortcutsrc)"
     echo "ok   default shortcuts installed: Photoshop's"
 else
     echo "FAIL /app/share/gimp/3.0/gimphoto/shortcutsrc is missing or not defaults/shortcutsrc" >&2
+    status=1
+fi
+# Gradient / Pattern Overlay: GIMPhoto's GEGL operations and the plug-in
+overlays_report="$(mktemp /tmp/gimphoto-smoke.XXXXXX)"
+flatpak run --env=GIMPHOTO_SMOKE_OUT="$overlays_report" "$app" -i --batch-interpreter=python-fu-eval \
+    -b "exec(open('$PWD/tests/smoke_overlays.py').read())" --quit >/dev/null 2>&1 || true
+overlays_result="$(cat "$overlays_report")"
+rm -f "$overlays_report"
+if [[ "$overlays_result" == ok ]]; then
+    echo "ok   gradient / pattern overlay (GEGL operations, XCF, Layer Style)"
+else
+    echo "FAIL gradient / pattern overlay: ${overlays_result:-did not run}" >&2
     status=1
 fi
 # Layer via Copy / Cut (Ctrl+J / Ctrl+Shift+J) with and without a selection
