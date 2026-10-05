@@ -26,6 +26,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from gimp_default_accels import default_accels
 
 ROOT = Path(__file__).resolve().parent.parent
+PLUGINS = ROOT / "plugins"
+# GIMPhoto's plug-in procedures, which are GIMP actions of the same name:
+# NAME_PROC = "gimphoto-..." in plugins/<name>/<name>.py
+PROC = re.compile(r'^[A-Z_]*PROC\s*=\s*"(gimphoto-[a-z0-9-]+)"', re.M)
 KEYMAP = ROOT / "defaults" / "photoshop-keymap.tsv"
 OUTPUT = ROOT / "defaults" / "shortcutsrc"
 DOC = ROOT / "docs" / "features" / "photoshop-shortcuts.md"
@@ -73,6 +77,14 @@ def normalize(accel):
         mods.add(MODIFIERS[mod.lower()])
     order = ["<Primary>", "<Alt>", "<Shift>", "<Super>"]
     return "".join(mod for mod in order if mod in mods) + m.group(2).lower()
+
+
+def plugin_actions():
+    """GIMPhoto's own plug-in procedures, as actions without shortcuts."""
+    names = []
+    for path in sorted(PLUGINS.glob("*/*.py")):
+        names += PROC.findall(path.read_text())
+    return {name: [] for name in names}
 
 
 def read_keymap(text):
@@ -175,7 +187,7 @@ def main(argv):
     source = Path(args[0] if args else ROOT / "work" / "gimp")
     if not (source / "app" / "actions").is_dir():
         sys.exit(f"{source} is not a GIMP source tree (run scripts/source)")
-    defaults = default_accels(source)
+    defaults = {**default_accels(source), **plugin_actions()}
     try:
         keymap = read_keymap(KEYMAP.read_text())
         text = render(build(keymap, defaults))

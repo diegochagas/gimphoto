@@ -911,7 +911,10 @@
             "build-commands": [
                 "install -d ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/layer-style",
                 "find layer-style -maxdepth 1 -type f -exec install -m 644 -t ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/layer-style {} +",
-                "chmod 755 ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/layer-style/layer-style.py"
+                "chmod 755 ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/layer-style/layer-style.py",
+                "install -d ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/layer-via",
+                "find layer-via -maxdepth 1 -type f -exec install -m 644 -t ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/layer-via {} +",
+                "chmod 755 ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/layer-via/layer-via.py"
             ]
         },
         {
