@@ -62,6 +62,8 @@ an outer glow or an outside stroke would have nowhere to paint. Like
 Photoshop, where every layer has transparency, the Layer Style adds an alpha
 channel to the layer first (*Layer → Transparency → Add Alpha Channel*).
 
+![A stroke and drop shadow on an opaque photo layer, before and after the fix](../images/layer-style-opaque-layer.png)
+
 ## Limits
 
 - **Gradient Overlay and Pattern Overlay** are drawn by `lb:effects`, from

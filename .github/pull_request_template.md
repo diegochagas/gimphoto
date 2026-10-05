@@ -13,7 +13,8 @@
 - [ ] `scripts/build` + `scripts/smoke` pass with this change
 - Tests: <!-- e.g. 13 passed, 2 new -->
 - Screenshots (before / after, for interface changes):
-<!-- drag images here -->
+<!-- drag images here, or full URLs: https://github.com/<owner>/gimphoto/blob/<commit>/docs/images/x.png?raw=true
+     (relative paths like docs/images/x.png do not display in a PR) -->
 
 ## Rollback
 <!-- usually: revert this PR (a core patch = remove it from patches/series) -->
