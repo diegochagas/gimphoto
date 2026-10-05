@@ -23,6 +23,10 @@ then changed here:
   Pattern Overlay use `lb:effects`, from LinuxBeaver's GEGL plug-ins, which a
   plain GIMP does not ship.
 
+- effects are added with the selection set aside (and put back): GIMP
+  crops a filter to the selection there is when it is added, so with a
+  selection the effects showed only inside it, or not at all.
+
 - formatted with ruff and lint-clean for this repo's `scripts/check`
   (an unused import, a long line and two one-letter names fixed).
 

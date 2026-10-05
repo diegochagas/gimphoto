@@ -60,7 +60,7 @@ flatpak run --env=GIMPHOTO_SMOKE_OUT="$style_report" "$app" -i --batch-interpret
 style_result="$(cat "$style_report")"
 rm -f "$style_report"
 if [[ "$style_result" == ok ]]; then
-    echo "ok   layer style draws outside an opaque layer without alpha"
+    echo "ok   layer style draws outside an opaque layer without alpha, with a selection"
 else
     echo "FAIL layer style on a layer without alpha: ${style_result:-did not run}" >&2
     status=1
