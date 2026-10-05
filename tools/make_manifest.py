@@ -29,7 +29,9 @@ What changes against Flathub's recipe, and nothing else:
   - one installs GIMPhoto's icon and splash screen (branding/) over GIMP's,
     before Flathub's recipe renames the icon to the app ID;
   - one installs GIMPhoto's own tool icons (icons/*.svg) into GIMP's icon
-    theme.
+    theme;
+  - one installs GIMPhoto's GIMP themes (themes/<Name>/gimp.css) next to
+    GIMP's Default theme.
 The GIMP version, every library, the build options and the sandbox
 permissions stay Flathub's.
 """
@@ -52,6 +54,10 @@ DEFAULT_FILES = ["shortcutsrc"]
 SYSCONF_FILES = ["sessionrc", "toolrc"]
 BRANDING = ROOT / "branding"
 ICONS = ROOT / "icons"
+THEMES = ROOT / "themes"
+# the file names GIMP reads in a theme folder: one per colour scheme
+# (dark, grey, light) and gimp.css as the fallback
+THEME_FILES = ["gimp.css", "gimp-dark.css", "gimp-gray.css", "gimp-light.css"]
 ICON_SIZES = [16, 22, 24, 32, 36, 48, 64, 72, 96, 128, 192, 256, 512]
 APP_ID = "io.github.diegochagas.GIMPhoto"
 APP_NAME = "GIMPhoto"
@@ -192,7 +198,34 @@ def icons_module():
     }
 
 
-def transform(manifest, series, plugins=(), defaults=False, gegl_ops=(), branding=False, icons=False):
+def theme_names():
+    """Theme folders in themes/, each with its gimp.css."""
+    if not THEMES.is_dir():
+        return []
+    names = sorted(p.name for p in THEMES.iterdir() if p.is_dir())
+    for name in names:
+        if not (THEMES / name / "gimp.css").is_file():
+            sys.exit(f"themes/{name}/ has no gimp.css")
+    return names
+
+
+def themes_module(names):
+    """flatpak-builder module installing themes/<Name>/gimp.css as a GIMP
+    theme in GIMP's data folder, the same file for every colour scheme so
+    the theme looks the same whichever scheme Preferences has."""
+    commands = []
+    for name in names:
+        dest = f"${{FLATPAK_DEST}}/share/gimp/3.0/themes/{name}"
+        commands += [f"install -Dm 644 {name}/gimp.css {dest}/{file}" for file in THEME_FILES]
+    return {
+        "name": "gimphoto-themes",
+        "buildsystem": "simple",
+        "sources": [{"type": "dir", "path": "../themes"}],
+        "build-commands": commands,
+    }
+
+
+def transform(manifest, series, plugins=(), defaults=False, gegl_ops=(), branding=False, icons=False, themes=()):
     m = copy.deepcopy(manifest)
     m["app-id"] = APP_ID
     m["finish-args"] = [*m["finish-args"], f"--env=GIMP3_DIRECTORY={PROFILE}"]
@@ -218,6 +251,8 @@ def transform(manifest, series, plugins=(), defaults=False, gegl_ops=(), brandin
         m["modules"].append(branding_module())
     if icons:
         m["modules"].append(icons_module())
+    if themes:
+        m["modules"].append(themes_module(themes))
     # The launcher says GIMPhoto, so it can be told apart from GIMP.
     gimp.setdefault("post-install", []).append(
         "desktop-file-edit --set-name=" + APP_NAME + " ${FLATPAK_DEST}/share/applications/gimp.desktop"
@@ -232,7 +267,14 @@ def render():
         "and patches/series. Do not edit by hand."
     }
     out = transform(
-        manifest, read_series(), plugin_names(), DEFAULTS.is_dir(), gegl_op_names(), BRANDING.is_dir(), ICONS.is_dir()
+        manifest,
+        read_series(),
+        plugin_names(),
+        DEFAULTS.is_dir(),
+        gegl_op_names(),
+        BRANDING.is_dir(),
+        ICONS.is_dir(),
+        theme_names(),
     )
     return json.dumps({**header, **out}, indent=4) + "\n"
 

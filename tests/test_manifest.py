@@ -92,6 +92,20 @@ class TransformTest(unittest.TestCase):
             module["build-commands"],
         )
 
+    def test_themes_install_one_file_per_colour_scheme(self):
+        module = make_manifest.transform(UPSTREAM, [], themes=["Photoshop"])["modules"][-1]
+        self.assertEqual(module["name"], "gimphoto-themes")
+        dest = "${FLATPAK_DEST}/share/gimp/3.0/themes/Photoshop"
+        for file in ("gimp.css", "gimp-dark.css", "gimp-gray.css", "gimp-light.css"):
+            self.assertIn(f"install -Dm 644 Photoshop/gimp.css {dest}/{file}", module["build-commands"])
+
+    def test_themes_import_gimps_default_theme_by_a_relative_path(self):
+        # installed next to Default; no machine path, no placeholder
+        for name in make_manifest.theme_names():
+            css = (make_manifest.THEMES / name / "gimp.css").read_text()
+            self.assertIn('@import url("../Default/', css)
+            self.assertNotIn("file://", css)
+
     def test_every_icon_has_its_symbolic_variant(self):
         # GIMP's dark theme asks for <name>-symbolic
         names = {p.name for p in make_manifest.ICONS.glob("*.svg")}
