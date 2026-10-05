@@ -879,7 +879,8 @@
                     "type": "patch",
                     "use-git-am": true,
                     "paths": [
-                        "../patches/0001-Layers-dock-add-the-Layer-Style-fx-button.patch"
+                        "../patches/0001-Layers-dock-add-the-Layer-Style-fx-button.patch",
+                        "../patches/0002-Layers-dock-list-each-layer-s-effects-under-it-with-.patch"
                     ]
                 }
             ],

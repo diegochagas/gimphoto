@@ -17,6 +17,7 @@ it, before/after screenshots, what changed in GIMP's code, limits.
 | Feature | Photoshop equivalent | Where | Docs |
 |---|---|---|---|
 | **Layer Style (fx) button** in the Layers panel, opening a Photoshop-style Layer Style dialog (shadows, glows, stroke, bevel, overlays) | Layers panel › fx | core patch + plug-in | [layer-style-fx-button.md](docs/features/layer-style-fx-button.md) |
+| **Layer effects listed under each layer** in the Layers panel, collapsible, with an eye per effect and one for all | Layers panel › layer › Effects | core patch | [layer-effects-rows.md](docs/features/layer-effects-rows.md) |
 
 Apart from these, GIMPhoto is plain GIMP: its own user profile, GIMP's
 default theme, layout and shortcuts.
@@ -24,6 +25,12 @@ default theme, layout and shortcuts.
 ### Layer Style (fx) button
 
 ![The fx button's menu in GIMPhoto's Layers panel](docs/images/fx-button-menu.png)
+
+### Layer effects in the Layers list
+
+A layer's effects listed under it, collapsible, each with its own eye:
+
+![A text layer's effects listed under it in GIMPhoto's Layers panel](docs/images/effects-rows-in-use.png)
 
 ## Why a patched build?
 
