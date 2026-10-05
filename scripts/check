@@ -49,4 +49,12 @@ if [[ -d work/gimp/.git || "${GIMPHOTO_CHECK_PATCHES:-0}" == 1 ]]; then
 else
     echo "== patches: skipped (no work/gimp; scripts/source creates it)"
 fi
+# GIMP's default shortcuts are read from its source, so the generated
+# defaults/shortcutsrc is checked where work/gimp has the files
+if [[ -d work/gimp/app/actions ]]; then
+    echo "== keymap"
+    python3 tools/make_keymap.py --check
+else
+    echo "== keymap: skipped (no work/gimp; scripts/source creates it)"
+fi
 echo "check: OK"

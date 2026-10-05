@@ -1,0 +1,103 @@
+# GIMPhoto's Photoshop keymap: Photoshop's default shortcuts (CC 2019 and
+# later, Windows/Linux keys; Ctrl = <Primary>) on the GIMP actions that do
+# the same job. tools/make_keymap.py turns it into defaults/shortcutsrc.
+#
+# action <TAB> shortcuts (GTK syntax, comma-separated) <TAB> Photoshop command
+#
+# The action keeps its GIMP default shortcuts too, unless a line here takes
+# them for something else (e.g. Ctrl+D: Image > Duplicate in GIMP, Deselect
+# in Photoshop). Lines marked "GIMPhoto:" are not Photoshop's: they give a
+# shortcut back to a GIMP command whose own one Photoshop takes.
+
+# --- Tools
+tools-move	v	Move Tool (V)
+tools-rect-select	m	Rectangular Marquee Tool (M)
+tools-ellipse-select	<Shift>m	Elliptical Marquee Tool (Shift+M)
+tools-free-select	l	Lasso Tool (L)
+tools-iscissors	<Shift>l	Magnetic Lasso Tool (Shift+L)
+tools-fuzzy-select	w	Magic Wand Tool (W)
+tools-foreground-select	<Shift>w	Quick Selection Tool (Shift+W)
+tools-crop	c	Crop Tool (C)
+tools-color-picker	i	Eyedropper Tool (I)
+tools-measure	<Shift>i	Ruler Tool (Shift+I)
+tools-heal	j	Healing Brush Tool (J)
+tools-paintbrush	b	Brush Tool (B)
+tools-pencil	<Shift>b	Pencil Tool (Shift+B)
+tools-clone	s	Clone Stamp Tool (S)
+tools-eraser	e	Eraser Tool (E)
+tools-gradient	g	Gradient Tool (G)
+tools-bucket-fill	<Shift>g	Paint Bucket Tool (Shift+G)
+tools-dodge-burn	o	Dodge / Burn Tool (O)
+tools-path	p	Pen Tool (P)
+tools-text	t	Horizontal Type Tool (T)
+tools-zoom	z	Zoom Tool (Z)
+tools-unified-transform	<Primary>t	Edit > Free Transform (Ctrl+T)
+tools-warp	<Primary><Shift>x	Filter > Liquify (Ctrl+Shift+X)
+quick-mask-toggle	q	Edit in Quick Mask Mode (Q)
+context-colors-default	d	Default Foreground/Background Colors (D)
+context-colors-swap	x	Switch Foreground/Background Colors (X)
+
+# --- File
+file-close-all	<Primary><Alt>w	File > Close All (Ctrl+Alt+W)
+file-export-as	<Primary><Alt><Shift>w	File > Export > Export As (Ctrl+Alt+Shift+W)
+file-overwrite	<Primary><Alt>e	GIMPhoto: File > Overwrite (as in gimp-setup)
+file-export	<Primary><Alt><Shift>s	File > Export > Save for Web (Ctrl+Alt+Shift+S); GIMPhoto: File > Export to the last file
+
+# --- Edit
+edit-redo	<Primary><Shift>z	Edit > Redo (Ctrl+Shift+Z)
+edit-copy-visible	<Primary><Shift>c	Edit > Copy Merged (Ctrl+Shift+C)
+edit-paste-in-place	<Primary><Shift>v	Edit > Paste Special > Paste in Place (Ctrl+Shift+V)
+edit-paste-into	<Primary><Alt><Shift>v	Edit > Paste Special > Paste Into (Ctrl+Alt+Shift+V)
+edit-fill-fg	<Alt>BackSpace	Fill with Foreground Color (Alt+Backspace)
+edit-fill-bg	<Primary>BackSpace	Fill with Background Color (Ctrl+Backspace)
+edit-clear	BackSpace,Delete	Edit > Clear (Backspace / Delete)
+dialogs-preferences	<Primary>k	Edit > Preferences > General (Ctrl+K)
+dialogs-keyboard-shortcuts	<Primary><Alt><Shift>k	Edit > Keyboard Shortcuts (Ctrl+Alt+Shift+K)
+
+# --- Image
+filters-levels	<Primary>l	Image > Adjustments > Levels (Ctrl+L)
+filters-curves	<Primary>m	Image > Adjustments > Curves (Ctrl+M)
+filters-hue-saturation	<Primary>u	Image > Adjustments > Hue/Saturation (Ctrl+U)
+filters-color-balance	<Primary>b	Image > Adjustments > Color Balance (Ctrl+B)
+filters-desaturate	<Primary><Shift>u	Image > Adjustments > Desaturate (Ctrl+Shift+U)
+filters-invert-perceptual	<Primary>i	Image > Adjustments > Invert (Ctrl+I)
+drawable-levels-stretch	<Primary><Shift>l	Image > Auto Tone (Ctrl+Shift+L)
+image-scale	<Primary><Alt>i	Image > Image Size (Ctrl+Alt+I)
+image-resize	<Primary><Alt>c	Image > Canvas Size (Ctrl+Alt+C)
+
+# --- Layer
+layers-new	<Primary><Shift>n	Layer > New > Layer (Ctrl+Shift+N)
+layers-duplicate	<Primary>j	Layer > New > Layer via Copy (Ctrl+J)
+layers-new-group	<Primary>g	Layer > Group Layers (Ctrl+G)
+layers-merge-down	<Primary>e	Layer > Merge Down (Ctrl+E)
+image-merge-layers	<Primary><Shift>e	Layer > Merge Visible (Ctrl+Shift+E)
+layers-new-from-visible	<Primary><Alt><Shift>e	Stamp Visible (Ctrl+Alt+Shift+E)
+layers-raise	<Primary>bracketright	Layer > Arrange > Bring Forward (Ctrl+])
+layers-lower	<Primary>bracketleft	Layer > Arrange > Send Backward (Ctrl+[)
+layers-raise-to-top	<Primary><Shift>bracketright	Layer > Arrange > Bring to Front (Ctrl+Shift+])
+layers-lower-to-bottom	<Primary><Shift>bracketleft	Layer > Arrange > Send to Back (Ctrl+Shift+[)
+
+# --- Select
+select-none	<Primary>d	Select > Deselect (Ctrl+D)
+select-invert	<Primary><Shift>i	Select > Inverse (Ctrl+Shift+I)
+select-feather	<Shift>F6	Select > Modify > Feather (Shift+F6)
+
+# --- Filter
+filters-repeat	<Primary><Alt>f	Filter > Last Filter (Ctrl+Alt+F)
+
+# --- View
+view-zoom-in	<Primary>plus,<Primary>equal	View > Zoom In (Ctrl++)
+view-zoom-out	<Primary>minus	View > Zoom Out (Ctrl+-)
+view-zoom-fit-in	<Primary>0	View > Fit on Screen (Ctrl+0)
+view-zoom-1-1	<Primary>1	View > 100% (Ctrl+1)
+view-show-selection	<Primary>h	View > Extras (Ctrl+H)
+view-show-rulers	<Primary>r	View > Rulers (Ctrl+R)
+view-show-guides	<Primary>semicolon	View > Show > Guides (Ctrl+;)
+view-show-grid	<Primary>apostrophe	View > Show > Grid (Ctrl+')
+view-snap-to-guides	<Primary><Shift>semicolon	View > Snap (Ctrl+Shift+;)
+view-fullscreen	f	Change Screen Mode (F)
+
+# --- Window
+dialogs-layers	F7	Window > Layers (F7)
+windows-show-display-next	<Primary>Tab	Next document (Ctrl+Tab)
+windows-show-display-previous	<Primary><Shift>Tab	Previous document (Ctrl+Shift+Tab)
