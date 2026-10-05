@@ -28,13 +28,14 @@ import os
 import sys
 
 import gi
-gi.require_version('Gimp', '3.0')
-gi.require_version('GimpUi', '3.0')
-gi.require_version('Gtk', '3.0')
-from gi.repository import Gimp, GimpUi, GLib, GObject, Gtk, Gdk
+
+gi.require_version("Gimp", "3.0")
+gi.require_version("GimpUi", "3.0")
+gi.require_version("Gtk", "3.0")
+from gi.repository import Gimp, GimpUi, GLib, Gtk, Gdk
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import layer_style_engine as E  # noqa: E402
+import layer_style_engine as E
 
 DIALOG_PROC = "layer-style-dialog"
 COPY_PROC = "layer-style-copy"
@@ -43,7 +44,7 @@ CLEAR_PROC = "layer-style-clear"
 EFFECT_PROCS = {"layer-style-" + key.replace("_", "-"): key for key, _l in E.EFFECTS}
 MENU = "<Image>/Layer/Layer Style"
 CLIPBOARD = os.path.join(GLib.get_user_config_dir(), "PhotoGIMP", "layer-style-clipboard.json")
-GLOBAL_LIGHT = "gimp-setup-global-light"     # image parasite: the shared angle
+GLOBAL_LIGHT = "gimp-setup-global-light"  # image parasite: the shared angle
 GLOBAL_KEYS = ("drop_shadow", "inner_shadow", "bevel")
 
 
@@ -72,6 +73,7 @@ def set_global_angle(image, angle):
 
 
 # ------------------------------------------------------------------ widgets
+
 
 def hex_to_rgba(value):
     rgba = Gdk.RGBA()
@@ -132,7 +134,7 @@ class LayerStyleDialog:
         self.style = {k: dict(v) for k, v in self.original.items()}
         self.global_angle = global_angle(image)
         self.pending = None
-        self.widgets = {}            # (effect, setting) -> setter for refresh
+        self.widgets = {}  # (effect, setting) -> setter for refresh
         self.checks = {}
 
         self.dialog = GimpUi.Dialog(title="Layer Style", role="gimp-setup-layer-style")
@@ -189,8 +191,7 @@ class LayerStyleDialog:
             if missing:
                 # not drawable here: show it, greyed, saying what it needs
                 check.set_sensitive(False)
-                row.set_tooltip_text("Needs the GEGL operation %s (LinuxBeaver's GEGL plug-ins)"
-                                     % ", ".join(missing))
+                row.set_tooltip_text("Needs the GEGL operation %s (LinuxBeaver's GEGL plug-ins)" % ", ".join(missing))
             check.connect("toggled", lambda b, k=key: self._enable(k, b.get_active(), from_check=True))
             self.checks[key] = check
             box.pack_start(check, False, False, 0)
@@ -260,8 +261,9 @@ class LayerStyleDialog:
                 setter(angle)
 
     def slider(self, page, key, name, label, lo, hi, unit="", digits=0):
-        adj = Gtk.Adjustment(value=float(self._value(key, name)), lower=lo, upper=hi,
-                             step_increment=1, page_increment=10)
+        adj = Gtk.Adjustment(
+            value=float(self._value(key, name)), lower=lo, upper=hi, step_increment=1, page_increment=10
+        )
         scale = Gtk.Scale(orientation=Gtk.Orientation.HORIZONTAL, adjustment=adj)
         scale.set_draw_value(False)
         scale.set_size_request(220, -1)
@@ -270,7 +272,12 @@ class LayerStyleDialog:
         box = Gtk.Box(spacing=6)
         box.pack_start(scale, True, True, 0)
         box.pack_start(spin, False, False, 0)
-        adj.connect("value-changed", lambda a: self._changed(key, name, round(a.get_value(), digits) if digits else int(a.get_value())))
+
+        def changed(a):
+            value = round(a.get_value(), digits) if digits else int(a.get_value())
+            self._changed(key, name, value)
+
+        adj.connect("value-changed", changed)
         self.widgets[(key, name)] = lambda v: adj.set_value(float(v))
         self._add(page, label, box, unit)
 
@@ -290,7 +297,7 @@ class LayerStyleDialog:
         self._add(page, label, combo)
 
     def blend(self, page, key, label="Blend Mode"):
-        self.choice(page, key, "blend", label, [(k, l) for k, l, _m in E.BLEND_MODES])
+        self.choice(page, key, "blend", label, [(k, text) for k, text, _m in E.BLEND_MODES])
 
     def check(self, page, key, name, label):
         btn = Gtk.CheckButton(label=label)
@@ -302,8 +309,9 @@ class LayerStyleDialog:
     def angle(self, page, key, label="Angle", global_light=True):
         if key in GLOBAL_KEYS and self._value(key, "use_global") is not False:
             self.style.setdefault(key, dict(E.DEFAULTS[key]))["angle"] = self.global_angle
-        adj = Gtk.Adjustment(value=float(self._value(key, "angle")), lower=-180, upper=180,
-                             step_increment=1, page_increment=15)
+        adj = Gtk.Adjustment(
+            value=float(self._value(key, "angle")), lower=-180, upper=180, step_increment=1, page_increment=15
+        )
         spin = Gtk.SpinButton(adjustment=adj, digits=0)
         dial = AngleDial(lambda a: adj.set_value(a))
         dial.set_angle(adj.get_value())
@@ -311,6 +319,7 @@ class LayerStyleDialog:
         def moved(a):
             dial.set_angle(a.get_value())
             self._changed(key, "angle", int(a.get_value()))
+
         adj.connect("value-changed", moved)
         box = Gtk.Box(spacing=6)
         box.pack_start(dial, False, False, 0)
@@ -324,6 +333,7 @@ class LayerStyleDialog:
                 self.style.setdefault(key, dict(E.DEFAULTS[key]))["use_global"] = b.get_active()
                 if b.get_active():
                     adj.set_value(self.global_angle)
+
             use.connect("toggled", toggled)
             box.pack_start(use, False, False, 8)
         self.widgets[(key, "angle")] = lambda v: adj.set_value(float(v))
@@ -339,6 +349,7 @@ class LayerStyleDialog:
                 if k == key and name in E.DEFAULTS[key]:
                     setter(E.DEFAULTS[key][name])
             self._schedule()
+
         btn.connect("clicked", reset)
         btn.set_halign(Gtk.Align.START)
         page.pack_start(btn, False, False, 6)
@@ -359,9 +370,11 @@ class LayerStyleDialog:
         note = Gtk.Label(xalign=0)
         note.set_line_wrap(True)
         note.set_max_width_chars(60)
-        note.set_markup("<small>Tick an effect on the left to add it, click its name to change it. "
-                        "Effects are non-destructive filters: they also show in the Layers "
-                        "panel's fx column. Satin and Contours have no GIMP counterpart.</small>")
+        note.set_markup(
+            "<small>Tick an effect on the left to add it, click its name to change it. "
+            "Effects are non-destructive filters: they also show in the Layers "
+            "panel's fx column. Satin and Contours have no GIMP counterpart.</small>"
+        )
         page.pack_start(note, False, False, 12)
         return page
 
@@ -372,9 +385,11 @@ class LayerStyleDialog:
             note = Gtk.Label(xalign=0)
             note.set_line_wrap(True)
             note.set_max_width_chars(60)
-            note.set_markup("<b>Not available in this GIMP.</b> It is drawn by the GEGL operation "
-                            "<tt>%s</tt>, from LinuxBeaver's GEGL plug-ins, which are not installed."
-                            % GLib.markup_escape_text(", ".join(missing)))
+            note.set_markup(
+                "<b>Not available in this GIMP.</b> It is drawn by the GEGL operation "
+                "<tt>%s</tt>, from LinuxBeaver's GEGL plug-ins, which are not installed."
+                % GLib.markup_escape_text(", ".join(missing))
+            )
             page.pack_start(note, False, False, 4)
             return page
         if key in ("drop_shadow", "inner_shadow"):
@@ -382,19 +397,34 @@ class LayerStyleDialog:
             self.slider(page, key, "opacity", "Opacity", 0, 100, "%")
             self.angle(page, key)
             self.slider(page, key, "distance", "Distance", 0, 300, "px")
-            self.slider(page, key, "spread" if key == "drop_shadow" else "choke",
-                        "Spread" if key == "drop_shadow" else "Choke", 0, 100, "%")
+            self.slider(
+                page,
+                key,
+                "spread" if key == "drop_shadow" else "choke",
+                "Spread" if key == "drop_shadow" else "Choke",
+                0,
+                100,
+                "%",
+            )
             self.slider(page, key, "size", "Size", 0, 250, "px")
         elif key in ("outer_glow", "inner_glow"):
             self.color(page, key, "color", "Color")
             self.slider(page, key, "opacity", "Opacity", 0, 100, "%")
-            self.slider(page, key, "spread" if key == "outer_glow" else "choke",
-                        "Spread" if key == "outer_glow" else "Choke", 0, 100, "%")
+            self.slider(
+                page,
+                key,
+                "spread" if key == "outer_glow" else "choke",
+                "Spread" if key == "outer_glow" else "Choke",
+                0,
+                100,
+                "%",
+            )
             self.slider(page, key, "size", "Size", 0, 250, "px")
         elif key == "stroke":
             self.slider(page, key, "size", "Size", 1, 250, "px")
-            self.choice(page, key, "position", "Position",
-                        [("outside", "Outside"), ("inside", "Inside"), ("center", "Center")])
+            self.choice(
+                page, key, "position", "Position", [("outside", "Outside"), ("inside", "Inside"), ("center", "Center")]
+            )
             self.slider(page, key, "opacity", "Opacity", 0, 100, "%")
             self.color(page, key, "color", "Color")
         elif key == "bevel":
@@ -404,9 +434,20 @@ class LayerStyleDialog:
             self.slider(page, key, "size", "Size", 1, 13, "px")
             self.angle(page, key)
             self.slider(page, key, "altitude", "Altitude", 0, 90, "°")
-            self.choice(page, key, "highlight_mode", "Light Mode",
-                        [("hardlight", "Hard Light"), ("multiply", "Multiply"), ("colordodge", "Color Dodge"),
-                         ("darken", "Darken"), ("lighten", "Lighten"), ("add", "Add")])
+            self.choice(
+                page,
+                key,
+                "highlight_mode",
+                "Light Mode",
+                [
+                    ("hardlight", "Hard Light"),
+                    ("multiply", "Multiply"),
+                    ("colordodge", "Color Dodge"),
+                    ("darken", "Darken"),
+                    ("lighten", "Lighten"),
+                    ("add", "Add"),
+                ],
+            )
         elif key == "color_overlay":
             self.blend(page, key)
             self.color(page, key, "color", "Color")
@@ -475,6 +516,7 @@ class LayerStyleDialog:
 
 # ------------------------------------------------------------------- procs
 
+
 def run(procedure, run_mode, image, drawables, config, data):
     name = procedure.get_name()
     layer = target_layer(image)
@@ -499,8 +541,8 @@ def run(procedure, run_mode, image, drawables, config, data):
                     return error(procedure, "Copy a layer style first (Layer > Layer Style > Copy Layer Style).")
             image.undo_group_start()
             try:
-                for l in image.get_selected_layers():
-                    E.apply_style(l, style)
+                for selected in image.get_selected_layers():
+                    E.apply_style(selected, style)
             finally:
                 image.undo_group_end()
             Gimp.displays_flush()
@@ -534,12 +576,14 @@ class LayerStyle(Gimp.PlugIn):
         elif name == COPY_PROC:
             label, blurb = "_Copy Layer Style", "Copy the layer's style"
         elif name == PASTE_PROC:
-            procedure.set_sensitivity_mask(Gimp.ProcedureSensitivityMask.DRAWABLE |
-                                           Gimp.ProcedureSensitivityMask.DRAWABLES)
+            procedure.set_sensitivity_mask(
+                Gimp.ProcedureSensitivityMask.DRAWABLE | Gimp.ProcedureSensitivityMask.DRAWABLES
+            )
             label, blurb = "_Paste Layer Style", "Paste the copied style on the selected layers"
         else:
-            procedure.set_sensitivity_mask(Gimp.ProcedureSensitivityMask.DRAWABLE |
-                                           Gimp.ProcedureSensitivityMask.DRAWABLES)
+            procedure.set_sensitivity_mask(
+                Gimp.ProcedureSensitivityMask.DRAWABLE | Gimp.ProcedureSensitivityMask.DRAWABLES
+            )
             label, blurb = "C_lear Layer Style", "Remove the layer style"
         procedure.set_menu_label(label)
         procedure.set_documentation(blurb, blurb + " (gimp-setup Layer Style).", name)

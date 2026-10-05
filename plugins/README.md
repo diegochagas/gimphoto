@@ -23,4 +23,7 @@ then changed here:
   Pattern Overlay use `lb:effects`, from LinuxBeaver's GEGL plug-ins, which a
   plain GIMP does not ship.
 
+- formatted with ruff and lint-clean for this repo's `scripts/check`
+  (an unused import, a long line and two one-letter names fixed).
+
 Fixes that apply to both copies should be made in both.

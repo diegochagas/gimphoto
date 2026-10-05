@@ -18,8 +18,9 @@ import json
 import math
 
 import gi
-gi.require_version('Gimp', '3.0')
-gi.require_version('Gegl', '0.4')
+
+gi.require_version("Gimp", "3.0")
+gi.require_version("Gegl", "0.4")
 from gi.repository import Gimp, Gegl
 
 PARASITE = "gimp-setup-layer-style"
@@ -42,11 +43,15 @@ LABELS = dict(EFFECTS)
 # GEGL operations each effect needs. lb:effects comes from LinuxBeaver's
 # GEGL plug-ins, which a plain GIMP does not have.
 REQUIRES = {
-    "drop_shadow": ["gegl:dropshadow"], "outer_glow": ["gegl:dropshadow"],
-    "inner_shadow": ["gegl:inner-glow"], "inner_glow": ["gegl:inner-glow"],
-    "stroke": ["gegl:styles", "gegl:inner-glow"], "bevel": ["gegl:bevel"],
+    "drop_shadow": ["gegl:dropshadow"],
+    "outer_glow": ["gegl:dropshadow"],
+    "inner_shadow": ["gegl:inner-glow"],
+    "inner_glow": ["gegl:inner-glow"],
+    "stroke": ["gegl:styles", "gegl:inner-glow"],
+    "bevel": ["gegl:bevel"],
     "color_overlay": ["gegl:color-overlay"],
-    "gradient_overlay": ["lb:effects"], "pattern_overlay": ["lb:effects"],
+    "gradient_overlay": ["lb:effects"],
+    "pattern_overlay": ["lb:effects"],
 }
 _AVAILABLE = None
 
@@ -61,8 +66,17 @@ def missing_operations(key):
 
 # order the filters are applied in: what is painted inside the layer first,
 # then the bevel and the stroke on top, then what spreads outside it
-RENDER_ORDER = ["color_overlay", "gradient_overlay", "pattern_overlay", "inner_glow",
-                "inner_shadow", "bevel", "stroke", "outer_glow", "drop_shadow"]
+RENDER_ORDER = [
+    "color_overlay",
+    "gradient_overlay",
+    "pattern_overlay",
+    "inner_glow",
+    "inner_shadow",
+    "bevel",
+    "stroke",
+    "outer_glow",
+    "drop_shadow",
+]
 
 # Photoshop's defaults for a newly enabled effect
 DEFAULTS = {
@@ -71,33 +85,51 @@ DEFAULTS = {
     "outer_glow": {"color": "#ffffbe", "opacity": 35, "spread": 0, "size": 5},
     "inner_glow": {"color": "#ffffbe", "opacity": 35, "choke": 0, "size": 5},
     "stroke": {"size": 3, "position": "outside", "color": "#ff0000", "opacity": 100},
-    "bevel": {"style": "inner", "technique": "smooth", "depth": 100, "direction": "up", "size": 5,
-              "angle": 120, "altitude": 30, "highlight_mode": "hardlight"},
+    "bevel": {
+        "style": "inner",
+        "technique": "smooth",
+        "depth": 100,
+        "direction": "up",
+        "size": 5,
+        "angle": 120,
+        "altitude": 30,
+        "highlight_mode": "hardlight",
+    },
     "color_overlay": {"color": "#ff0000", "blend": "normal", "opacity": 100},
-    "gradient_overlay": {"color1": "#000000", "color2": "#ffffff", "blend": "normal", "opacity": 100,
-                         "angle": 90, "scale": 100, "reverse": False},
+    "gradient_overlay": {
+        "color1": "#000000",
+        "color2": "#ffffff",
+        "blend": "normal",
+        "opacity": 100,
+        "angle": 90,
+        "scale": 100,
+        "reverse": False,
+    },
     "pattern_overlay": {"image": "", "blend": "normal", "opacity": 100},
 }
 
-BLEND_MODES = [("normal", "Normal", Gimp.LayerMode.NORMAL),
-               ("multiply", "Multiply", Gimp.LayerMode.MULTIPLY),
-               ("screen", "Screen", Gimp.LayerMode.SCREEN),
-               ("overlay", "Overlay", Gimp.LayerMode.OVERLAY),
-               ("soft_light", "Soft Light", Gimp.LayerMode.SOFTLIGHT),
-               ("hard_light", "Hard Light", Gimp.LayerMode.HARDLIGHT),
-               ("color_dodge", "Color Dodge", Gimp.LayerMode.DODGE),
-               ("color_burn", "Color Burn", Gimp.LayerMode.BURN),
-               ("darken", "Darken", Gimp.LayerMode.DARKEN_ONLY),
-               ("lighten", "Lighten", Gimp.LayerMode.LIGHTEN_ONLY),
-               ("difference", "Difference", Gimp.LayerMode.DIFFERENCE),
-               ("hue", "Hue", Gimp.LayerMode.LCH_HUE),
-               ("saturation", "Saturation", Gimp.LayerMode.LCH_CHROMA),
-               ("color", "Color", Gimp.LayerMode.LCH_COLOR),
-               ("luminosity", "Luminosity", Gimp.LayerMode.LCH_LIGHTNESS)]
+BLEND_MODES = [
+    ("normal", "Normal", Gimp.LayerMode.NORMAL),
+    ("multiply", "Multiply", Gimp.LayerMode.MULTIPLY),
+    ("screen", "Screen", Gimp.LayerMode.SCREEN),
+    ("overlay", "Overlay", Gimp.LayerMode.OVERLAY),
+    ("soft_light", "Soft Light", Gimp.LayerMode.SOFTLIGHT),
+    ("hard_light", "Hard Light", Gimp.LayerMode.HARDLIGHT),
+    ("color_dodge", "Color Dodge", Gimp.LayerMode.DODGE),
+    ("color_burn", "Color Burn", Gimp.LayerMode.BURN),
+    ("darken", "Darken", Gimp.LayerMode.DARKEN_ONLY),
+    ("lighten", "Lighten", Gimp.LayerMode.LIGHTEN_ONLY),
+    ("difference", "Difference", Gimp.LayerMode.DIFFERENCE),
+    ("hue", "Hue", Gimp.LayerMode.LCH_HUE),
+    ("saturation", "Saturation", Gimp.LayerMode.LCH_CHROMA),
+    ("color", "Color", Gimp.LayerMode.LCH_COLOR),
+    ("luminosity", "Luminosity", Gimp.LayerMode.LCH_LIGHTNESS),
+]
 GIMP_MODE = {k: m for k, _l, m in BLEND_MODES}
 
 
 # --------------------------------------------------------------- storage
+
 
 def parasite_text(item, name):
     try:
@@ -115,7 +147,7 @@ def read_style(layer):
         style = json.loads(parasite_text(layer, PARASITE) or "{}")
     except ValueError:
         style = {}
-    present = {f.get_name()[len(PREFIX):] for f in layer.get_filters() if f.get_name().startswith(PREFIX)}
+    present = {f.get_name()[len(PREFIX) :] for f in layer.get_filters() if f.get_name().startswith(PREFIX)}
     out = {}
     for key, settings in style.items():
         if key in LABELS:
@@ -136,6 +168,7 @@ def write_style(layer, style):
 
 
 # -------------------------------------------------------------- geometry
+
 
 def offset(angle, distance):
     """Photoshop's light angle (where the light comes from, counter-clockwise
@@ -166,6 +199,7 @@ def gradient_line(layer, angle, scale, reverse):
 
 # ---------------------------------------------------------------- filters
 
+
 def color(value):
     return Gegl.Color.new(value or "#000000")
 
@@ -177,70 +211,178 @@ def filter_specs(layer, key, s):
     if key == "drop_shadow":
         x, y = offset(s["angle"], s["distance"])
         grow = s["size"] * s["spread"] / 100.0
-        op.append(("gegl:dropshadow", {"x": x, "y": y, "radius": blur(s["size"], grow), "grow-shape": "circle",
-                                       "grow-radius": grow, "color": color(s["color"]),
-                                       "opacity": s["opacity"] / 100.0}, "normal", 1.0))
+        op.append(
+            (
+                "gegl:dropshadow",
+                {
+                    "x": x,
+                    "y": y,
+                    "radius": blur(s["size"], grow),
+                    "grow-shape": "circle",
+                    "grow-radius": grow,
+                    "color": color(s["color"]),
+                    "opacity": s["opacity"] / 100.0,
+                },
+                "normal",
+                1.0,
+            )
+        )
     elif key == "outer_glow":
         grow = s["size"] * s["spread"] / 100.0
-        op.append(("gegl:dropshadow", {"x": 0.0, "y": 0.0, "radius": blur(s["size"], grow), "grow-shape": "circle",
-                                       "grow-radius": grow, "color": color(s["color"]),
-                                       # a glow is lighter than a shadow of the same opacity
-                                       "opacity": min(2.0, s["opacity"] / 100.0 * 1.5)}, "normal", 1.0))
+        op.append(
+            (
+                "gegl:dropshadow",
+                {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "radius": blur(s["size"], grow),
+                    "grow-shape": "circle",
+                    "grow-radius": grow,
+                    "color": color(s["color"]),
+                    # a glow is lighter than a shadow of the same opacity
+                    "opacity": min(2.0, s["opacity"] / 100.0 * 1.5),
+                },
+                "normal",
+                1.0,
+            )
+        )
     elif key in ("inner_shadow", "inner_glow"):
         x, y = offset(s["angle"], s["distance"]) if key == "inner_shadow" else (0.0, 0.0)
         grow = s["size"] * s["choke"] / 100.0
-        op.append(("gegl:inner-glow", {"x": x, "y": y, "radius": max(0.5, blur(s["size"], grow)),
-                                       "grow-radius": grow, "value": color(s["color"]),
-                                       "opacity": s["opacity"] / 100.0}, "normal", 1.0))
+        op.append(
+            (
+                "gegl:inner-glow",
+                {
+                    "x": x,
+                    "y": y,
+                    "radius": max(0.5, blur(s["size"], grow)),
+                    "grow-radius": grow,
+                    "value": color(s["color"]),
+                    "opacity": s["opacity"] / 100.0,
+                },
+                "normal",
+                1.0,
+            )
+        )
     elif key == "stroke":
         size, pos, opacity = float(s["size"]), s["position"], s["opacity"] / 100.0
         outside = size if pos == "outside" else size / 2.0 if pos == "center" else 0.0
         inside = size if pos == "inside" else size / 2.0 if pos == "center" else 0.0
         if inside > 0:
-            op.append(("gegl:inner-glow", {"x": 0.0, "y": 0.0, "radius": 0.5, "grow-radius": inside,
-                                           "value": color(s["color"]), "opacity": 2.0}, "normal", opacity))
+            op.append(
+                (
+                    "gegl:inner-glow",
+                    {
+                        "x": 0.0,
+                        "y": 0.0,
+                        "radius": 0.5,
+                        "grow-radius": inside,
+                        "value": color(s["color"]),
+                        "opacity": 2.0,
+                    },
+                    "normal",
+                    opacity,
+                )
+            )
         if outside > 0:
-            op.append(("gegl:styles", {"enableoutline": True, "outline": outside, "outline-color": color(s["color"]),
-                                       "outline-opacity": opacity, "outline-x": 0.0, "outline-y": 0.0,
-                                       "outline-blur": 0.0, "shadow-opacity": 0.0, "enablebevel": False,
-                                       "enableinnerglow": False, "enableimage": False,
-                                       "color-fill": color("#ffffff"), "color-policy": "multiply"},
-                       "normal", 1.0))
+            op.append(
+                (
+                    "gegl:styles",
+                    {
+                        "enableoutline": True,
+                        "outline": outside,
+                        "outline-color": color(s["color"]),
+                        "outline-opacity": opacity,
+                        "outline-x": 0.0,
+                        "outline-y": 0.0,
+                        "outline-blur": 0.0,
+                        "shadow-opacity": 0.0,
+                        "enablebevel": False,
+                        "enableinnerglow": False,
+                        "enableimage": False,
+                        "color-fill": color("#ffffff"),
+                        "color-policy": "multiply",
+                    },
+                    "normal",
+                    1.0,
+                )
+            )
     elif key == "bevel":
         azimuth = s["angle"] + (180 if s["direction"] == "down" else 0)
         # gegl:bevel's radius is 1-8 px and its depth 1-100 (40 looks like
         # Photoshop's default 100%); Smooth = bump, Chisel = chamfer
         chisel = s["technique"] == "chisel"
-        op.append(("gegl:bevel", {"type": "chamfer" if chisel else "bump", "metric": "euclidean",
-                                  "blendmode": s.get("highlight_mode", "hardlight"),
-                                  "radius": float(s["size"]) * 0.6, "elevation": float(s["altitude"]),
-                                  "depth": int(round(s["depth"] * 0.4)), "azimuth": float(azimuth % 360)},
-                   "normal", 1.0))
+        op.append(
+            (
+                "gegl:bevel",
+                {
+                    "type": "chamfer" if chisel else "bump",
+                    "metric": "euclidean",
+                    "blendmode": s.get("highlight_mode", "hardlight"),
+                    "radius": float(s["size"]) * 0.6,
+                    "elevation": float(s["altitude"]),
+                    "depth": int(round(s["depth"] * 0.4)),
+                    "azimuth": float(azimuth % 360),
+                },
+                "normal",
+                1.0,
+            )
+        )
     elif key == "color_overlay":
         op.append(("gegl:color-overlay", {"value": color(s["color"])}, s["blend"], s["opacity"] / 100.0))
     elif key == "gradient_overlay":
         (sx, sy), (ex, ey) = gradient_line(layer, s["angle"], s["scale"], s["reverse"])
-        op.append(("lb:effects", {**_effects_off(), "enable-gradient": True, "gradient-blend-mode": "normal",
-                                  "gradient-opacity": 1.0, "gradient-start-x": sx, "gradient-start-y": sy,
-                                  "gradient-end-x": ex, "gradient-end-y": ey,
-                                  # lb:effects puts colour 2 at the start point
-                                  "gradient-color-1": color(s["color2"]), "gradient-color-2": color(s["color1"])},
-                   s["blend"], s["opacity"] / 100.0))
+        op.append(
+            (
+                "lb:effects",
+                {
+                    **_effects_off(),
+                    "enable-gradient": True,
+                    "gradient-blend-mode": "normal",
+                    "gradient-opacity": 1.0,
+                    "gradient-start-x": sx,
+                    "gradient-start-y": sy,
+                    "gradient-end-x": ex,
+                    "gradient-end-y": ey,
+                    # lb:effects puts colour 2 at the start point
+                    "gradient-color-1": color(s["color2"]),
+                    "gradient-color-2": color(s["color1"]),
+                },
+                s["blend"],
+                s["opacity"] / 100.0,
+            )
+        )
     elif key == "pattern_overlay" and s.get("image"):
-        op.append(("lb:effects", {**_effects_off(), "image": s["image"], "image-blend-mode": "normal",
-                                  "image-opacity": 1.0},
-                   s["blend"], s["opacity"] / 100.0))
+        op.append(
+            (
+                "lb:effects",
+                {**_effects_off(), "image": s["image"], "image-blend-mode": "normal", "image-opacity": 1.0},
+                s["blend"],
+                s["opacity"] / 100.0,
+            )
+        )
     return op
 
 
 def _effects_off():
     """lb:effects with everything but what the caller enables switched off."""
-    return {"enable-outline": False, "enable-shadow": False, "enable-inner-glow": False,
-            "enable-gradient": False, "enable-os": False, "enable-shadow-special": False,
-            "enable-aura": False, "enable-outline-extra": False, "enable-ose": False,
-            "enable-glass": False, "enable-shine": False, "image": "",
-            "fill-color": color("#ffffff"), "fill-color-opacity": 0.0,
-            "enable-bevel-and-blend-mode": "nobevel"}
+    return {
+        "enable-outline": False,
+        "enable-shadow": False,
+        "enable-inner-glow": False,
+        "enable-gradient": False,
+        "enable-os": False,
+        "enable-shadow-special": False,
+        "enable-aura": False,
+        "enable-outline-extra": False,
+        "enable-ose": False,
+        "enable-glass": False,
+        "enable-shine": False,
+        "image": "",
+        "fill-color": color("#ffffff"),
+        "fill-color-opacity": 0.0,
+        "enable-bevel-and-blend-mode": "nobevel",
+    }
 
 
 _RANGES = {}
