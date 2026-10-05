@@ -11,7 +11,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-mapfile -t shell_files < <(printf '%s\n' scripts/* .githooks/*)
+mapfile -t shell_files < <(printf '%s\n' scripts/* .githooks/* tools/*.sh)
 mapfile -t py_files < <(git ls-files --cached --others --exclude-standard '*.py')
 
 echo "== shellcheck"

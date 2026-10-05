@@ -942,7 +942,37 @@
                 }
             ],
             "build-commands": [
-                "install -Dm 644 -t ${FLATPAK_DEST}/share/gimp/3.0/gimphoto shortcutsrc"
+                "install -Dm 644 -t ${FLATPAK_DEST}/share/gimp/3.0/gimphoto shortcutsrc",
+                "install -Dm 644 -t ${FLATPAK_DEST}/etc/gimp/3.0 sessionrc toolrc",
+                "cat ${FLATPAK_DEST}/etc/gimp/3.0/gimprc gimprc > gimprc.gimphoto",
+                "install -m 644 gimprc.gimphoto ${FLATPAK_DEST}/etc/gimp/3.0/gimprc"
+            ]
+        },
+        {
+            "name": "gimphoto-branding",
+            "buildsystem": "simple",
+            "sources": [
+                {
+                    "type": "dir",
+                    "path": "../branding"
+                }
+            ],
+            "build-commands": [
+                "install -Dm 644 splash.png ${FLATPAK_DEST}/share/gimp/3.0/images/gimp-splash.png",
+                "install -Dm 644 icons/16.png ${FLATPAK_DEST}/share/icons/hicolor/16x16/apps/gimp.png",
+                "install -Dm 644 icons/22.png ${FLATPAK_DEST}/share/icons/hicolor/22x22/apps/gimp.png",
+                "install -Dm 644 icons/24.png ${FLATPAK_DEST}/share/icons/hicolor/24x24/apps/gimp.png",
+                "install -Dm 644 icons/32.png ${FLATPAK_DEST}/share/icons/hicolor/32x32/apps/gimp.png",
+                "install -Dm 644 icons/36.png ${FLATPAK_DEST}/share/icons/hicolor/36x36/apps/gimp.png",
+                "install -Dm 644 icons/48.png ${FLATPAK_DEST}/share/icons/hicolor/48x48/apps/gimp.png",
+                "install -Dm 644 icons/64.png ${FLATPAK_DEST}/share/icons/hicolor/64x64/apps/gimp.png",
+                "install -Dm 644 icons/72.png ${FLATPAK_DEST}/share/icons/hicolor/72x72/apps/gimp.png",
+                "install -Dm 644 icons/96.png ${FLATPAK_DEST}/share/icons/hicolor/96x96/apps/gimp.png",
+                "install -Dm 644 icons/128.png ${FLATPAK_DEST}/share/icons/hicolor/128x128/apps/gimp.png",
+                "install -Dm 644 icons/192.png ${FLATPAK_DEST}/share/icons/hicolor/192x192/apps/gimp.png",
+                "install -Dm 644 icons/256.png ${FLATPAK_DEST}/share/icons/hicolor/256x256/apps/gimp.png",
+                "install -Dm 644 icons/512.png ${FLATPAK_DEST}/share/icons/hicolor/512x512/apps/gimp.png",
+                "install -Dm 644 icon.svg ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/gimp.svg"
             ]
         }
     ]

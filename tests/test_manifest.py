@@ -61,8 +61,34 @@ class TransformTest(unittest.TestCase):
         self.assertEqual(module["sources"], [{"type": "dir", "path": "../defaults"}])
         # gimp_data_directory_file ("gimphoto", "shortcutsrc") in patch 0002
         self.assertEqual(
-            module["build-commands"], ["install -Dm 644 -t ${FLATPAK_DEST}/share/gimp/3.0/gimphoto shortcutsrc"]
+            module["build-commands"],
+            [
+                "install -Dm 644 -t ${FLATPAK_DEST}/share/gimp/3.0/gimphoto shortcutsrc",
+                "install -Dm 644 -t ${FLATPAK_DEST}/etc/gimp/3.0 sessionrc toolrc",
+                "cat ${FLATPAK_DEST}/etc/gimp/3.0/gimprc gimprc > gimprc.gimphoto",
+                "install -m 644 gimprc.gimphoto ${FLATPAK_DEST}/etc/gimp/3.0/gimprc",
+            ],
         )
+
+    def test_branding_replaces_gimps_splash_and_icon_before_the_rename(self):
+        out = make_manifest.transform(UPSTREAM, [], branding=True)
+        module = out["modules"][-1]
+        self.assertEqual(module["name"], "gimphoto-branding")
+        commands = module["build-commands"]
+        self.assertIn("install -Dm 644 splash.png ${FLATPAK_DEST}/share/gimp/3.0/images/gimp-splash.png", commands)
+        # the recipe renames the "gimp" icon to the app ID
+        self.assertEqual(UPSTREAM["rename-icon"], "gimp")
+        self.assertIn("install -Dm 644 icon.svg ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/gimp.svg", commands)
+        for n in make_manifest.ICON_SIZES:
+            self.assertIn(
+                f"install -Dm 644 icons/{n}.png ${{FLATPAK_DEST}}/share/icons/hicolor/{n}x{n}/apps/gimp.png", commands
+            )
+
+    def test_branding_and_default_files_exist(self):
+        for name in make_manifest.SYSCONF_FILES + ["gimprc"]:
+            self.assertTrue((make_manifest.DEFAULTS / name).is_file(), name)
+        for name in ["splash.png", "icon.svg", *(f"icons/{n}.png" for n in make_manifest.ICON_SIZES)]:
+            self.assertTrue((make_manifest.BRANDING / name).is_file(), name)
 
     def test_gegl_ops_module_builds_each_operation_into_gegls_plugin_folder(self):
         out = make_manifest.transform(UPSTREAM, [], [], gegl_ops=["a-op", "b-op"])
