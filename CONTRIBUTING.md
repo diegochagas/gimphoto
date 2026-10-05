@@ -73,7 +73,10 @@ of it in use:
 - One feature per PR: the patch, `patches/series`, the regenerated
   `flatpak/io.github.diegochagas.GIMPhoto.json`, and any docs.
 - Fill in the template: what changed, **screenshots** of the new interface
-  (before/after), how you tested it, and how to roll back.
+  (before/after), how you tested it, and how to roll back. A PR description
+  does not show images by relative path (`docs/images/x.png`): drag the
+  images into the description, or use their full URL,
+  `https://github.com/<owner>/gimphoto/blob/<commit>/docs/images/x.png?raw=true`.
 - CI runs `scripts/check` (lint, unit tests, manifest, patches apply) and
   builds GIMPhoto with the patch; the build is attached to the run.
 

@@ -1,13 +1,12 @@
 # GIMPhoto
 
-**A GIMP edition with Photoshop-style tools and interface**, built from
-GIMP's own source with a small series of changes on top, one feature at a
-time, and kept up to date with each official GIMP release.
+**GIMPhoto is a fork of GIMP focused on Photoshop-style tools and
+interface.** It is to GIMP what Linux Mint is to Ubuntu: the same program
+underneath, GIMP 3.2.6, kept up to date with every official GIMP release,
+with its own tools and interface on top for people who know Photoshop.
 
-> **Status: early.** GIMPhoto is GIMP 3.2.6 plus the features below, added
-> one at a time. Planned features are tracked as
-> [GitHub issues](../../issues) on the
-> [project board](https://github.com/users/diegochagas/projects/1).
+The features are tracked as [GitHub issues](../../issues) on the
+[project board](https://github.com/users/diegochagas/projects/1).
 
 ## Features
 
@@ -23,7 +22,15 @@ default theme, layout and shortcuts.
 
 ### Layer Style (fx) button
 
-![The fx button's menu in GIMPhoto's Layers panel](docs/images/fx-button-menu.png)
+The **fx** button at the bottom of the Layers panel, with its menu open, on a
+text layer with a stroke and a drop shadow:
+
+![GIMPhoto with the fx button's menu open in the Layers panel](docs/images/fx-button-in-use.png)
+
+Each entry opens the Layer Style dialog on that effect, previewing live on
+the canvas:
+
+![The Layer Style dialog](docs/images/fx-button-dialog.png)
 
 ## Why a patched build?
 
