@@ -1,5 +1,3 @@
-<p align="center"><img src="docs/images/gimphoto-icon.png" width="128" alt="GIMPhoto's icon"></p>
-
 # GIMPhoto
 
 **GIMPhoto is a fork of GIMP focused on Photoshop-style tools and

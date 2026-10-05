@@ -26,8 +26,8 @@ by hand) + a patch series (`patches/`) + a generator
 - **Every modification is documented**: `docs/features/<feature>.md` with
   before/after screenshots of it in use, plus its row in the README's
   feature table. A feature PR without them is not done.
-- **The README shows only** the icon, the splash screen and one screenshot of
-  GIMPhoto open (`docs/images/gimphoto.png`). Every feature's screenshots go
+- **The README shows only** the splash screen (which carries the logo) and
+  one screenshot of GIMPhoto open (`docs/images/gimphoto.png`). Every feature's screenshots go
   on its own page; a PR that changes what GIMPhoto looks like also updates
   `docs/images/gimphoto.png`.
 - No personal paths, IPs, tokens or real user data in code, tests or docs.
