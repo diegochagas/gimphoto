@@ -2,3 +2,4 @@
 # Flathub's own patch. One feature per patch, made with scripts/export-patches.
 0001-Layers-dock-add-the-Layer-Style-fx-button.patch
 0002-Photoshop-shortcuts-by-default.patch
+0003-Layers-dock-list-each-layer-s-effects-under-it-with-.patch
