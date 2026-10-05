@@ -62,6 +62,7 @@ own GIMP shortcut too, unless Photoshop uses that key for something else.
 | Dodge / Burn Tool (O) | O | `tools-dodge-burn` | Shift+D |
 | Pen Tool (P) | P | `tools-path` | B |
 | Horizontal Type Tool (T) | T | `tools-text` | T |
+| Rectangle / Ellipse Tool (U) | U | `tools-shape` | – |
 | Zoom Tool (Z) | Z | `tools-zoom` | Z |
 | Edit > Free Transform (Ctrl+T) | Ctrl+T | `tools-unified-transform` | Shift+T |
 | Filter > Liquify (Ctrl+Shift+X) | Ctrl+Shift+X | `tools-warp` | W |
