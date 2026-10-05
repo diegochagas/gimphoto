@@ -990,6 +990,22 @@
                 "install -Dm 644 -t ${FLATPAK_DEST}/share/gimp/3.0/icons/Default/scalable/apps *.svg",
                 "install -Dm 644 -t ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps *.svg"
             ]
+        },
+        {
+            "name": "gimphoto-themes",
+            "buildsystem": "simple",
+            "sources": [
+                {
+                    "type": "dir",
+                    "path": "../themes"
+                }
+            ],
+            "build-commands": [
+                "install -Dm 644 Photoshop/gimp.css ${FLATPAK_DEST}/share/gimp/3.0/themes/Photoshop/gimp.css",
+                "install -Dm 644 Photoshop/gimp.css ${FLATPAK_DEST}/share/gimp/3.0/themes/Photoshop/gimp-dark.css",
+                "install -Dm 644 Photoshop/gimp.css ${FLATPAK_DEST}/share/gimp/3.0/themes/Photoshop/gimp-gray.css",
+                "install -Dm 644 Photoshop/gimp.css ${FLATPAK_DEST}/share/gimp/3.0/themes/Photoshop/gimp-light.css"
+            ]
         }
     ]
 }

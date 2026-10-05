@@ -40,10 +40,10 @@ From PhotoGIMP 3.0 (commit eca3a8f), credited in each file:
 |---|---|---|
 | `toolrc`: toolbox order and groups like Photoshop's | `defaults/toolrc` | GIMPhoto's [shape tools](shape-tool.md) grouped after Text |
 | `sessionrc`: one window, toolbox on the left, Tool Options + brushes, patterns, fonts and gradients over Layers, Channels and Paths on the right | `defaults/sessionrc` | on GIMP 3.2's own sessionrc; without its window and dialog positions and sizes (made for one monitor); Paths is GIMP 3.2's `gimp-path-list` (PhotoGIMP's `gimp-vectors-list` no longer exists); the window starts maximized |
-| `gimprc`: layer previews extra large, thumbnails large, undo previews medium, 8 undo levels, alpha channel on imported images, dark canvas padding, no layer boundary, snap to canvas, toolbox brush/pattern/gradient area | `defaults/gimprc` | without its monitor resolution, the padding colour's embedded monitor profile, the image view opening fullscreen, and its fill and stroke options |
+| `gimprc`: layer previews extra large, thumbnails large, undo previews medium, 8 undo levels, alpha channel on imported images, dark canvas padding, no layer boundary, snap to canvas, toolbox brush/pattern/gradient area | `defaults/gimprc` | without its monitor resolution, the padding colour's embedded monitor profile, the image view opening fullscreen, and its fill and stroke options; the padding is Photoshop's `#282828` with the [Photoshop theme](photoshop-theme.md) |
 | `shortcutsrc` | — | GIMPhoto has its own Photoshop keymap ([#8](photoshop-shortcuts.md)) |
 | `contextrc`, `tool-options/`, `plug-in-settings/`, `filters/` | — | left out: last-used values from PhotoGIMP's author's own sessions (a 1920×1080 crop ratio, the Starfield pattern, JPEG export settings), not Photoshop-style defaults |
-| `theme.css` | — | written by GIMP on every start; GIMPhoto keeps GIMP's dark theme |
+| `theme.css` | — | written by GIMP on every start; GIMPhoto has its own [Photoshop theme](photoshop-theme.md) |
 | splash screen, icon, `.desktop` file | — | PhotoGIMP's artwork: GIMPhoto has its own (below); the launcher is already named GIMPhoto |
 
 ## What changed

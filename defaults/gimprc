@@ -7,6 +7,11 @@
 # pasteboard, no layer boundary, snapping to the canvas. Left out: its
 # monitor resolution, its padding colour's embedded monitor profile, the
 # image view opening fullscreen, and its last-used fill and stroke options.
+#
+# The Photoshop theme (themes/Photoshop, from gimp-setup) and Photoshop's
+# pasteboard colour #282828 instead of PhotoGIMP's darker one.
+
+(theme "Photoshop")
 
 (undo-levels 8)
 (undo-preview-size medium)
@@ -18,11 +23,11 @@
     (show-layer-boundary no)
     (snap-to-canvas yes)
     (padding-mode custom)
-    (padding-color (color-rgb 0.106 0.106 0.122))
+    (padding-color (color-rgb 0.157 0.157 0.157))
     (padding-in-show-all no))
 (default-fullscreen-view
     (show-layer-boundary no)
     (snap-to-canvas yes)
     (padding-mode custom)
-    (padding-color (color-rgb 0.106 0.106 0.122))
+    (padding-color (color-rgb 0.157 0.157 0.157))
     (padding-in-show-all no))

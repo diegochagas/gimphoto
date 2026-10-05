@@ -134,12 +134,16 @@ for f in sessionrc toolrc; do
 done
 fresh="$(mktemp -d /tmp/gimphoto-smoke.XXXXXX)"
 flatpak run --env=GIMP3_DIRECTORY="$fresh" "$app" -i -d --batch-interpreter=python-fu-eval \
-    -b "open('$fresh/answer', 'w').write(Gimp.gimprc_query('layer-preview-size') + ' ' + Gimp.gimprc_query('import-add-alpha'))" \
+    -b "open('$fresh/answer', 'w').write(Gimp.gimprc_query('layer-preview-size') + ' ' + Gimp.gimprc_query('import-add-alpha') + ' ' + Gimp.gimprc_query('theme'))" \
     --quit >/dev/null 2>&1 || true
 answer="$(cat "$fresh/answer" 2>/dev/null || true)"
 rm -rf "$fresh"
-if [[ "$answer" != "extra-large yes" ]]; then
+if [[ "$answer" != "extra-large yes Photoshop" ]]; then
     echo "FAIL a new profile does not get GIMPhoto's gimprc settings (got '${answer:-nothing}')" >&2
+    defaults_ok=false
+fi
+if [[ "$(flatpak run --command=cat "$app" /app/share/gimp/3.0/themes/Photoshop/gimp-dark.css 2>/dev/null)" != "$(cat themes/Photoshop/gimp.css)" ]]; then
+    echo "FAIL the Photoshop theme is not installed from themes/Photoshop/gimp.css" >&2
     defaults_ok=false
 fi
 if ! flatpak run --command=cat "$app" /app/share/gimp/3.0/images/gimp-splash.png 2>/dev/null | cmp -s - branding/splash.png; then
@@ -152,7 +156,7 @@ if ! cmp -s "$icon" branding/icons/256.png; then
     defaults_ok=false
 fi
 if [[ "$defaults_ok" == true ]]; then
-    echo "ok   Photoshop-style toolbox, layout and settings for new profiles; GIMPhoto splash and icon"
+    echo "ok   Photoshop-style toolbox, layout, theme and settings for new profiles; GIMPhoto splash and icon"
 else
     status=1
 fi
