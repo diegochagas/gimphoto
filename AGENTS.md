@@ -13,6 +13,10 @@ by hand) + a patch series (`patches/`) + a generator
 - **Plug-in first:** only patch GIMP's C code for what a plug-in cannot do
   (toolbox, docks, canvas tools, window layout). Keep patches small: every
   line has to be re-applied on each GIMP update.
+- **A GEGL operation** (`gegl/<name>.c`, built by the manifest's
+  `gimphoto-gegl-ops` module) when a layer effect needs pixels no GEGL
+  operation draws: it is saved in the XCF like GIMP's own filters, which a
+  graph built by a plug-in is not.
 - **Flathub's recipe stays Flathub's.** Changes to the build go through the
   generator, and its tests in `tests/` pin what may differ (app ID, launcher
   name, own user profile, patches, the `plugins/` module). Updating GIMP =

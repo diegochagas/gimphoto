@@ -10,18 +10,19 @@
 # Every effect is drawn by a GEGL operation GIMP already has: gegl:dropshadow
 # (Drop Shadow, Outer Glow), gegl:inner-glow (Inner Shadow, Inner Glow,
 # inside stroke), gegl:styles (outside stroke; LinuxBeaver's Text Styling),
-# gegl:bevel, gegl:color-overlay, lb:effects (gradient and image overlay;
-# LinuxBeaver's GEGL Effects). Photoshop's Satin and Contours have no GEGL
-# counterpart.
+# gegl:bevel, gegl:color-overlay, and GIMPhoto's own gimphoto:gradient-overlay
+# and gimphoto:pattern-overlay (gegl/ in GIMPhoto's repository). Photoshop's
+# Satin and Contours have no GEGL counterpart.
 
 import json
 import math
+import os
 
 import gi
 
 gi.require_version("Gimp", "3.0")
 gi.require_version("Gegl", "0.4")
-from gi.repository import Gimp, Gegl
+from gi.repository import Gegl, Gimp, Gio
 
 PARASITE = "gimp-setup-layer-style"
 PREFIX = "Layer Style: "
@@ -40,8 +41,7 @@ EFFECTS = [
 ]
 LABELS = dict(EFFECTS)
 
-# GEGL operations each effect needs. lb:effects comes from LinuxBeaver's
-# GEGL plug-ins, which a plain GIMP does not have.
+# GEGL operations each effect needs; the gimphoto: ones ship with GIMPhoto.
 REQUIRES = {
     "drop_shadow": ["gegl:dropshadow"],
     "outer_glow": ["gegl:dropshadow"],
@@ -50,8 +50,8 @@ REQUIRES = {
     "stroke": ["gegl:styles", "gegl:inner-glow"],
     "bevel": ["gegl:bevel"],
     "color_overlay": ["gegl:color-overlay"],
-    "gradient_overlay": ["lb:effects"],
-    "pattern_overlay": ["lb:effects"],
+    "gradient_overlay": ["gimphoto:gradient-overlay"],
+    "pattern_overlay": ["gimphoto:pattern-overlay"],
 }
 _AVAILABLE = None
 
@@ -67,9 +67,11 @@ def missing_operations(key):
 # order the filters are applied in: what is painted inside the layer first,
 # then the bevel and the stroke on top, then what spreads outside it
 RENDER_ORDER = [
-    "color_overlay",
-    "gradient_overlay",
+    # Photoshop stacks Color Overlay over Gradient Overlay over Pattern
+    # Overlay: the first one added is the lowest
     "pattern_overlay",
+    "gradient_overlay",
+    "color_overlay",
     "inner_glow",
     "inner_shadow",
     "bevel",
@@ -101,11 +103,13 @@ DEFAULTS = {
         "color2": "#ffffff",
         "blend": "normal",
         "opacity": 100,
+        "style": "linear",
         "angle": 90,
         "scale": 100,
         "reverse": False,
     },
-    "pattern_overlay": {"image": "", "blend": "normal", "opacity": 100},
+    # pattern: a GIMP pattern's name, or image: any image file (wins)
+    "pattern_overlay": {"pattern": "", "image": "", "scale": 100, "blend": "normal", "opacity": 100},
 }
 
 BLEND_MODES = [
@@ -181,20 +185,6 @@ def blur(size, grow):
     """Photoshop's Size includes the Spread/Choke part; what is left is the
     soft edge, about two gaussian standard deviations wide."""
     return max(0.0, (size - grow) / 2.0)
-
-
-def gradient_line(layer, angle, scale, reverse):
-    """Start and end of a linear gradient across the layer at angle, in
-    layer pixel coordinates, like Photoshop's Gradient Overlay."""
-    w, h = layer.get_width(), layer.get_height()
-    a = math.radians(angle)
-    dx, dy = math.cos(a), -math.sin(a)
-    # half the layer's extent along the gradient direction
-    half = (abs(dx) * w + abs(dy) * h) / 2.0 * (scale / 100.0)
-    cx, cy = w / 2.0, h / 2.0
-    start = (cx - dx * half, cy - dy * half)
-    end = (cx + dx * half, cy + dy * half)
-    return (end, start) if reverse else (start, end)
 
 
 # ---------------------------------------------------------------- filters
@@ -331,58 +321,75 @@ def filter_specs(layer, key, s):
     elif key == "color_overlay":
         op.append(("gegl:color-overlay", {"value": color(s["color"])}, s["blend"], s["opacity"] / 100.0))
     elif key == "gradient_overlay":
-        (sx, sy), (ex, ey) = gradient_line(layer, s["angle"], s["scale"], s["reverse"])
         op.append(
             (
-                "lb:effects",
+                "gimphoto:gradient-overlay",
                 {
-                    **_effects_off(),
-                    "enable-gradient": True,
-                    "gradient-blend-mode": "normal",
-                    "gradient-opacity": 1.0,
-                    "gradient-start-x": sx,
-                    "gradient-start-y": sy,
-                    "gradient-end-x": ex,
-                    "gradient-end-y": ey,
-                    # lb:effects puts colour 2 at the start point
-                    "gradient-color-1": color(s["color2"]),
-                    "gradient-color-2": color(s["color1"]),
+                    "color1": color(s["color1"]),
+                    "color2": color(s["color2"]),
+                    "style": s.get("style", "linear"),
+                    "angle": float(s["angle"]),
+                    "scale": float(s["scale"]),
+                    "reverse": bool(s["reverse"]),
                 },
                 s["blend"],
                 s["opacity"] / 100.0,
             )
         )
-    elif key == "pattern_overlay" and s.get("image"):
-        op.append(
-            (
-                "lb:effects",
-                {**_effects_off(), "image": s["image"], "image-blend-mode": "normal", "image-opacity": 1.0},
-                s["blend"],
-                s["opacity"] / 100.0,
+    elif key == "pattern_overlay":
+        path = s.get("image") or pattern_file(s.get("pattern"))
+        if path:
+            op.append(
+                (
+                    "gimphoto:pattern-overlay",
+                    {"path": path, "scale": float(s.get("scale", 100))},
+                    s["blend"],
+                    s["opacity"] / 100.0,
+                )
             )
-        )
     return op
 
 
-def _effects_off():
-    """lb:effects with everything but what the caller enables switched off."""
-    return {
-        "enable-outline": False,
-        "enable-shadow": False,
-        "enable-inner-glow": False,
-        "enable-gradient": False,
-        "enable-os": False,
-        "enable-shadow-special": False,
-        "enable-aura": False,
-        "enable-outline-extra": False,
-        "enable-ose": False,
-        "enable-glass": False,
-        "enable-shine": False,
-        "image": "",
-        "fill-color": color("#ffffff"),
-        "fill-color-opacity": 0.0,
-        "enable-bevel-and-blend-mode": "nobevel",
-    }
+GRADIENT_STYLES = [
+    ("linear", "Linear"),
+    ("radial", "Radial"),
+    ("angle", "Angle"),
+    ("reflected", "Reflected"),
+    ("diamond", "Diamond"),
+]
+
+
+def pattern_file(name):
+    """A GIMP pattern as a PNG file gimphoto:pattern-overlay can read, in the
+    profile's cache (gimphoto-patterns/), made once per pattern; None if
+    there is no such pattern."""
+    if not name:
+        return None
+    pattern = Gimp.Pattern.get_by_name(name)
+    if pattern is None:
+        return None
+    folder = os.path.join(Gimp.directory(), "gimphoto-patterns")
+    safe = "".join(c if c.isalnum() or c in "-_." else "_" for c in name)
+    path = os.path.join(folder, safe + ".png")
+    if not os.path.exists(path):
+        os.makedirs(folder, exist_ok=True)
+        _ok, width, height, _bpp = pattern.get_info()
+        image = Gimp.Image.new(width, height, Gimp.ImageBaseType.RGB)
+        try:
+            layer = Gimp.Layer.new(
+                image, "pattern", width, height, Gimp.ImageType.RGBA_IMAGE, 100, Gimp.LayerMode.NORMAL
+            )
+            image.insert_layer(layer, None, 0)
+            Gimp.context_push()
+            try:
+                Gimp.context_set_pattern(pattern)
+                layer.edit_fill(Gimp.FillType.PATTERN)
+            finally:
+                Gimp.context_pop()
+            Gimp.file_save(Gimp.RunMode.NONINTERACTIVE, image, Gio.File.new_for_path(path), None)
+        finally:
+            image.delete()
+    return path
 
 
 _RANGES = {}

@@ -64,6 +64,22 @@ class TransformTest(unittest.TestCase):
             module["build-commands"], ["install -Dm 644 -t ${FLATPAK_DEST}/share/gimp/3.0/gimphoto shortcutsrc"]
         )
 
+    def test_gegl_ops_module_builds_each_operation_into_gegls_plugin_folder(self):
+        out = make_manifest.transform(UPSTREAM, [], [], gegl_ops=["a-op", "b-op"])
+        module = out["modules"][-1]
+        self.assertEqual(module["name"], "gimphoto-gegl-ops")
+        self.assertEqual(module["sources"], [{"type": "dir", "path": "../gegl"}])
+        commands = module["build-commands"]
+        self.assertIn("-o a-op.so a-op.c", commands[0])
+        self.assertIn("-o b-op.so b-op.c", commands[1])
+        self.assertEqual(commands[-1], "install -Dm 755 -t ${FLATPAK_DEST}/lib/gegl-0.4 a-op.so b-op.so")
+
+    def test_gegl_ops_come_after_gegl_and_gimp(self):
+        out = make_manifest.transform(UPSTREAM, [], [], gegl_ops=["a-op"])
+        names = [m.get("name") for m in out["modules"] if isinstance(m, dict)]
+        self.assertGreater(names.index("gimphoto-gegl-ops"), names.index("gegl"))
+        self.assertGreater(names.index("gimphoto-gegl-ops"), names.index("gimp"))
+
     def test_every_default_file_exists(self):
         for name in make_manifest.DEFAULT_FILES:
             self.assertTrue((make_manifest.DEFAULTS / name).is_file(), name)
