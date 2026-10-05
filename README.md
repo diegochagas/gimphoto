@@ -7,7 +7,7 @@ time, and kept up to date with each official GIMP release.
 > **Status: just started.** GIMPhoto currently builds **unmodified GIMP
 > 3.2.6** through its own pipeline: the base every feature will be added
 > to. Planned features are tracked as
-> [GitHub issues](../../issues).
+> [GitHub issues](../../issues) on the [project board](https://github.com/users/diegochagas/projects/1).
 
 GIMPhoto is not affiliated with the GIMP project or with Adobe. "GIMP" is
 the GNU Image Manipulation Program; Photoshop is a trademark of Adobe Inc.,
@@ -83,7 +83,7 @@ recompile what changed. To remove it:
 ## Contributing
 
 Features are proposed and tracked as GitHub issues, organized on the
-project board; each one is implemented as one patch in one pull request.
+[project board](https://github.com/users/diegochagas/projects/1); each one is implemented as one patch in one pull request.
 [CONTRIBUTING.md](CONTRIBUTING.md) explains the workflow.
 
 ## License

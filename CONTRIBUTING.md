@@ -8,7 +8,7 @@ new GIMP releases.
 ## 1. Pick or propose a feature
 
 - Features live as **GitHub issues** (template *Photoshop feature*), on the
-  project board: *Backlog → Ready → In progress → In review → Done*.
+  [project board](https://github.com/users/diegochagas/projects/1): *Backlog → Ready → In progress → In review → Done*.
 - Comment on an issue before starting, so two people don't build the same
   thing; a maintainer assigns it and moves it to *In progress*.
 - **Prefer a plug-in when one can do it.** A patch to GIMP's C code is only
