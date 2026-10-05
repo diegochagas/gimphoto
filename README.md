@@ -1,9 +1,13 @@
 # GIMPhoto
 
+![GIMPhoto's splash screen](docs/images/splash-after.png)
+
 **GIMPhoto is a fork of GIMP focused on Photoshop-style tools and
 interface.** It is to GIMP what Linux Mint is to Ubuntu: the same program
 underneath, GIMP 3.2.6, kept up to date with every official GIMP release,
 with its own tools and interface on top for people who know Photoshop.
+
+![GIMPhoto open: Photoshop-style toolbox and panels, a text layer with a gradient overlay, stroke and drop shadow listed under it, and shapes drawn with the Shape tool](docs/images/gimphoto.png)
 
 The features are tracked as [GitHub issues](../../issues) on the
 [project board](https://github.com/users/diegochagas/projects/1).
@@ -11,7 +15,8 @@ The features are tracked as [GitHub issues](../../issues) on the
 ## Features
 
 Every change GIMPhoto makes to GIMP, each with its own page: how to use
-it, before/after screenshots, what changed in GIMP's code, limits.
+it, before/after screenshots, what changed in GIMP's code, limits. The
+screenshots of each feature are on its page.
 
 | Feature | Photoshop equivalent | Where | Docs |
 |---|---|---|---|
@@ -25,52 +30,6 @@ it, before/after screenshots, what changed in GIMP's code, limits.
 
 Apart from these, GIMPhoto is plain GIMP, with its own user profile and
 GIMP's dark theme.
-
-### Photoshop-style defaults
-
-A new profile opens like this: Photoshop's toolbox, panels and dark canvas
-surround (PhotoGIMP's setup, shipped as GIMPhoto's defaults):
-
-![GIMPhoto's Photoshop-style layout](docs/images/layout-after.png)
-
-### Layer Style (fx) button
-
-The **fx** button at the bottom of the Layers panel, with its menu open, on a
-text layer with a stroke and a drop shadow:
-
-![GIMPhoto with the fx button's menu open in the Layers panel](docs/images/fx-button-in-use.png)
-
-Each entry opens the Layer Style dialog on that effect, previewing live on
-the canvas:
-
-![The Layer Style dialog](docs/images/fx-button-dialog.png)
-
-### Gradient and Pattern Overlay
-
-Drawn by GIMPhoto's own GEGL operations, like any other layer effect: here
-a radial Gradient Overlay, previewing live:
-
-![A radial Gradient Overlay on a text layer](docs/images/gradient-overlay.png)
-
-### Photoshop shortcuts by default
-
-Menus show Photoshop's shortcuts, and the keys do what they do in
-Photoshop (here Ctrl+G, Ctrl+E, Ctrl+J and Shift+Ctrl+J, Shift+Ctrl+D for Duplicate Layers):
-
-![GIMPhoto's Layer menu with Photoshop's shortcuts](docs/images/shortcuts-layer-menu.png)
-
-### Layer effects in the Layers list
-
-A layer's effects listed under it, collapsible, each with its own eye:
-
-![A text layer's effects listed under it in GIMPhoto's Layers panel](docs/images/effects-rows-in-use.png)
-
-### Layer via Copy / Cut
-
-With a selection, Ctrl+J copies the selected area into a new layer, in
-place, and Ctrl+Shift+J cuts it out of the layer:
-
-![Layer via Cut: the selected area moved to its own layer](docs/images/layer-via-cut.png)
 
 ## Why a patched build?
 

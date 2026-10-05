@@ -64,6 +64,19 @@ channel to the layer first (*Layer → Transparency → Add Alpha Channel*).
 
 ![A stroke and drop shadow on an opaque photo layer, before and after the fix](../images/layer-style-opaque-layer.png)
 
+## With a selection
+
+GIMP crops a filter to the selection there is when it is added, so effects
+added with a selection showed only inside it, or not at all. Like
+Photoshop's, the layer style ignores the selection: it is set aside while
+the effects are added and then put back
+([#13](https://github.com/diegochagas/gimphoto/issues/13)). A red outside
+stroke with a selection active (black outline), before and after:
+
+| Before | After |
+|---|---|
+| ![The stroke missing](../images/layer-style-selection-before.png) | ![The stroke around the whole layer](../images/layer-style-selection-after.png) |
+
 ## Limits
 
 - **Gradient Overlay and Pattern Overlay** are drawn by GIMPhoto's own GEGL
