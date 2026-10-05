@@ -1,13 +1,13 @@
 # GIMPhoto
 
+![GIMPhoto's splash screen](docs/images/splash-after.png)
+
 **GIMPhoto is a fork of GIMP focused on Photoshop-style tools and
 interface.** It is to GIMP what Linux Mint is to Ubuntu: the same program
 underneath, GIMP 3.2.6, kept up to date with every official GIMP release,
 with its own tools and interface on top for people who know Photoshop.
 
 ![GIMPhoto open: Photoshop-style toolbox and panels, a text layer with a gradient overlay, stroke and drop shadow listed under it, and shapes drawn with the Shape tool](docs/images/gimphoto.png)
-
-![GIMPhoto's splash screen](docs/images/splash-after.png)
 
 The features are tracked as [GitHub issues](../../issues) on the
 [project board](https://github.com/users/diegochagas/projects/1).
