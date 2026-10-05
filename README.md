@@ -21,7 +21,7 @@ it, before/after screenshots, what changed in GIMP's code, limits.
 | **Photoshop shortcuts by default**: Ctrl+D deselects, Ctrl+J / Ctrl+Shift+J make a layer via copy / cut, Ctrl+T transforms, V/M/L/W/B/S/E… pick the same tools, Ctrl+Tab switches images | Photoshop's default keyboard shortcuts | core patch + keymap | [photoshop-shortcuts.md](docs/features/photoshop-shortcuts.md) |
 | **Photoshop-style defaults**: toolbox in one column with Photoshop's tool groups, Tool Options and Layers on the right, dark canvas surround, larger layer previews (from PhotoGIMP); GIMPhoto's own splash screen and icon | Photoshop's default workspace | defaults + branding | [photoshop-style-defaults.md](docs/features/photoshop-style-defaults.md) |
 | **Layer via Copy / Layer via Cut** (Ctrl+J / Ctrl+Shift+J): a new layer from the selected area, in place; Cut also removes it from the original | Layer › New › Layer via Copy / Cut | plug-in + keymap | [layer-via-copy-cut.md](docs/features/layer-via-copy-cut.md) |
-| **Shape tool** (U) in the toolbox: drag to draw a rectangle (rounded corners) or an ellipse as a vector layer, Shift for a square/circle, Alt from the centre, fill and stroke in Tool Options | Rectangle / Ellipse Tool (U) | core patch | [shape-tool.md](docs/features/shape-tool.md) |
+| **Shape tool** (U) in the toolbox: drag to draw a rectangle, ellipse, triangle, polygon or star, line or custom shape (heart, arrow, speech bubble…) as a vector layer, fill and stroke in Tool Options | Shape tools (U) | core patch | [shape-tool.md](docs/features/shape-tool.md) |
 
 Apart from these, GIMPhoto is plain GIMP, with its own user profile and
 GIMP's dark theme.
