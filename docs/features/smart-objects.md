@@ -96,10 +96,13 @@ file.
     (`pdb/groups/link_layer.pdb` and the files pdbgen makes from it): where
     the four corners of a link layer's file are on the canvas after its
     transforms, which Photoshop stores for a smart object. GIMP keeps that
-    transform but did not let plug-ins read it.
+    transform but did not let plug-ins read it;
+  - `app/xcf/xcf-load.c`: an XCF keeps a smart object's name (GIMP renamed
+    link layers after their file when it loaded them).
 - **Tests:** `tests/smoke_smart_objects.py`, run by `scripts/smoke`: two
   layers of a saved image become one smart object, its contents in
-  `<name> smart objects/`, at the same place and looking the same; scaled to
+  `<name> smart objects/`, at the same place and looking the same, its name
+  kept when the XCF is saved and opened again; scaled to
   15% and back it is still sharp; exported to PSD it is one smart object
   (checked with ag-psd, as Photoshop reads it) with its contents embedded as
   a PSD on the same corners, upright and rotated; that PSD opens as a smart

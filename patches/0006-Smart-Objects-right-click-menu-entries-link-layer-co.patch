@@ -13,6 +13,10 @@ link layer's file are on the canvas after its non-destructive transforms,
 and that file's size, so the plug-in can write a smart object's transform
 into a PSD.
 
+An XCF keeps a link layer's name (a smart object's): loading it set the
+link, which renamed the layer after its file, before applying the flag
+that says the name was given by hand.
+
 diff --git a/app/pdb/internal-procs.c b/app/pdb/internal-procs.c
 index 5ae707bbc2..fde7d4a73a 100644
 --- a/app/pdb/internal-procs.c
@@ -154,6 +158,39 @@ index 15cc6ce718..5596601d19 100644
 +  gimp_pdb_register_procedure (pdb, procedure);
 +  g_object_unref (procedure);
  }
+diff --git a/app/xcf/xcf-load.c b/app/xcf/xcf-load.c
+index ab81519970..97dc2973dc 100644
+--- a/app/xcf/xcf-load.c
++++ b/app/xcf/xcf-load.c
+@@ -2692,6 +2692,7 @@ xcf_load_layer_props (XcfInfo    *info,
+                       gboolean  floating;
+                       gint      raster_width;
+                       gint      raster_height;
++                      gchar    *name;
+ 
+                       raster_width  = gimp_item_get_width (GIMP_ITEM (*layer));
+                       raster_height = gimp_item_get_height (GIMP_ITEM (*layer));
+@@ -2707,9 +2708,20 @@ xcf_load_layer_props (XcfInfo    *info,
+                                                       "image", image,
+                                                       NULL);
+ 
++                      /* GIMPhoto: setting the link renames the layer after
++                       * its file before the flags say whether it may; a
++                       * name given by hand (a smart object's) is kept.
++                       */
++                      name = g_strdup (gimp_object_get_name (*layer));
++
+                       gimp_link_layer_set_link (GIMP_LINK_LAYER (*layer), link, FALSE);
+                       gimp_link_layer_set_xcf_flags (GIMP_LINK_LAYER (*layer), flags);
+ 
++                      if (! gimp_rasterizable_get_auto_rename (GIMP_RASTERIZABLE (*layer)))
++                        gimp_object_set_name (GIMP_OBJECT (*layer), name);
++
++                      g_free (name);
++
+                       if (! gimp_link_layer_is_monitored (GIMP_LINK_LAYER (*layer)) ||
+                           gimp_link_is_broken (gimp_link_layer_get_link (GIMP_LINK_LAYER (*layer))))
+                         {
 diff --git a/libgimp/gimp.def b/libgimp/gimp.def
 index f53193283d..63084847cc 100644
 --- a/libgimp/gimp.def

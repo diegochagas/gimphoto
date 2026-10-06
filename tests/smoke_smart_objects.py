@@ -160,6 +160,15 @@ def check(tmp):
         return f"convert: the smart object is at {link.get_offsets()[1:]} {link.get_width()}x{link.get_height()}"
     if not (near(flat(img, 50, 50), (1, 0, 0)) and near(flat(img, 190, 90), (0, 0, 1))):
         return "convert: the image does not look the same"
+    # saved and opened again, the smart object keeps its name (GIMP renamed
+    # link layers after their file when loading an XCF)
+    link.set_name("Logo")
+    Gimp.file_save(Gimp.RunMode.NONINTERACTIVE, img, Gio.File.new_for_path(xcf), None)
+    reopened = Gimp.file_load(Gimp.RunMode.NONINTERACTIVE, Gio.File.new_for_path(xcf))
+    names = [lyr.get_name() for lyr in reopened.get_layers() if isinstance(lyr, Gimp.LinkLayer)]
+    reopened.delete()
+    if names != ["Logo"]:
+        return f"picture.xcf reopened: the smart object is named {names}, want ['Logo']"
 
     # scaled down and back up: re-rendered from the file, still sharp
     # (scale() keeps the image origin fixed, so put it back in place)
