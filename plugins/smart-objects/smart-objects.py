@@ -9,8 +9,11 @@
 #     XCF of their own, cropped to them, and are replaced, at the same
 #     place in the stack and on the canvas, by one link layer showing it.
 #   Layer > Smart Object > Edit Contents
-#     Opens the selected smart object's file in a new tab. Save it
-#     (Ctrl+S) and every link layer showing it updates.
+#     Opens the selected smart object's file in a new tab, after a notice
+#     that says how to commit the changes (as Photoshop does; it has a
+#     "Don't show again" box). Save it (Ctrl+S) and every link layer showing
+#     it updates. A double click on the smart object in the Layers panel
+#     does the same (patch "Layers dock: double click opens a smart object").
 #   Layer > Smart Object > Replace Contents...
 #     Points the selected smart object at another image file.
 #   Rasterize: GIMP's own Layer > Rasterize.
@@ -179,7 +182,47 @@ def selected_link(image):
     return layers[0]
 
 
-def edit(procedure, image):
+def hint_flag():
+    """Marker file: the person ticked "Don't show again" on the Edit Contents
+    notice. In the profile folder, so it follows the profile."""
+    return os.path.join(Gimp.directory(), "smart-object-edit-hint-off")
+
+
+def show_edit_hint(image):
+    """Photoshop's notice before it opens a smart object's contents: how to
+    commit the changes, with a "Don't show again" box."""
+    if os.path.exists(hint_flag()):
+        return
+    gi.require_version("GimpUi", "3.0")
+    gi.require_version("Gtk", "3.0")
+    from gi.repository import GimpUi, Gtk
+
+    GimpUi.init("smart-objects")
+    dialog = Gtk.MessageDialog(
+        message_type=Gtk.MessageType.INFO,
+        buttons=Gtk.ButtonsType.OK,
+        text="After editing the contents, choose File > Save to commit the changes. "
+        "Those changes will be reflected upon returning to %s." % image.get_name(),
+    )
+    dialog.set_title("GIMPhoto")
+    # Photoshop's notice has an "i" icon (GTK 3 message dialogs show none by default)
+    icon = Gtk.Image.new_from_icon_name("dialog-information", Gtk.IconSize.DIALOG)
+    dialog.set_image(icon)
+    icon.show()
+    dialog.set_keep_above(True)
+    again = Gtk.CheckButton.new_with_label("Don't show again")
+    dialog.get_message_area().pack_start(again, False, False, 6)
+    again.show()
+    dialog.run()
+    if again.get_active():
+        try:
+            open(hint_flag(), "w").close()
+        except OSError:
+            pass
+    dialog.destroy()
+
+
+def edit(procedure, image, run_mode):
     link = selected_link(image)
     if link is None:
         return error(procedure, "Select one smart object (a link layer) first.")
@@ -193,6 +236,8 @@ def edit(procedure, image):
         if xf is not None and xf.equal(f):
             Gimp.message('The contents of "%s" are already open in another tab.' % link.get_name())
             return success(procedure)
+    if run_mode == Gimp.RunMode.INTERACTIVE:
+        show_edit_hint(image)
     contents = Gimp.file_load(Gimp.RunMode.INTERACTIVE, f)
     Gimp.Display.new(contents)
     if not (f.get_path() or "").lower().endswith(".xcf"):
@@ -226,7 +271,7 @@ def run(procedure, run_mode, image, drawables, config, data):
         if name == CONVERT_PROC:
             return convert(procedure, image)
         if name == EDIT_PROC:
-            return edit(procedure, image)
+            return edit(procedure, image, run_mode)
         if run_mode == Gimp.RunMode.INTERACTIVE:
             gi.require_version("GimpUi", "3.0")
             from gi.repository import GimpUi

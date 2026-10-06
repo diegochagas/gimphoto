@@ -3,7 +3,9 @@
 **Issue:** [#29](https://github.com/diegochagas/gimphoto/issues/29) ·
 **Plug-ins:** [`plugins/smart-objects/`](../../plugins/smart-objects/),
 [`plugins/psd-text/`](../../plugins/psd-text/) (PSD) ·
-**Patch:** [`patches/0006-…`](../../patches/0006-Smart-Objects-right-click-menu-entries-link-layer-co.patch)
+**Patches:** [`patches/0006-…`](../../patches/0006-Smart-Objects-right-click-menu-entries-link-layer-co.patch),
+[`patches/0007-…`](../../patches/0007-Layers-dock-double-click-opens-a-smart-object-s-cont.patch)
+(double click, [#43](https://github.com/diegochagas/gimphoto/issues/43))
 
 In Photoshop, *Convert to Smart Object* wraps layers in a container you can
 scale, rotate and distort as often as you like without losing quality, and
@@ -31,6 +33,11 @@ editable text layer:
 
 ![Edit Contents: the banner's shape and editable text layer in a new tab](../images/smart-objects-edit-contents.png)
 
+A double click on a smart object, as in Photoshop: the notice, then its
+contents in a new tab:
+
+![Double click on a smart object: Photoshop's notice "After editing the contents, choose File > Save to commit the changes", with Don't show again](../images/smart-objects-double-click.png)
+
 ## Use
 
 1. Select one or more layers (groups, text and Layer Styles included) and
@@ -39,8 +46,12 @@ editable text layer:
    Object* for several) at the same place on the canvas and in the stack.
 2. Scale, rotate or transform it with the transform tools: GIMP redraws it
    from its contents each time, so it never gets blurry.
-3. **Edit Contents** opens its contents in a new tab. Edit, **Ctrl+S**, and
-   every smart object showing that file updates.
+3. **Double-click** the smart object in the Layers panel (or right-click >
+   **Edit Contents**): as in Photoshop, a notice says *After editing the
+   contents, choose File > Save to commit the changes…* (tick *Don't show
+   again* to stop it), then its contents open in a new tab (when they are
+   open already, the double click switches to their tab). Edit, **Ctrl+S**,
+   and every smart object showing that file updates.
 4. **Replace Contents…** makes it show another image file, at the same
    place and size.
 5. *Layer > Rasterize* (GIMP's own) turns it back into a plain layer.
@@ -99,6 +110,11 @@ file.
     transform but did not let plug-ins read it;
   - `app/xcf/xcf-load.c`: an XCF keeps a smart object's name (GIMP renamed
     link layers after their file when it loaded them).
+  - `patches/0007-…`: in `app/actions/layers-commands.c`, the Layers
+    panel's double click (`layers-edit`) runs the plug-in's Edit Contents on
+    a smart object, instead of the layer attributes, or switches to its
+    contents' tab when they are open already; a rasterized link layer keeps
+    GIMP's behaviour.
 - **Tests:** `tests/smoke_smart_objects.py`, run by `scripts/smoke`: two
   layers of a saved image become one smart object, its contents in
   `<name> smart objects/`, at the same place and looking the same, its name

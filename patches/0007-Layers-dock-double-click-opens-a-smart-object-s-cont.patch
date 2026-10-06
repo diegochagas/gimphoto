@@ -1,0 +1,101 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Diego Chagas <drochachagas@gmail.com>
+Date: Tue, 6 Oct 2026 18:27:25 -0300
+Subject: [PATCH] Layers dock: double click opens a smart object's contents
+
+In Photoshop a double click on a smart object opens its contents in a new
+tab. A double click on a link layer that still shows its file now runs the
+smart-objects plug-in's Edit Contents (the layers-edit action, GIMP's
+double click, hands over to the plug-in action when it exists and can run),
+instead of opening the layer attributes. A rasterized link layer, or a
+GIMPhoto without the plug-in, keeps GIMP's behaviour.
+
+Test: convert a layer to a smart object, double click it in the Layers
+dock: its contents open in a new tab.
+
+diff --git a/app/actions/layers-commands.c b/app/actions/layers-commands.c
+index 7a583aba31..81ca40b9dd 100644
+--- a/app/actions/layers-commands.c
++++ b/app/actions/layers-commands.c
+@@ -73,6 +73,7 @@
+ #include "widgets/gimphelp-ids.h"
+ #include "widgets/gimpopendialog.h"
+ #include "widgets/gimpprogressdialog.h"
++#include "widgets/gimpuimanager.h"
+ 
+ #include "display/gimpdisplay.h"
+ #include "display/gimpdisplayshell.h"
+@@ -195,6 +196,64 @@ static GimpInterpolationType  layer_scale_interp  = -1;
+ 
+ /*  public functions  */
+ 
++/*  GIMPhoto: like Photoshop, a double click on a smart object (a link layer
++ *  that still shows its file) opens its contents, through the Edit Contents
++ *  command of the smart-objects plug-in, instead of the layer's attributes;
++ *  when they are open already, it switches to their tab.
++ *  Returns FALSE when that is not possible, so the caller opens the
++ *  attributes as GIMP does.
++ */
++static gboolean
++layers_edit_smart_object (GimpLayer *layer)
++{
++  Gimp       *gimp;
++  GimpLink   *link;
++  GFile      *file;
++  GList      *list;
++  GList      *managers;
++  GimpAction *action = NULL;
++
++  if (! GIMP_IS_LINK_LAYER (layer) ||
++      gimp_rasterizable_is_rasterized (GIMP_RASTERIZABLE (layer)))
++    return FALSE;
++
++  /*  its contents already open: switch to their tab, as Photoshop does  */
++  gimp = gimp_item_get_image (GIMP_ITEM (layer))->gimp;
++  link = gimp_link_layer_get_link (GIMP_LINK_LAYER (layer));
++  file = link ? gimp_link_get_file (link, NULL, NULL) : NULL;
++
++  for (list = gimp_get_display_iter (gimp); file && list; list = g_list_next (list))
++    {
++      GimpDisplay *display = list->data;
++      GimpImage   *image   = gimp_display_get_image (display);
++      GFile       *shown   = NULL;
++
++      if (image)
++        shown = gimp_image_get_file (image) ? gimp_image_get_file (image) :
++                                              gimp_image_get_imported_file (image);
++
++      if (shown && g_file_equal (shown, file))
++        {
++          gimp_display_shell_present (gimp_display_get_shell (display));
++
++          return TRUE;
++        }
++    }
++
++  managers = gimp_ui_managers_from_name ("<Image>");
++
++  if (managers)
++    action = gimp_ui_manager_find_action (managers->data, "plug-in",
++                                          "smart-object-edit");
++
++  if (! action || ! gimp_action_is_sensitive (action, NULL))
++    return FALSE;
++
++  gimp_action_activate (action);
++
++  return TRUE;
++}
++
+ void
+ layers_edit_cmd_callback (GimpAction *action,
+                           GVariant   *value,
+@@ -211,6 +270,8 @@ layers_edit_cmd_callback (GimpAction *action,
+ 
+   if (gimp_item_is_text_layer (GIMP_ITEM (layers->data)))
+     layers_edit_text_cmd_callback (action, value, data);
++  else if (layers_edit_smart_object (layers->data))
++    return;
+   else if (gimp_item_is_vector_layer (GIMP_ITEM (layers->data)))
+     layers_edit_vector_cmd_callback (action, value, data);
+   else
