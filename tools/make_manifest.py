@@ -31,11 +31,15 @@ What changes against Flathub's recipe, and nothing else:
   - one installs GIMPhoto's own tool icons (icons/*.svg) into GIMP's icon
     theme;
   - one installs GIMPhoto's GIMP themes (themes/<Name>/gimp.css) next to
-    GIMP's Default theme.
+    GIMP's Default theme;
+  - for plug-ins with a package-lock.json: Flathub's Node SDK extension, a
+    module copying Node into the app and one per plug-in installing its
+    locked npm packages (each checked against the lockfile's SHA-512).
 The GIMP version, every library, the build options and the sandbox
 permissions stay Flathub's.
 """
 
+import base64
 import copy
 import json
 import sys
@@ -55,6 +59,11 @@ SYSCONF_FILES = ["sessionrc", "toolrc"]
 BRANDING = ROOT / "branding"
 ICONS = ROOT / "icons"
 THEMES = ROOT / "themes"
+# Flathub's Node.js for plug-ins with a package-lock.json (e.g. psd-text's
+# ag-psd), the version built for the runtime's freedesktop base
+NODE_EXTENSION = "org.freedesktop.Sdk.Extension.node24"
+NODE_SDK = "/usr/lib/sdk/node24"
+NODE_DEST = "${FLATPAK_DEST}/lib/gimphoto/node"
 # the file names GIMP reads in a theme folder: one per colour scheme
 # (dark, grey, light) and gimp.css as the fallback
 THEME_FILES = ["gimp.css", "gimp-dark.css", "gimp-gray.css", "gimp-light.css"]
@@ -225,6 +234,50 @@ def themes_module(names):
     }
 
 
+def node_plugins(names):
+    """Plug-ins that run Node.js scripts: those with a package-lock.json."""
+    return [n for n in names if (PLUGINS / n / "package-lock.json").is_file()]
+
+
+def node_module():
+    """flatpak-builder module copying the SDK extension's Node into the app
+    (as the extension's own install.sh does), with its licence."""
+    return {
+        "name": "gimphoto-node",
+        "buildsystem": "simple",
+        "build-commands": [
+            f"install -Dm 755 {NODE_SDK}/bin/node {NODE_DEST}/bin/node",
+            f"install -Dm 644 /usr/lib/sdk/node24/share/licenses/{NODE_EXTENSION}/node/LICENSE {NODE_DEST}/LICENSE",
+        ],
+    }
+
+
+def npm_module(plugin, lock):
+    """flatpak-builder module installing a plug-in's locked npm packages
+    into plug-ins/<plugin>/node_modules, offline: each package's tarball is
+    a source checked against the lockfile's integrity (SHA-512)."""
+    dest = f"${{FLATPAK_DEST}}/lib/gimp/3.0/plug-ins/{plugin}/node_modules"
+    sources, commands = [], []
+    for path, info in sorted(lock.get("packages", {}).items()):
+        if not path.startswith("node_modules/") or "/node_modules/" in path[len("node_modules/") :]:
+            continue
+        name = path[len("node_modules/") :]
+        algo, digest = info["integrity"].split("-", 1)
+        if algo != "sha512":
+            sys.exit(f"plugins/{plugin}/package-lock.json: {name} has no sha512 integrity")
+        tarball = f"{name.replace('/', '-')}-{info['version']}.tgz"
+        sources.append(
+            {
+                "type": "file",
+                "url": info["resolved"],
+                "sha512": base64.b64decode(digest).hex(),
+                "dest-filename": tarball,
+            }
+        )
+        commands += [f"mkdir -p {dest}/{name}", f"tar -xzf {tarball} -C {dest}/{name} --strip-components=1"]
+    return {"name": f"gimphoto-{plugin}-npm", "buildsystem": "simple", "sources": sources, "build-commands": commands}
+
+
 def transform(manifest, series, plugins=(), defaults=False, gegl_ops=(), branding=False, icons=False, themes=()):
     m = copy.deepcopy(manifest)
     m["app-id"] = APP_ID
@@ -243,6 +296,13 @@ def transform(manifest, series, plugins=(), defaults=False, gegl_ops=(), brandin
         )
     if plugins:
         m["modules"].append(plugins_module(plugins))
+    node = node_plugins(plugins)
+    if node:
+        m["sdk-extensions"] = [*m.get("sdk-extensions", []), NODE_EXTENSION]
+        m["modules"].append(node_module())
+        for name in node:
+            lock = json.loads((PLUGINS / name / "package-lock.json").read_text())
+            m["modules"].append(npm_module(name, lock))
     if gegl_ops:
         m["modules"].append(gegl_ops_module(gegl_ops))
     if defaults:
