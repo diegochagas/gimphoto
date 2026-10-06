@@ -80,6 +80,9 @@ then changed here:
 - contents of an image never saved go in the app's data folder (GIMPhoto's
   own, inside its sandbox) under `gimp-smart-objects/`;
 - the layers inside a smart object keep their names (not "<name> copy");
+- Edit Contents (and a double click on a smart object, GIMPhoto's
+  `patches/0007-…`) first shows Photoshop's notice on how to commit the
+  changes, with "Don't show again" (remembered in the profile);
 - attribution GIMPhoto and gimp-setup contributors;
 - formatted with ruff and lint-clean for this repo's `scripts/check`
   (one-letter names renamed).
