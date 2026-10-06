@@ -15,11 +15,18 @@
 //       "bbox":  [l, t, r, b],      // the layer's pixel bounds on the page
 //       "text":  { ... } | null,    // see textInfo()
 //       "effects": { "stroke": {...}, "shadow": {...}, "fill": {...} } | null
+//       "smart": { "id", "file", "data", "corners", "width", "height" } | null
 //   } ] }
-// Only layers with a text and/or a convertible effect are listed. All sizes
+// smart = a smart object (GIMPhoto; not warped, no smart filters): its
+// embedded file written next to out.json ("data"; null when the file is
+// linked from outside the PSD),
+// the file's name, the canvas corners it is placed on (top-left, top-right,
+// bottom-right, bottom-left) and its size.
+// Only layers with a text, a convertible effect or a smart object are listed. All sizes
 // are page pixels: the Type layer's transform scale is already applied.
 
 import * as fs from 'fs';
+import * as nodePath from 'path';
 import { readPsd } from 'ag-psd';
 
 const [psdPath, outPath] = process.argv.slice(2);
@@ -240,6 +247,44 @@ try {
   fixEmptyLayerBounds(data);
   psd = readPsd(data, readOptions);
 }
+const embedded = new Map((psd.linkedFiles || []).map((f) => [f.id, f]));
+const unpacked = new Map();
+// Photoshop (and ag-psd) store an unwarped smart object as a "custom" warp
+// whose mesh is the plain grid over its bounds; warped = a style with an
+// amount, or a mesh point off that grid
+function isWarped(w) {
+  if (!w || !w.style || w.style === 'none') return false;
+  if (w.style !== 'custom') return !!(w.value || w.perspective || w.perspectiveOther);
+  const pts = (w.customEnvelopeWarp && w.customEnvelopeWarp.meshPoints) || [];
+  const b = w.bounds;
+  if (!b || pts.length !== 16) return pts.length > 0;
+  const [l, t, r, bt] = [px(b.left), px(b.top), px(b.right), px(b.bottom)];
+  return pts.some((pt, i) => Math.abs(pt.x - (l + ((r - l) * (i % 4)) / 3)) > 0.5
+    || Math.abs(pt.y - (t + ((bt - t) * Math.floor(i / 4)) / 3)) > 0.5);
+}
+
+function smartInfo(l) {
+  const p = l.placedLayer;
+  // warped or with smart filters: a link layer cannot show that, keep the pixels
+  if (isWarped(p.warp) || p.filter) return null;
+  const f = embedded.get(p.id);
+  let data = null;
+  if (f && f.data && f.data.byteLength) {
+    // instances of one smart object share their file: written once
+    data = unpacked.get(p.id);
+    if (!data) {
+      data = nodePath.join(nodePath.dirname(outPath), `smart-${unpacked.size}${nodePath.extname(f.name || '') || '.psd'}`);
+      fs.writeFileSync(data, f.data);
+      unpacked.set(p.id, data);
+    }
+  }
+  const corners = p.transform && p.transform.length === 8
+    ? p.transform.map((v) => round(v))
+    : [l.left, l.top, l.right, l.top, l.right, l.bottom, l.left, l.bottom];
+  return { id: p.id, file: (f && f.name) || `${l.name || 'Smart Object'}.psd`, data, corners,
+    width: p.width ?? null, height: p.height ?? null };
+}
+
 const layers = [];
 const walk = (children, prefix) => {
   const n = children.length;
@@ -247,13 +292,14 @@ const walk = (children, prefix) => {
     const path = [...prefix, n - 1 - i];                // ag-psd lists bottom first, GIMP top first
     const text = l.text ? textInfo(l) : null;
     const effects = effectsInfo(l, psd, text);
-    if (text || effects) {
+    const smart = l.placedLayer && !text ? smartInfo(l) : null;
+    if (text || effects || smart) {
       layers.push({ path, name: l.name || '', bbox: [l.left ?? 0, l.top ?? 0, l.right ?? 0, l.bottom ?? 0],
-        group: !!l.children, text, effects });
+        group: !!l.children, text, effects, smart });
     }
     if (l.children) walk(l.children, path);
   });
 };
 walk(psd.children || [], []);
 fs.writeFileSync(outPath, JSON.stringify({ width: psd.width, height: psd.height, layers }, null, 1));
-console.log(`${layers.filter((l) => l.text).length} text layer(s), ${layers.filter((l) => l.effects).length} styled layer(s)`);
+console.log(`${layers.filter((l) => l.text).length} text layer(s), ${layers.filter((l) => l.effects).length} styled layer(s), ${layers.filter((l) => l.smart).length} smart object(s)`);

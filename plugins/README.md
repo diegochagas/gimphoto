@@ -14,6 +14,7 @@ Each folder is one plug-in; GIMP runs the file named after the folder
 | `layer-style/` | The Layers panel's **fx** button ([docs](../docs/features/layer-style-fx-button.md)); also *Layer > Layer Style* | gimp-setup's [Layer Style](https://github.com/diegochagas/gimp-setup/blob/main/docs/LAYER_STYLE.md) plug-in |
 | `layer-via/` | Layer via Copy / Cut on Ctrl+J / Ctrl+Shift+J ([docs](../docs/features/layer-via-copy-cut.md)) | GIMPhoto |
 | `psd-text/` | PSD with editable text and Layer Styles, open and export ([docs](../docs/features/psd-editable-text.md)) | gimp-setup's [PSD with editable text](https://github.com/diegochagas/gimp-setup/blob/main/docs/PSD_TEXT.md) |
+| `smart-objects/` | Smart Objects in *Layer > Smart Object* and the Layers panel's right-click menu ([docs](../docs/features/smart-objects.md)) | gimp-setup's Smart Objects plug-in |
 
 ## layer-style
 
@@ -55,6 +56,11 @@ then changed here:
   `plug-ins/layer-style` instead of a copy next to the plug-in; the
   Gradient Overlay's style (linear, radial, angle, reflected, diamond) read
   from and written to the PSD.
+- Smart objects both ways (with `smart-objects/`): Photoshop's placed
+  layers with embedded files open as link layers on the same corners, their
+  contents saved as XCF; link layers export as placed layers with their
+  contents embedded. Their transform comes from GIMPhoto's
+  `gimp-link-layer-get-corners` (its bounds without it).
 - The text-language setting is `psd-text-language` in the GIMP profile
   instead of `~/.config/PhotoGIMP/`.
 - Lint-clean for this repo's `scripts/check` (one-letter names renamed,
@@ -63,3 +69,17 @@ then changed here:
 Its `psd_text_gimp.py`, `psd_text_fonts.py` and the `.mjs` scripts come from
 comic-skills' `psd-xcf-convert` (see gimp-setup's
 `assets/plug-ins/psd-text/PATCHES.md`).
+
+## smart-objects
+
+Copied from gimp-setup (`assets/plug-ins/smart-objects`, commit e2d10ad),
+then changed here:
+
+- the Layers panel's right-click menu shows its three commands (GIMPhoto's
+  `patches/0006-…`), noted in its header;
+- contents of an image never saved go in the app's data folder (GIMPhoto's
+  own, inside its sandbox) under `gimp-smart-objects/`;
+- the layers inside a smart object keep their names (not "<name> copy");
+- attribution GIMPhoto and gimp-setup contributors;
+- formatted with ruff and lint-clean for this repo's `scripts/check`
+  (one-letter names renamed).

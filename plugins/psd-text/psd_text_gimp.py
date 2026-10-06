@@ -15,6 +15,11 @@
 #       Text Styling filter for write_psd_text.mjs, which turns the
 #       rasterized text of the export back into Photoshop Type layers.
 #
+# Smart objects (GIMPhoto) both ways: a Photoshop smart object's embedded
+# file becomes an XCF in "<name> smart objects/" shown by a link layer on
+# the same corners (make_smart_object); a link layer is written as a
+# Photoshop smart object embedding its contents as a PSD (describe_smart).
+#
 # A layer parasite "psd-xcf-convert" carries what GIMP cannot store
 # (rotation angle, the Photoshop name of a substituted font), so a PSD
 # opened and exported again keeps its own fonts and angles.
@@ -436,6 +441,97 @@ def text_smart_object(image, text_layer, angle, hscale, entry, folder, notes):
     return link
 
 
+# ----------------------------------------------------------- smart objects
+
+PSD_SMART_TYPES = {".psd": "8BPS", ".psb": "8BPB", ".png": "PNGf", ".jpg": "JPEG", ".jpeg": "JPEG"}
+
+
+def place_link(link, corners, w, h):
+    """Put the link layer showing a w x h image on the four canvas corners
+    (top-left, top-right, bottom-right, bottom-left): a move and a scale
+    when they make an upright rectangle, else a perspective transform. Link
+    layers keep both non-destructive."""
+    x0, y0, x1, y1, x2, y2, x3, y3 = corners
+    upright = abs(y0 - y1) < 0.5 and abs(x1 - x2) < 0.5 and abs(y2 - y3) < 0.5 and abs(x3 - x0) < 0.5
+    if upright and x1 > x0 and y3 > y0:
+        nw, nh = max(1, round(x1 - x0)), max(1, round(y3 - y0))
+        if (nw, nh) != (w, h):
+            link.scale(nw, nh, True)
+        # scale() kept the centre: put the top-left corner in place
+        link.set_offsets(round(x0), round(y0))
+        return link
+    link.set_offsets(0, 0)
+    # GIMP's order: upper-left, upper-right, lower-left, lower-right
+    return link.transform_perspective(x0, y0, x1, y1, x3, y3, x2, y2)
+
+
+def free_contents_path(folder, stem, ext):
+    """An XCF path in folder for stem, whose sibling stem + ext (where the
+    embedded file is unpacked while it is opened) is free as well."""
+    base = os.path.join(folder, re.sub(r'[\\/:*?"<>|\x00-\x1f]+', "_", stem).strip(" .")[:80] or "Smart Object")
+    root, n = base, 2
+    while os.path.exists(root + ".xcf") or os.path.exists(root + ext):
+        root, n = "%s %d" % (base, n), n + 1
+    return root + ".xcf", root + ext
+
+
+def smart_contents(smart, folder, opened):
+    """The XCF showing a smart object's embedded file, made once per file:
+    Photoshop instances of one smart object share their contents (opened:
+    embedded file id -> (path, width, height))."""
+    key = smart.get("id") or smart["data"]
+    if key in opened:
+        return opened[key]
+    os.makedirs(folder, exist_ok=True)
+    ext = os.path.splitext(smart.get("file") or "")[1].lower() or ".psd"
+    # unpacked next to its XCF, so smart objects inside it get a folder that stays
+    path, embedded = free_contents_path(folder, os.path.splitext(smart.get("file") or "Smart Object")[0], ext)
+    with open(smart["data"], "rb") as fin, open(embedded, "wb") as fout:
+        fout.write(fin.read())
+    try:
+        contents = Gimp.file_load(Gimp.RunMode.NONINTERACTIVE, Gio.File.new_for_path(embedded))
+        try:
+            Gimp.file_save(Gimp.RunMode.NONINTERACTIVE, contents, Gio.File.new_for_path(path), None)
+            opened[key] = (path, contents.get_width(), contents.get_height())
+        finally:
+            contents.delete()
+    finally:
+        os.remove(embedded)
+    return opened[key]
+
+
+def make_smart_object(image, entry, raster, folder, notes, opened):
+    """Replace GIMP's rasterized copy of a Photoshop smart object with a link
+    layer showing its embedded file, saved as an XCF in folder (opened with
+    this plug-in: its text stays editable, its own smart objects too)."""
+    smart = entry["smart"]
+    name = entry["name"]
+    if not smart.get("data") or not os.path.exists(smart["data"]):
+        notes.add(f'"{name}": its smart object has no embedded file (linked from outside?) - kept as pixels')
+        return raster
+    path, w, h = smart_contents(smart, folder, opened)
+    link = Gimp.LinkLayer.new(image, Gio.File.new_for_path(path))
+    if link is None:
+        raise RuntimeError("GIMP could not create a link layer for " + path)
+    image.insert_layer(link, raster.get_parent(), image.get_item_position(raster))
+    try:
+        link.set_opacity(raster.get_opacity())
+        link.set_mode(raster.get_mode())
+        link.set_visible(raster.get_visible())
+        link = place_link(link, smart["corners"], w, h)
+    except Exception:
+        # leave the layer as GIMP loaded it, without a stray copy over it
+        image.remove_layer(link)
+        raise
+    if raster.get_mask() is not None:
+        notes.add(f'"{name}": the smart object\'s layer mask was dropped')
+    layer_name = raster.get_name()
+    image.remove_layer(raster)
+    # once the raster is gone, or GIMP makes the name unique ("Banner #1")
+    link.set_name(layer_name)
+    return link
+
+
 def add_styles_filter(layer, fx, notes, name):
     f = Gimp.DrawableFilter.new(layer, "gegl:styles", "Text Styling")
     cfg = f.get_config()
@@ -483,8 +579,14 @@ def apply_psd_text(image, info, fonts_map, notes, keep_raster=False, contents_di
             continue
         targets.append((e, lyr))
     n_text = n_fx = 0
+    opened = {}
     for e, lyr in targets:
         try:
+            if e.get("smart") and not lyr.is_group():
+                if contents_dir:
+                    lyr = make_smart_object(image, e, lyr, contents_dir, notes, opened)
+                else:
+                    notes.add(f'"{e["name"]}": smart object kept as pixels (no folder for its contents)')
             if e.get("text") and not lyr.is_group():
                 lyr = make_text_layer(image, fonts_map, e, lyr, notes, keep_raster, contents_dir)
                 n_text += 1
@@ -909,12 +1011,67 @@ def describe_link_text(image, link, notes):
     return info
 
 
-def describe_image(image, notes, default_language):
-    """Text layers + Text Styling filters of image, for write_psd_text.mjs.
+def link_corners(link):
+    """(corners, width, height) of a link layer's image on the canvas: from
+    GIMPhoto's gimp-link-layer-get-corners (rotations and perspective
+    included), else its bounds."""
+    if hasattr(link, "get_corners"):
+        try:
+            corners, w, h = link.get_corners()
+            if corners and len(corners) == 8 and w > 0 and h > 0:
+                return [float(v) for v in corners], w, h
+        except Exception:
+            pass
+    _ok, x, y = link.get_offsets()
+    w, h = link.get_width(), link.get_height()
+    return [x, y, x + w, y, x + w, y + h, x, y + h], w, h
+
+
+def describe_smart(link, work, notes, written):
+    """A link layer as a Photoshop smart object: its contents as a file to
+    embed (a PSD written by this plug-in, so text inside stays editable; a
+    PNG, JPEG or PSD as it is) and where its corners are. Link layers
+    showing the same file share one embedded file, as Photoshop instances
+    (written: contents path -> (file to embed, width, height))."""
+    name = link.get_name()
+    f = link.get_file()
+    if link.is_rasterized() or f is None or not f.query_exists(None):
+        notes.add(f'"{name}": its smart object file is missing or was rasterized - exported as pixels')
+        return None
+    src = f.get_path() or ""
+    stem, ext = os.path.splitext(os.path.basename(src))
+    corners, w, h = link_corners(link)
+    if ext.lower() in PSD_SMART_TYPES:
+        data, file_name = src, stem + ext.lower()
+    else:
+        file_name = stem + ".psd"
+        if src not in written:
+            data = os.path.join(work, "smart-%d.psd" % len(written))
+            contents = Gimp.file_load(Gimp.RunMode.NONINTERACTIVE, f)
+            try:
+                written[src] = (data, contents.get_width(), contents.get_height())
+                Gimp.file_save(Gimp.RunMode.NONINTERACTIVE, contents, Gio.File.new_for_path(data), None)
+            finally:
+                contents.delete()
+        data, w, h = written[src]
+    return {
+        "data": data,
+        "file": file_name,
+        "type": PSD_SMART_TYPES.get(os.path.splitext(file_name)[1], "8BPS"),
+        "corners": corners,
+        "width": w,
+        "height": h,
+    }
+
+
+def describe_image(image, notes, default_language, work=None):
+    """Text layers, smart objects (link layers; their contents are written
+    into work) + Text Styling filters of image, for write_psd_text.mjs.
     Returns (entries, filters that Photoshop will redraw as Layer Styles)."""
     entries, to_hide = [], []
+    written = {}
     for path, lyr in list(walk(image.get_layers())):
-        text = None
+        text = smart = None
         if isinstance(lyr, Gimp.TextLayer):
             text = describe_vertical(image, lyr, notes) if is_vertical(lyr) else describe_text(image, lyr, notes)
             if text:
@@ -924,6 +1081,8 @@ def describe_image(image, notes, default_language):
             if text:
                 tag = text.pop("language_tag", "").lower().replace("_", "-")
                 text["language"] = GIMP_TO_ADOBE_LANGUAGE.get(tag, default_language)
+        elif isinstance(lyr, Gimp.LinkLayer) and work:
+            smart = describe_smart(lyr, work, notes, written)
         fx, hide = describe_filters(lyr, notes)
         if text and text.get("outline"):
             o = text.pop("outline")
@@ -936,7 +1095,9 @@ def describe_image(image, notes, default_language):
                 fx["stroke"] = {"size": o["width"], "color": o["color"], "opacity": 1.0, "position": o["position"]}
                 if o["only"]:
                     fx["fill_opacity"] = 0.0
-        if text or fx:
-            entries.append({"path": list(path), "name": lyr.get_name(), "text": text, "effects": fx or None})
+        if text or fx or smart:
+            entries.append(
+                {"path": list(path), "name": lyr.get_name(), "text": text, "effects": fx or None, "smart": smart}
+            )
             to_hide += hide
     return entries, to_hide

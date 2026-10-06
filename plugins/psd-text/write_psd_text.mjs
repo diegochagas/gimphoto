@@ -14,10 +14,14 @@
 // the rendered text included: it is what other viewers show. Photoshop is told
 // to redraw the Type layers on open (invalidateTextLayers), so what you see
 // there is Photoshop's own rendering with his fonts.
-// Prints one JSON line: {"text": n, "styled": n, "problems": [...]}; exit 2 on problems.
+// Smart objects (GIMPhoto): a layer with "smart" becomes a Photoshop smart
+// object, its file (smart.data) embedded in the PSD and placed on
+// smart.corners; its pixels stay what GIMP rendered.
+// Prints one JSON line: {"text": n, "styled": n, "smart": n, "problems": [...]}; exit 2 on problems.
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { randomUUID } from 'crypto';
 import { readPsd, writePsdBuffer, initializeCanvas } from 'ag-psd';
 
 // ag-psd only needs somewhere to put decoded pixels: a plain buffer does it,
@@ -173,7 +177,8 @@ const psd = readPsd(buf, { useRawData: true, skipCompositeImageData: true, skipT
 const flatFrom = info.composite_from && fs.existsSync(info.composite_from) ? fs.readFileSync(info.composite_from) : buf;
 psd.imageData = readPsd(flatFrom, { skipLayerImageData: true, skipThumbnail: true, useImageData: true }).imageData;
 const problems = [];
-let nText = 0, nFx = 0;
+let nText = 0, nFx = 0, nSmart = 0;
+const embeddedIds = new Map();
 for (const e of info.layers) {
   let children = psd.children || [], layer = null;
   for (const i of e.path) {
@@ -185,6 +190,20 @@ for (const e of info.layers) {
     continue;
   }
   if (e.text) { layer.text = textRecord(e.text); nText++; }
+  if (e.smart) {
+    // link layers showing one file: instances of one smart object, one embedded file
+    let id = embeddedIds.get(e.smart.data);
+    if (!id) {
+      id = randomUUID();
+      embeddedIds.set(e.smart.data, id);
+      psd.linkedFiles = psd.linkedFiles || [];
+      psd.linkedFiles.push({ id, name: e.smart.file, type: e.smart.type || '8BPS', creator: '8BIM',
+        data: fs.readFileSync(e.smart.data) });
+    }
+    layer.placedLayer = { id, placed: randomUUID(), type: 'raster', transform: e.smart.corners,
+      width: e.smart.width, height: e.smart.height, resolution: { value: info.yres || 72, units: 'Density' } };
+    nSmart++;
+  }
   if (e.effects) {
     layer.effects = effectsRecord(e.effects);
     if (e.effects.fill_opacity != null) layer.fillOpacity = e.effects.fill_opacity;
@@ -197,10 +216,16 @@ fs.writeFileSync(outPath, writePsdBuffer(psd, { generateThumbnail: false, invali
 
 // verify what was actually written
 const back = readPsd(fs.readFileSync(outPath), { skipLayerImageData: true, skipCompositeImageData: true, skipThumbnail: true });
-let gotText = 0, gotFx = 0;
-const count = (ls) => ls.forEach((l) => { if (l.text) gotText++; if (l.effects) gotFx++; if (l.children) count(l.children); });
+let gotText = 0, gotFx = 0, gotSmart = 0;
+const count = (ls) => ls.forEach((l) => {
+  if (l.text) gotText++;
+  if (l.effects) gotFx++;
+  if (l.placedLayer) gotSmart++;
+  if (l.children) count(l.children);
+});
 count(back.children || []);
 if (gotText !== nText) problems.push(`${gotText} Type layer(s) in the file, expected ${nText}`);
 if (gotFx !== nFx) problems.push(`${gotFx} layer(s) with Layer Styles in the file, expected ${nFx}`);
-console.log(JSON.stringify({ text: nText, styled: nFx, problems }));
+if (gotSmart !== nSmart) problems.push(`${gotSmart} smart object(s) in the file, expected ${nSmart}`);
+console.log(JSON.stringify({ text: nText, styled: nFx, smart: nSmart, problems }));
 process.exit(problems.length ? 2 : 0);

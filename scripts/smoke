@@ -17,6 +17,10 @@
 #     Style exported to PSD is a Photoshop Type layer with its effects, and
 #     opens again as an editable text layer with its Layer Style;
 #   - Layer via Copy / Cut (Ctrl+J / Ctrl+Shift+J) work on a selection;
+#   - Smart Objects: layers become one link layer showing an XCF next to the
+#     image, scaled down and back up it stays sharp, a PSD keeps it as a
+#     Photoshop smart object (upright and rotated) and opens it as one
+#     again, Replace Contents works;
 #   - GIMPhoto's shape tools are compiled in (drawing with it needs the GUI);
 #   - it ships GIMPhoto's Photoshop-style toolbox, layout and settings over
 #     GIMP's system ones, a new profile gets them, and GIMPhoto's splash
@@ -29,7 +33,7 @@ cd "$(dirname "$0")/.."
 
 app="io.github.diegochagas.GIMPhoto"
 # one procedure per shipped plug-in that a feature depends on
-procedures=(layer-style-dialog layer-style-drop-shadow gimphoto-layer-via-copy gimphoto-layer-via-cut file-psd-text-load file-psd-text-export)
+procedures=(layer-style-dialog layer-style-drop-shadow gimphoto-layer-via-copy gimphoto-layer-via-cut file-psd-text-load file-psd-text-export smart-object-convert smart-object-edit smart-object-replace)
 want="$(python3 tools/upstream_info.py gimp-version)"
 report="$(mktemp /tmp/gimphoto-smoke.XXXXXX)"
 trap 'rm -f "$report"' EXIT
@@ -131,6 +135,18 @@ if [[ "$via_result" == ok ]]; then
     echo "ok   layer via copy / cut"
 else
     echo "FAIL layer via copy / cut: ${via_result:-did not run}" >&2
+    status=1
+fi
+# Smart Objects: convert, scale non-destructively, replace contents
+so_report="$(mktemp /tmp/gimphoto-smoke.XXXXXX)"
+flatpak run --env=GIMPHOTO_SMOKE_OUT="$so_report" "$app" -i --batch-interpreter=python-fu-eval \
+    -b "exec(open('$PWD/tests/smoke_smart_objects.py').read())" --quit >/dev/null 2>&1 || true
+so_result="$(cat "$so_report")"
+rm -f "$so_report"
+if [[ "$so_result" == ok ]]; then
+    echo "ok   smart objects (convert, non-destructive scale, PSD both ways, replace contents)"
+else
+    echo "FAIL smart objects: ${so_result:-did not run}" >&2
     status=1
 fi
 if flatpak run --command=sh "$app" -c 'grep -q gimp-shape-rectangle-tool /app/bin/gimp-3.*' 2>/dev/null; then
