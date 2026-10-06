@@ -281,7 +281,15 @@ def npm_module(plugin, lock):
 def transform(manifest, series, plugins=(), defaults=False, gegl_ops=(), branding=False, icons=False, themes=()):
     m = copy.deepcopy(manifest)
     m["app-id"] = APP_ID
-    m["finish-args"] = [*m["finish-args"], f"--env=GIMP3_DIRECTORY={PROFILE}"]
+    # The own profile; and the user's systemd on the session bus, so the
+    # comfyui-service plug-in can start and stop the local ComfyUI service
+    # (installed by linux-mint-setup) with GIMPhoto. Only that bus name: no
+    # flatpak-spawn --host.
+    m["finish-args"] = [
+        *m["finish-args"],
+        f"--env=GIMP3_DIRECTORY={PROFILE}",
+        "--talk-name=org.freedesktop.systemd1",
+    ]
     # Flathub renames the desktop file, icon and AppStream file to the app
     # ID; flatpak-builder does the same with ours.
     gimp = next((mod for mod in m["modules"] if isinstance(mod, dict) and mod.get("name") == "gimp"), None)

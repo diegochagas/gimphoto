@@ -21,6 +21,9 @@
 #     image, scaled down and back up it stays sharp, a PSD keeps it as a
 #     Photoshop smart object (upright and rotated) and opens it as one
 #     again, Replace Contents works;
+#   - the local ComfyUI (the `comfyui` user service, when this machine has
+#     it) is left alone by runs without a user interface, and the sandbox
+#     may talk to the user's systemd to start and stop it with GIMPhoto;
 #   - GIMPhoto's shape tools are compiled in (drawing with it needs the GUI);
 #   - it ships GIMPhoto's Photoshop-style toolbox, layout and settings over
 #     GIMP's system ones, a new profile gets them, and GIMPhoto's splash
@@ -33,7 +36,7 @@ cd "$(dirname "$0")/.."
 
 app="io.github.diegochagas.GIMPhoto"
 # one procedure per shipped plug-in that a feature depends on
-procedures=(layer-style-dialog layer-style-drop-shadow gimphoto-layer-via-copy gimphoto-layer-via-cut file-psd-text-load file-psd-text-export smart-object-convert smart-object-edit smart-object-replace)
+procedures=(layer-style-dialog layer-style-drop-shadow gimphoto-layer-via-copy gimphoto-layer-via-cut file-psd-text-load file-psd-text-export smart-object-convert smart-object-edit smart-object-replace gimphoto-comfyui-service)
 want="$(python3 tools/upstream_info.py gimp-version)"
 report="$(mktemp /tmp/gimphoto-smoke.XXXXXX)"
 trap 'rm -f "$report"' EXIT
@@ -42,6 +45,15 @@ if ! flatpak info --user "$app" >/dev/null 2>&1; then
     echo "FAIL $app is not installed: run scripts/build" >&2
     exit 1
 fi
+
+# the local ComfyUI's starts and stops from now on: a batch run that started
+# it would also stop it on quit, so its state alone proves nothing, but
+# systemd's journal keeps both
+smoke_started_at="$(date +%s)"
+comfyui_events() {
+    journalctl --user -u comfyui --since "@$smoke_started_at" -o cat --no-pager 2>/dev/null |
+        grep -cE '^(Starting|Started|Stopping) comfyui\.service' || true
+}
 
 # -i no UI, -d no data loading; fonts stay on (text layers need them)
 flatpak run "$app" -i -d --batch-interpreter=python-fu-eval \
@@ -147,6 +159,20 @@ if [[ "$so_result" == ok ]]; then
     echo "ok   smart objects (convert, non-destructive scale, PSD both ways, replace contents)"
 else
     echo "FAIL smart objects: ${so_result:-did not run}" >&2
+    status=1
+fi
+# ComfyUI with GIMPhoto: the sandbox may reach the user's systemd, and the
+# batch runs above (no user interface) did not start or stop ComfyUI
+if flatpak info --user --show-permissions "$app" 2>/dev/null | grep -q 'org.freedesktop.systemd1=talk'; then
+    comfyui_changes="$(comfyui_events)"
+    if [[ "$comfyui_changes" == 0 ]]; then
+        echo "ok   ComfyUI service: reachable from the sandbox, not started by batch runs"
+    else
+        echo "FAIL the comfyui service was started or stopped $comfyui_changes time(s) during the batch runs" >&2
+        status=1
+    fi
+else
+    echo "FAIL the sandbox cannot talk to org.freedesktop.systemd1 (finish-args)" >&2
     status=1
 fi
 if flatpak run --command=sh "$app" -c 'grep -q gimp-shape-rectangle-tool /app/bin/gimp-3.*' 2>/dev/null; then
