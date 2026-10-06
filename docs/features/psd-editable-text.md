@@ -18,7 +18,8 @@ both ways**:
   Layer Style the same Photoshop effects.
 
 Nothing to choose: *File → Open* a `.psd`, *File → Export As…*
-`name.psd`.
+`name.psd`. Smart objects go both ways too: see
+[Smart Objects](smart-objects.md).
 
 ## Before and after
 

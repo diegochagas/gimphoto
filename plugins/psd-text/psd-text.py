@@ -14,6 +14,11 @@
 #     text layer in it is turned back into a Photoshop Type layer and every
 #     Text Styling outline / shadow into a live Layer Style, so the text is
 #     still editable when the file is opened in Photoshop.
+#   Smart objects (GIMPhoto), both ways: a Photoshop smart object opens as a
+#     link layer showing its embedded file, saved as an XCF in
+#     "<name> smart objects/" next to the PSD (Layer > Smart Object > Edit
+#     Contents); a link layer exports as a Photoshop smart object with its
+#     contents embedded as a PSD, placed on the same corners.
 #
 # Both procedures are registered with a lower priority value than GIMP's
 # built-in PSD procedures, so GIMP picks them for .psd files: File > Open
@@ -214,7 +219,7 @@ def export_psd(procedure, run_mode, image, file, options, metadata, config, data
     try:
         copy.undo_disable()
         Gimp.Selection.none(copy)
-        entries, to_hide = core.describe_image(copy, notes, default_language())
+        entries, to_hide = core.describe_image(copy, notes, default_language(), work)
         raw = os.path.join(work, "gimp.psd")
         composite = None
         if entries and to_hide:

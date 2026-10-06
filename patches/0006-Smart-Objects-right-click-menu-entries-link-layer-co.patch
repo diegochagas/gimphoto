@@ -1,0 +1,389 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Diego Chagas <drochachagas@gmail.com>
+Date: Tue, 6 Oct 2026 09:40:50 -0300
+Subject: [PATCH] Smart Objects: right-click menu entries, link layer corners
+ in the PDB
+
+The Layers dock's right-click menu gets Photoshop's Smart Object commands
+(Convert to Smart Object, Edit Contents, Replace Contents) from GIMPhoto's
+smart-objects plug-in.
+
+New PDB procedure gimp-link-layer-get-corners: where the four corners of a
+link layer's file are on the canvas after its non-destructive transforms,
+and that file's size, so the plug-in can write a smart object's transform
+into a PSD.
+
+An XCF keeps a link layer's name (a smart object's): loading it set the
+link, which renamed the layer after its file, before applying the flag
+that says the name was given by hand.
+
+diff --git a/app/pdb/internal-procs.c b/app/pdb/internal-procs.c
+index 5ae707bbc2..fde7d4a73a 100644
+--- a/app/pdb/internal-procs.c
++++ b/app/pdb/internal-procs.c
+@@ -30,7 +30,7 @@
+ #include "internal-procs.h"
+ 
+ 
+-/* 786 procedures registered total */
++/* 787 procedures registered total */
+ 
+ void
+ internal_procs_init (GimpPDB *pdb)
+diff --git a/app/pdb/link-layer-cmds.c b/app/pdb/link-layer-cmds.c
+index 15cc6ce718..5596601d19 100644
+--- a/app/pdb/link-layer-cmds.c
++++ b/app/pdb/link-layer-cmds.c
+@@ -25,6 +25,8 @@
+ 
+ #include <gdk-pixbuf/gdk-pixbuf.h>
+ 
++#include "libgimpmath/gimpmath.h"
++
+ #include "libgimpbase/gimpbase.h"
+ 
+ #include "pdb-types.h"
+@@ -199,6 +201,69 @@ link_layer_get_mime_type_invoker (GimpProcedure         *procedure,
+   return return_vals;
+ }
+ 
++static GimpValueArray *
++link_layer_get_corners_invoker (GimpProcedure         *procedure,
++                                Gimp                  *gimp,
++                                GimpContext           *context,
++                                GimpProgress          *progress,
++                                const GimpValueArray  *args,
++                                GError               **error)
++{
++  gboolean success = TRUE;
++  GimpValueArray *return_vals;
++  GimpLinkLayer *layer;
++  gsize num_corners = 0;
++  gdouble *corners = NULL;
++  gint width = 0;
++  gint height = 0;
++
++  layer = g_value_get_object (gimp_value_array_index (args, 0));
++
++  if (success)
++    {
++      GimpLink *link = gimp_link_layer_get_link (layer);
++
++      if (link)
++        {
++          GimpMatrix3 matrix;
++          gint        x;
++          gint        y;
++          gint        i;
++
++          gimp_link_get_size (link, &width, &height);
++
++          /* untransformed: the image sits at the layer's offsets */
++          if (! gimp_link_layer_get_transform (layer, &matrix, &x, &y, NULL))
++            gimp_item_get_offset (GIMP_ITEM (layer), &x, &y);
++
++          num_corners = 8;
++          corners     = g_new (gdouble, num_corners);
++
++          for (i = 0; i < 4; i++)
++            gimp_matrix3_transform_point (&matrix,
++                                          x + (i == 1 || i == 2 ? width  : 0),
++                                          y + (i >= 2           ? height : 0),
++                                          &corners[2 * i], &corners[2 * i + 1]);
++        }
++      else
++        {
++          success = FALSE;
++        }
++    }
++
++  return_vals = gimp_procedure_get_return_values (procedure, success,
++                                                  error ? *error : NULL);
++
++  if (success)
++    {
++      gimp_value_take_double_array (gimp_value_array_index (return_vals, 1), corners, num_corners);
++      g_value_set_int (gimp_value_array_index (return_vals, 2), width);
++      g_value_set_int (gimp_value_array_index (return_vals, 3), height);
++    }
++
++  return return_vals;
++}
++
+ void
+ register_link_layer_procs (GimpPDB *pdb)
+ {
+@@ -334,4 +399,44 @@ register_link_layer_procs (GimpPDB *pdb)
+                                                            GIMP_PARAM_READWRITE));
+   gimp_pdb_register_procedure (pdb, procedure);
+   g_object_unref (procedure);
++
++  /*
++   * gimp-link-layer-get-corners
++   */
++  procedure = gimp_procedure_new (link_layer_get_corners_invoker, FALSE);
++  gimp_object_set_static_name (GIMP_OBJECT (procedure),
++                               "gimp-link-layer-get-corners");
++  gimp_procedure_set_static_help (procedure,
++                                  "Get where the corners of the monitored file are on the canvas.",
++                                  "This procedure returns the canvas coordinates of the four corners of the monitored file's image (top-left, top-right, bottom-right, bottom-left), after the link layer's non-destructive transforms (move, scale, rotate, shear, perspective), and the size of that image. For an untransformed link layer, the corners are the layer's bounds.",
++                                  NULL);
++  gimp_procedure_set_static_attribution (procedure,
++                                         "GIMPhoto",
++                                         "GIMPhoto",
++                                         "2026");
++  gimp_procedure_add_argument (procedure,
++                               gimp_param_spec_link_layer ("layer",
++                                                           "layer",
++                                                           "The link layer",
++                                                           FALSE,
++                                                           GIMP_PARAM_READWRITE));
++  gimp_procedure_add_return_value (procedure,
++                                   gimp_param_spec_double_array ("corners",
++                                                                 "corners",
++                                                                 "x, y of the four corners: top-left, top-right, bottom-right, bottom-left",
++                                                                 GIMP_PARAM_READWRITE));
++  gimp_procedure_add_return_value (procedure,
++                                   g_param_spec_int ("width",
++                                                     "width",
++                                                     "The width of the monitored image",
++                                                     G_MININT32, G_MAXINT32, 0,
++                                                     GIMP_PARAM_READWRITE));
++  gimp_procedure_add_return_value (procedure,
++                                   g_param_spec_int ("height",
++                                                     "height",
++                                                     "The height of the monitored image",
++                                                     G_MININT32, G_MAXINT32, 0,
++                                                     GIMP_PARAM_READWRITE));
++  gimp_pdb_register_procedure (pdb, procedure);
++  g_object_unref (procedure);
+ }
+diff --git a/app/xcf/xcf-load.c b/app/xcf/xcf-load.c
+index ab81519970..97dc2973dc 100644
+--- a/app/xcf/xcf-load.c
++++ b/app/xcf/xcf-load.c
+@@ -2692,6 +2692,7 @@ xcf_load_layer_props (XcfInfo    *info,
+                       gboolean  floating;
+                       gint      raster_width;
+                       gint      raster_height;
++                      gchar    *name;
+ 
+                       raster_width  = gimp_item_get_width (GIMP_ITEM (*layer));
+                       raster_height = gimp_item_get_height (GIMP_ITEM (*layer));
+@@ -2707,9 +2708,20 @@ xcf_load_layer_props (XcfInfo    *info,
+                                                       "image", image,
+                                                       NULL);
+ 
++                      /* GIMPhoto: setting the link renames the layer after
++                       * its file before the flags say whether it may; a
++                       * name given by hand (a smart object's) is kept.
++                       */
++                      name = g_strdup (gimp_object_get_name (*layer));
++
+                       gimp_link_layer_set_link (GIMP_LINK_LAYER (*layer), link, FALSE);
+                       gimp_link_layer_set_xcf_flags (GIMP_LINK_LAYER (*layer), flags);
+ 
++                      if (! gimp_rasterizable_get_auto_rename (GIMP_RASTERIZABLE (*layer)))
++                        gimp_object_set_name (GIMP_OBJECT (*layer), name);
++
++                      g_free (name);
++
+                       if (! gimp_link_layer_is_monitored (GIMP_LINK_LAYER (*layer)) ||
+                           gimp_link_is_broken (gimp_link_layer_get_link (GIMP_LINK_LAYER (*layer))))
+                         {
+diff --git a/libgimp/gimp.def b/libgimp/gimp.def
+index f53193283d..63084847cc 100644
+--- a/libgimp/gimp.def
++++ b/libgimp/gimp.def
+@@ -709,6 +709,7 @@ EXPORTS
+ 	gimp_layer_set_opacity
+ 	gimp_layer_set_show_mask
+ 	gimp_link_layer_get_by_id
++	gimp_link_layer_get_corners
+ 	gimp_link_layer_get_file
+ 	gimp_link_layer_get_mime_type
+ 	gimp_link_layer_get_type
+diff --git a/libgimp/gimplinklayer_pdb.c b/libgimp/gimplinklayer_pdb.c
+index d97175e6dc..2ad2585bb4 100644
+--- a/libgimp/gimplinklayer_pdb.c
++++ b/libgimp/gimplinklayer_pdb.c
+@@ -203,3 +203,58 @@ gimp_link_layer_get_mime_type (GimpLinkLayer *layer)
+ 
+   return mimetype;
+ }
++
++/**
++ * gimp_link_layer_get_corners:
++ * @layer: The link layer.
++ * @num_corners: (out): The number of coordinates (8).
++ * @width: (out): The width of the monitored image.
++ * @height: (out): The height of the monitored image.
++ *
++ * Get where the corners of the monitored file are on the canvas.
++ *
++ * This procedure returns the canvas coordinates of the four corners of
++ * the monitored file's image (top-left, top-right, bottom-right,
++ * bottom-left), after the link layer's non-destructive transforms
++ * (move, scale, rotate, shear, perspective), and the size of that
++ * image. For an untransformed link layer, the corners are the layer's
++ * bounds.
++ *
++ * Returns: (array length=num_corners) (element-type gdouble) (transfer full):
++ *          x, y of the four corners: top-left, top-right, bottom-right, bottom-left.
++ *          The returned value must be freed with g_free().
++ *
++ * Since: 3.2
++ **/
++gdouble *
++gimp_link_layer_get_corners (GimpLinkLayer *layer,
++                             gsize         *num_corners,
++                             gint          *width,
++                             gint          *height)
++{
++  GimpValueArray *args;
++  GimpValueArray *return_vals;
++  gdouble *corners = NULL;
++
++  args = gimp_value_array_new_from_types (NULL,
++                                          GIMP_TYPE_LINK_LAYER, layer,
++                                          G_TYPE_NONE);
++
++  return_vals = _gimp_pdb_run_procedure_array (gimp_get_pdb (),
++                                               "gimp-link-layer-get-corners",
++                                               args);
++  gimp_value_array_unref (args);
++
++  *num_corners = 0;
++
++  if (GIMP_VALUES_GET_ENUM (return_vals, 0) == GIMP_PDB_SUCCESS)
++    {
++      corners = GIMP_VALUES_DUP_DOUBLE_ARRAY (return_vals, 1, num_corners);
++      *width = GIMP_VALUES_GET_INT (return_vals, 2);
++      *height = GIMP_VALUES_GET_INT (return_vals, 3);
++    }
++
++  gimp_value_array_unref (return_vals);
++
++  return corners;
++}
+diff --git a/libgimp/gimplinklayer_pdb.h b/libgimp/gimplinklayer_pdb.h
+index 52fac573f7..6c2c7dccee 100644
+--- a/libgimp/gimplinklayer_pdb.h
++++ b/libgimp/gimplinklayer_pdb.h
+@@ -38,6 +38,10 @@ GFile*         gimp_link_layer_get_file      (GimpLinkLayer *layer);
+ gboolean       gimp_link_layer_set_file      (GimpLinkLayer *layer,
+                                               GFile         *file);
+ gchar*         gimp_link_layer_get_mime_type (GimpLinkLayer *layer);
++gdouble*       gimp_link_layer_get_corners   (GimpLinkLayer *layer,
++                                              gsize         *num_corners,
++                                              gint          *width,
++                                              gint          *height);
+ 
+ 
+ G_END_DECLS
+diff --git a/menus/layers-menu.ui b/menus/layers-menu.ui
+index 11535fe825..fb24da797a 100644
+--- a/menus/layers-menu.ui
++++ b/menus/layers-menu.ui
+@@ -66,6 +66,13 @@
+         <item><attribute name="action">app.layers-rasterize</attribute></item>
+         <item><attribute name="action">app.layers-revert-rasterize</attribute></item>
+       </section>
++      <!-- GIMPhoto: Photoshop's Smart Object commands, from GIMPhoto's
++           smart-objects plug-in (actions named after its procedures) -->
++      <section>
++        <item><attribute name="action">app.smart-object-convert</attribute></item>
++        <item><attribute name="action">app.smart-object-edit</attribute></item>
++        <item><attribute name="action">app.smart-object-replace</attribute></item>
++      </section>
+       <section>
+         <item><attribute name="action">app.layers-resize</attribute></item>
+         <item><attribute name="action">app.layers-resize-to-image</attribute></item>
+diff --git a/pdb/groups/link_layer.pdb b/pdb/groups/link_layer.pdb
+index 91e040adc0..25b30563db 100644
+--- a/pdb/groups/link_layer.pdb
++++ b/pdb/groups/link_layer.pdb
+@@ -192,7 +192,72 @@ CODE
+     );
+ }
+ 
+-@headers = qw("core/gimplink.h"
++sub link_layer_get_corners {
++    $blurb = 'Get where the corners of the monitored file are on the canvas.';
++
++    $help = <<'HELP';
++This procedure returns the canvas coordinates of the four corners of the
++monitored file's image (top-left, top-right, bottom-right, bottom-left),
++after the link layer's non-destructive transforms (move, scale, rotate,
++shear, perspective), and the size of that image. For an untransformed link
++layer, the corners are the layer's bounds.
++HELP
++
++    &contrib_pdb_misc('GIMPhoto', '', '2026', '3.2');
++
++    @inargs = (
++        { name => 'layer', type => 'link_layer',
++          desc => 'The link layer' }
++    );
++
++    @outargs = (
++        { name => 'corners', type => 'doublearray',
++          desc => 'x, y of the four corners: top-left, top-right, bottom-right, bottom-left',
++          array => { desc => 'The number of coordinates (8)' } },
++        { name => 'width', type => 'int32',
++          desc => 'The width of the monitored image' },
++        { name => 'height', type => 'int32',
++          desc => 'The height of the monitored image' }
++    );
++
++    %invoke = (
++        code => <<'CODE'
++{
++  GimpLink *link = gimp_link_layer_get_link (layer);
++
++  if (link)
++    {
++      GimpMatrix3 matrix;
++      gint        x;
++      gint        y;
++      gint        i;
++
++      gimp_link_get_size (link, &width, &height);
++
++      /* untransformed: the image sits at the layer's offsets */
++      if (! gimp_link_layer_get_transform (layer, &matrix, &x, &y, NULL))
++        gimp_item_get_offset (GIMP_ITEM (layer), &x, &y);
++
++      num_corners = 8;
++      corners     = g_new (gdouble, num_corners);
++
++      for (i = 0; i < 4; i++)
++        gimp_matrix3_transform_point (&matrix,
++                                      x + (i == 1 || i == 2 ? width  : 0),
++                                      y + (i >= 2           ? height : 0),
++                                      &corners[2 * i], &corners[2 * i + 1]);
++    }
++  else
++    {
++      success = FALSE;
++    }
++}
++CODE
++    );
++}
++
++@headers = qw("libgimpmath/gimpmath.h"
++              "core/gimplink.h"
+               "core/gimplinklayer.h"
+               "core/gimprasterizable.h"
+               "gimppdberror.h"
+@@ -201,7 +266,8 @@ CODE
+ @procs = qw(link_layer_new
+             link_layer_get_file
+             link_layer_set_file
+-            link_layer_get_mime_type);
++            link_layer_get_mime_type
++            link_layer_get_corners);
+ 
+ %exports = (app => [@procs], lib => [@procs]);
+ 

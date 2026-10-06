@@ -34,6 +34,7 @@ screenshots of each feature are on its page.
 | **Photoshop theme**: Photoshop's medium-grey interface (panels, tab strips, Adobe blue, flat tool tiles, `#282828` pasteboard), named panel tabs | Photoshop's default workspace colours | theme + defaults | [photoshop-theme.md](docs/features/photoshop-theme.md) |
 | **Layer via Copy / Layer via Cut** (Ctrl+J / Ctrl+Shift+J): a new layer from the selected area, in place; Cut also removes it from the original | Layer › New › Layer via Copy / Cut | plug-in + keymap | [layer-via-copy-cut.md](docs/features/layer-via-copy-cut.md) |
 | **Shape tools** (U) in the toolbox, one group as Photoshop's flyout: Rectangle, Ellipse, Triangle, Polygon, Star, Line and Custom Shape (heart, arrow, speech bubble…), drawn as vector layers, fill and stroke in Tool Options | Shape tools (U) | core patch + icons | [shape-tool.md](docs/features/shape-tool.md) |
+| **Smart Objects**: Convert to Smart Object, Edit Contents, Replace Contents, in the Layers panel's right-click menu; scale and transform without losing quality; kept in XCF and PSD, both ways with Photoshop | Layer › Smart Objects | plug-ins + core patch | [smart-objects.md](docs/features/smart-objects.md) |
 
 Apart from these, GIMPhoto is plain GIMP, with its own user profile.
 
