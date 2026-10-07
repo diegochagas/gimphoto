@@ -1,0 +1,214 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Diego Chagas <drochachagas@gmail.com>
+Date: Wed, 7 Oct 2026 04:19:33 -0300
+Subject: [PATCH] Docks: drop a dockable between two dock books
+
+GIMP's dock columns accepted a dropped dockable as a new book only at
+their very top or bottom edge, so once a book in the middle was gone (its
+dockable dragged into another book) it could not be made again. Each
+boundary between two books is now a drop area too, of the same size and
+with the same highlight as the edges, inserting the new book there: the
+Properties panel can go back between Tool Options and Layers.
+
+diff --git a/app/widgets/gimppanedbox.c b/app/widgets/gimppanedbox.c
+index db3f585400..0381e3d966 100644
+--- a/app/widgets/gimppanedbox.c
++++ b/app/widgets/gimppanedbox.c
+@@ -254,6 +254,58 @@ gimp_paned_box_get_drop_area_size (GimpPanedBox *paned_box)
+   return drop_area_size;
+ }
+ 
++/*  GIMPhoto: also a drop area at each boundary between two widgets (dock
++ *  books), so a dockable can be dropped there as a new book in the middle,
++ *  not only above the first or below the last one. Returns the insert
++ *  index, or INSERT_INDEX_UNUSED, and where the drop area starts.
++ */
++static gint
++gimp_paned_box_get_boundary (GimpPanedBox *paned_box,
++                             gint          pos,
++                             gint          drop_area_size,
++                             gint         *area_pos)
++{
++  GtkOrientation  orientation;
++  GList          *list;
++  gint            index = 1;
++
++  orientation = gtk_orientable_get_orientation (GTK_ORIENTABLE (paned_box));
++
++  for (list = paned_box->p->widgets;
++       list && list->next;
++       list = g_list_next (list), index++)
++    {
++      GtkWidget     *widget = list->data;
++      GtkAllocation  allocation;
++      gint           end_x;
++      gint           end_y;
++      gint           end;
++
++      if (! gtk_widget_get_mapped (widget))
++        continue;
++
++      gtk_widget_get_allocation (widget, &allocation);
++
++      /*  the widget's far edge, in the paned box's coordinates  */
++      if (! gtk_widget_translate_coordinates (widget, GTK_WIDGET (paned_box),
++                                              allocation.width,
++                                              allocation.height,
++                                              &end_x, &end_y))
++        continue;
++
++      end = (orientation == GTK_ORIENTATION_HORIZONTAL) ? end_x : end_y;
++
++      if (ABS (pos - end) <= drop_area_size)
++        {
++          *area_pos = end - drop_area_size / 2;
++
++          return index;
++        }
++    }
++
++  return INSERT_INDEX_UNUSED;
++}
++
+ static gboolean
+ gimp_paned_box_get_handle_drag (GimpPanedBox   *paned_box,
+                                 GdkDragContext *context,
+@@ -316,6 +368,10 @@ gimp_paned_box_get_handle_drag (GimpPanedBox   *paned_box,
+           index = -1;
+           area_x = allocation.width - drop_area_size;
+         }
++
++      if (index == INSERT_INDEX_UNUSED)
++        index = gimp_paned_box_get_boundary (paned_box, x, drop_area_size,
++                                             &area_x);
+     }
+   else /* if (orientation = GTK_ORIENTATION_VERTICAL) */
+     {
+@@ -340,6 +396,10 @@ gimp_paned_box_get_handle_drag (GimpPanedBox   *paned_box,
+           index = -1;
+           area_y = allocation.height - drop_area_size;
+         }
++
++      if (index == INSERT_INDEX_UNUSED)
++        index = gimp_paned_box_get_boundary (paned_box, y, drop_area_size,
++                                             &area_y);
+     }
+ 
+   if (area)
+@@ -713,6 +773,48 @@ gimp_paned_box_set_dropped_cb (GimpPanedBox            *paned_box,
+  * Add a #GtkWidget to the #GimpPanedBox in a hierarchy of #GtkPaned:s
+  * so the space can be manually distributed between the widgets.
+  **/
++/*  GIMPhoto: give a widget inserted between two others (the second child
++ *  of paned) the size it asks for, as a Photoshop panel dropped between
++ *  two others shows all of its contents; the widgets before it keep at
++ *  least a quarter of their space.
++ */
++static gboolean
++gimp_paned_box_size_new_widget (gpointer data)
++{
++  GtkPaned       *paned = GTK_PANED (data);
++  GtkWidget      *widget;
++  GtkAllocation   allocation;
++  GtkOrientation  orientation;
++  gint            handle = 0;
++  gint            space;
++  gint            wanted = 0;
++
++  widget = gtk_paned_get_child2 (paned);
++
++  if (! widget || ! gtk_widget_get_mapped (GTK_WIDGET (paned)))
++    return G_SOURCE_REMOVE;
++
++  gtk_widget_get_allocation (GTK_WIDGET (paned), &allocation);
++  gtk_widget_style_get (GTK_WIDGET (paned), "handle-size", &handle, NULL);
++  orientation = gtk_orientable_get_orientation (GTK_ORIENTABLE (paned));
++
++  if (orientation == GTK_ORIENTATION_VERTICAL)
++    {
++      space = allocation.height - handle;
++      gtk_widget_get_preferred_height (widget, NULL, &wanted);
++    }
++  else
++    {
++      space = allocation.width - handle;
++      gtk_widget_get_preferred_width (widget, NULL, &wanted);
++    }
++
++  if (space > 1)
++    gtk_paned_set_position (paned, CLAMP (space - wanted, space / 4, space));
++
++  return G_SOURCE_REMOVE;
++}
++
+ void
+ gimp_paned_box_add_widget (GimpPanedBox *paned_box,
+                            GtkWidget    *widget,
+@@ -751,6 +853,46 @@ gimp_paned_box_add_widget (GimpPanedBox *paned_box,
+ 
+       gtk_box_pack_start (GTK_BOX (paned_box), widget, TRUE, TRUE, 0);
+     }
++  else if (index > 0 && index < old_length)
++    {
++      /*  GIMPhoto: in the middle (a drop at a boundary between books).
++       *  Every widget but the first is the second child of a GtkPaned
++       *  whose first child holds all the widgets before it: the new one
++       *  goes between that first child and the next widget.
++       */
++      GtkWidget      *next;
++      GtkWidget      *outer;
++      GtkWidget      *before;
++      GtkWidget      *paned;
++      GtkOrientation  orientation;
++
++      next   = g_list_nth_data (paned_box->p->widgets, index + 1);
++      outer  = gtk_widget_get_parent (next);
++      before = gtk_paned_get_child1 (GTK_PANED (outer));
++
++      g_object_ref (before);
++      gtk_container_remove (GTK_CONTAINER (outer), before);
++
++      orientation = gtk_orientable_get_orientation (GTK_ORIENTABLE (paned_box));
++      paned = gtk_paned_new (orientation);
++      gtk_paned_set_wide_handle (GTK_PANED (paned), TRUE);
++
++      gtk_paned_pack1 (GTK_PANED (outer), paned, TRUE, FALSE);
++      gtk_widget_set_visible (paned, TRUE);
++
++      gtk_paned_pack1 (GTK_PANED (paned), before, TRUE, FALSE);
++      gtk_paned_pack2 (GTK_PANED (paned), widget, TRUE, FALSE);
++
++      /*  the new widget gets the size it asks for, once its contents
++       *  are in it (a dropped dockable is added to its new book after
++       *  this)
++       */
++      g_idle_add_full (G_PRIORITY_DEFAULT_IDLE,
++                       gimp_paned_box_size_new_widget,
++                       g_object_ref (paned), g_object_unref);
++
++      g_object_unref (before);
++    }
+   else
+     {
+       GtkWidget      *old_widget;
+@@ -964,6 +1106,20 @@ gimp_paned_box_will_handle_drag (GimpPanedBox   *paned_box,
+                      paned_box_y > allocation.height - drop_area_size);
+     }
+ 
++  /*  GIMPhoto: also at a boundary between two books, so the book under the
++   *  pointer passes the drag on and it can become a new book there
++   */
++  if (! will_handle)
++    {
++      gint area_pos;
++
++      will_handle = (gimp_paned_box_get_boundary (paned_box,
++                                                  orientation == GTK_ORIENTATION_HORIZONTAL ?
++                                                  paned_box_x : paned_box_y,
++                                                  drop_area_size,
++                                                  &area_pos) != INSERT_INDEX_UNUSED);
++    }
++
+   return will_handle;
+ }
+ 

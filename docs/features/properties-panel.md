@@ -1,15 +1,25 @@
 # Properties panel
 
 **Issue:** [#38](https://github.com/diegochagas/gimphoto/issues/38) ·
-**Patch:** [`patches/0008-…`](../../patches/0008-Properties-panel-Transform-Align-and-Distribute-Quic.patch) ·
+**Patches:** [`patches/0008-…`](../../patches/0008-Properties-panel-Transform-Align-and-Distribute-Quic.patch), [`patches/0010-…`](../../patches/0010-Docks-drop-a-dockable-between-two-dock-books.patch) (docking between groups) ·
 **Layout:** [`defaults/sessionrc`](../../defaults/sessionrc)
 
 Photoshop's **Properties** panel, docked above Layers, shows what the selected
 layer is and the commands used on it most: its size and position, alignment,
 and quick actions. GIMP spreads these over the Layer menu, the Scale Layer
-dialog, the transform tools and the Align tool. GIMPhoto adds the panel, as
-the first tab above Layers. Tool Options moves to the tab beside it, as
-Photoshop's Properties / Adjustments tabs.
+dialog, the transform tools and the Align tool. GIMPhoto adds the panel and,
+as Photoshop, gives it **its own panel group in the middle of the right-hand
+column**, between Tool Options (with fonts, brushes, patterns and
+gradients) and Layers / Channels / Paths
+([#50](https://github.com/diegochagas/gimphoto/issues/50)).
+
+![GIMPhoto at 1920×1080: Tool Options on top, Properties in the middle, Layers at the bottom of the right-hand column](../images/properties-three-panels.png)
+
+This is only the default: drag the Properties tab into another group (or
+anywhere else) and GIMPhoto keeps it there. To put it back in the middle,
+drag its tab to the boundary between Tool Options and Layers: a blue line
+shows where it lands, and it becomes a group of its own again, tall enough
+to show the whole panel (the space comes from the group above it).
 
 ## Before and after
 
@@ -74,8 +84,15 @@ Dialogs › Properties* opens it in a profile with another layout.
   (*Windows › Dockable Dialogs › Properties*), `widgets-types.h`,
   `meson.build`.
 
-**Defaults:** `defaults/sessionrc` puts the panel first in the top-right
-dock.
+**Defaults:** `defaults/sessionrc` gives the panel its own group between
+Tool Options and Layers (layout version 2).
+
+**Docks** (`patches/0010-…`, `app/widgets/gimppanedbox.c`): GIMP accepted a
+dropped panel as a new group only at the top or bottom edge of a dock
+column, and could only add a group first or last. Each boundary between
+two groups is now a drop area too (same size and blue line as the edges),
+and a group dropped there is inserted in the middle, so a middle group
+can be made again after it was emptied.
 
 **Tests:** `scripts/smoke` checks that the panel is compiled in and is in the
 default layout. Using it needs the GUI: it was checked on the built app
@@ -98,7 +115,9 @@ default layout. Using it needs the GUI: it was checked on the built app
   uses the centre.
 - Photoshop's other Properties pages (Adjustments, Libraries, text and shape
   properties) are not there; text and shape settings stay in Tool Options.
-- A profile that already existed gets the panel when its saved layout is
-  replaced by the current default (layout version 1, [#48](https://github.com/diegochagas/gimphoto/issues/48)).
-  After that, closing the panel is remembered; *Windows › Dockable Dialogs
-  › Properties* opens it again.
+- A profile that already existed gets this layout when its saved layout is
+  replaced by the current default (layout version 2, [#48](https://github.com/diegochagas/gimphoto/issues/48)).
+  After that, moving or closing the panel is remembered; *Windows ›
+  Dockable Dialogs › Properties* opens it again.
+- The three groups' heights are set for a 1080-pixel-high screen; on a
+  smaller one, drag the dividers between them.
