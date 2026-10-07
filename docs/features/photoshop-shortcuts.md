@@ -47,7 +47,7 @@ own GIMP shortcut too, unless Photoshop uses that key for something else.
 | Elliptical Marquee Tool (Shift+M) | Shift+M | `tools-ellipse-select` | E |
 | Lasso Tool (L) | L | `tools-free-select` | F |
 | Magnetic Lasso Tool (Shift+L) | Shift+L | `tools-iscissors` | I |
-| Magic Wand Tool (W) | W | `tools-fuzzy-select` | U |
+| Object Selection Tool (W; Magic Wand is in its toolbox group) | W | `tools-object-select` | – |
 | Quick Selection Tool (Shift+W) | Shift+W | `tools-foreground-select` | – |
 | Crop Tool (C) | C | `tools-crop` | Shift+C |
 | Eyedropper Tool (I) | I | `tools-color-picker` | O |
@@ -141,7 +141,7 @@ The ones a GIMP user will notice:
 | Ctrl+H | Layer > Anchor | View > Show Selection |
 | Ctrl+Tab on the canvas | layer picker | next image (Ctrl+Shift+Tab: previous) |
 | Ctrl+Shift+V | Edit > Paste as > New Image | Edit > Paste In Place |
-| B, C, E, F, I, M, O, P, Q, S, W | Paths, Clone, Ellipse Select, Free Select, Scissors, Move, Color Picker, Paintbrush, Align, Smudge, Warp | Paintbrush, Crop, Eraser, Fullscreen, Color Picker, Rectangle Select, Dodge/Burn, Paths, Quick Mask, Clone, Fuzzy Select |
+| B, C, E, F, I, M, O, P, Q, S, W | Paths, Clone, Ellipse Select, Free Select, Scissors, Move, Color Picker, Paintbrush, Align, Smudge, Warp | Paintbrush, Crop, Eraser, Fullscreen, Color Picker, Rectangle Select, Dodge/Burn, Paths, Quick Mask, Clone, Object Selection |
 
 While you edit text with the Text tool, Ctrl+B / Ctrl+I / Ctrl+U still make
 it bold / italic / underlined and Ctrl+Shift+V still pastes unformatted:

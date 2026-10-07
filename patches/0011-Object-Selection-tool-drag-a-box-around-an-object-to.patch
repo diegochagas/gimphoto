@@ -1,0 +1,407 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Diego Chagas <drochachagas@gmail.com>
+Date: Wed, 7 Oct 2026 11:18:11 -0300
+Subject: [PATCH] Object Selection tool: drag a box around an object to select
+ it (AI)
+
+Photoshop's Object Selection tool, first in the W group of the toolbox:
+drag a rough box around an object and it becomes the selection. The tool
+(GimpObjectSelectTool, a GimpSelectionTool) draws the box while dragging
+and, on release, runs GIMPhoto's plug-in procedure gimphoto-object-select
+with the box and the tool's selection mode (replace / add / subtract /
+intersect, Shift and Ctrl as the other selection tools); the plug-in finds
+the object with SAM 2.1 on the local ComfyUI. Its message is shown when
+that fails (no local AI, ComfyUI not answering). Moving the selection with
+the usual modifiers works as with the other selection tools.
+
+diff --git a/app/tools/gimp-tools.c b/app/tools/gimp-tools.c
+index a43f9ab301..c05f424a23 100644
+--- a/app/tools/gimp-tools.c
++++ b/app/tools/gimp-tools.c
+@@ -70,6 +70,7 @@
+ #include "gimpoperationtool.h"
+ #include "gimppathtool.h"
+ #include "gimpshapetool.h"
++#include "gimpobjectselecttool.h"
+ #include "gimpmagnifytool.h"
+ #include "gimpmeasuretool.h"
+ #include "gimpmovetool.h"
+@@ -176,6 +177,7 @@ gimp_tools_init (Gimp *gimp)
+     gimp_seamless_clone_tool_register,
+     gimp_text_tool_register,
+     gimp_shape_tool_register,  /* GIMPhoto */
++    gimp_object_select_tool_register,  /* GIMPhoto */
+     gimp_bucket_fill_tool_register,
+     gimp_gradient_tool_register,
+     gimp_pencil_tool_register,
+diff --git a/app/tools/gimpobjectselecttool.c b/app/tools/gimpobjectselecttool.c
+new file mode 100644
+index 0000000000..5a4c1194fd
+--- /dev/null
++++ b/app/tools/gimpobjectselecttool.c
+@@ -0,0 +1,278 @@
++/* GIMP - The GNU Image Manipulation Program
++ * Copyright (C) 1995 Spencer Kimball and Peter Mattis
++ *
++ * gimpobjectselecttool.c
++ * Copyright (C) 2026 GIMPhoto contributors
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 3 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
++ */
++
++#include "config.h"
++
++#include <gegl.h>
++#include <gtk/gtk.h>
++
++#include "libgimpbase/gimpbase.h"
++#include "libgimpmath/gimpmath.h"
++#include "libgimpwidgets/gimpwidgets.h"
++
++#include "tools-types.h"
++
++#include "core/gimp.h"
++#include "core/gimpimage.h"
++#include "core/gimpparamspecs.h"
++#include "core/gimpprogress.h"
++
++#include "pdb/gimppdb.h"
++
++#include "widgets/gimphelp-ids.h"
++
++#include "display/gimpdisplay.h"
++
++#include "gimpobjectselecttool.h"
++#include "gimpselectionoptions.h"
++#include "gimptoolcontrol.h"
++
++#include "gimp-intl.h"
++
++
++/*  the plug-in procedure that finds the object (plugins/ai-select)  */
++#define OBJECT_SELECT_PROC "gimphoto-object-select"
++
++/*  smaller drags are clicks, not boxes  */
++#define MIN_BOX 4
++
++
++static void   gimp_object_select_tool_button_press   (GimpTool              *tool,
++                                                      const GimpCoords      *coords,
++                                                      guint32                time,
++                                                      GdkModifierType        state,
++                                                      GimpButtonPressType    press_type,
++                                                      GimpDisplay           *display);
++static void   gimp_object_select_tool_motion         (GimpTool              *tool,
++                                                      const GimpCoords      *coords,
++                                                      guint32                time,
++                                                      GdkModifierType        state,
++                                                      GimpDisplay           *display);
++static void   gimp_object_select_tool_button_release (GimpTool              *tool,
++                                                      const GimpCoords      *coords,
++                                                      guint32                time,
++                                                      GdkModifierType        state,
++                                                      GimpButtonReleaseType  release_type,
++                                                      GimpDisplay           *display);
++static void   gimp_object_select_tool_draw           (GimpDrawTool          *draw_tool);
++
++static gboolean gimp_object_select_tool_run_idle     (gpointer               data);
++
++
++G_DEFINE_TYPE (GimpObjectSelectTool, gimp_object_select_tool,
++               GIMP_TYPE_SELECTION_TOOL)
++
++#define parent_class gimp_object_select_tool_parent_class
++
++
++void
++gimp_object_select_tool_register (GimpToolRegisterCallback  callback,
++                                  gpointer                  data)
++{
++  (* callback) (GIMP_TYPE_OBJECT_SELECT_TOOL,
++                GIMP_TYPE_SELECTION_OPTIONS,
++                gimp_selection_options_gui,
++                0,
++                "gimp-object-select-tool",
++                _("Object Selection"),
++                _("Object Selection Tool: Drag a box around an object to "
++                  "select it (AI)"),
++                N_("_Object Selection"), NULL,
++                NULL, GIMP_HELP_TOOL_FUZZY_SELECT,
++                "gimphoto-object-select",
++                data);
++}
++
++static void
++gimp_object_select_tool_class_init (GimpObjectSelectToolClass *klass)
++{
++  GimpToolClass     *tool_class      = GIMP_TOOL_CLASS (klass);
++  GimpDrawToolClass *draw_tool_class = GIMP_DRAW_TOOL_CLASS (klass);
++
++  tool_class->button_press   = gimp_object_select_tool_button_press;
++  tool_class->motion         = gimp_object_select_tool_motion;
++  tool_class->button_release = gimp_object_select_tool_button_release;
++
++  draw_tool_class->draw      = gimp_object_select_tool_draw;
++}
++
++static void
++gimp_object_select_tool_init (GimpObjectSelectTool *object_select)
++{
++  GimpTool *tool = GIMP_TOOL (object_select);
++
++  gimp_tool_control_set_tool_cursor (tool->control,
++                                     GIMP_TOOL_CURSOR_RECT_SELECT);
++}
++
++static void
++gimp_object_select_tool_button_press (GimpTool            *tool,
++                                      const GimpCoords    *coords,
++                                      guint32              time,
++                                      GdkModifierType      state,
++                                      GimpButtonPressType  press_type,
++                                      GimpDisplay         *display)
++{
++  GimpObjectSelectTool *object_select = GIMP_OBJECT_SELECT_TOOL (tool);
++  GimpSelectionOptions *options       = GIMP_SELECTION_TOOL_GET_OPTIONS (tool);
++
++  /*  the plug-in runs in a nested main loop: one box at a time  */
++  if (object_select->running)
++    return;
++
++  /*  moving or editing the selection, as the other selection tools  */
++  if (gimp_selection_tool_start_edit (GIMP_SELECTION_TOOL (tool),
++                                      display, coords))
++    return;
++
++  if (gimp_draw_tool_is_active (GIMP_DRAW_TOOL (tool)))
++    gimp_draw_tool_stop (GIMP_DRAW_TOOL (tool));
++
++  object_select->start_x   = object_select->end_x = RINT (coords->x);
++  object_select->start_y   = object_select->end_y = RINT (coords->y);
++  object_select->operation = options->operation;
++
++  tool->display = display;
++  gimp_tool_control_activate (tool->control);
++  gimp_draw_tool_start (GIMP_DRAW_TOOL (tool), display);
++}
++
++static void
++gimp_object_select_tool_motion (GimpTool         *tool,
++                                const GimpCoords *coords,
++                                guint32           time,
++                                GdkModifierType   state,
++                                GimpDisplay      *display)
++{
++  GimpObjectSelectTool *object_select = GIMP_OBJECT_SELECT_TOOL (tool);
++
++  gimp_draw_tool_pause (GIMP_DRAW_TOOL (tool));
++
++  object_select->end_x = RINT (coords->x);
++  object_select->end_y = RINT (coords->y);
++
++  gimp_draw_tool_resume (GIMP_DRAW_TOOL (tool));
++}
++
++static void
++gimp_object_select_tool_button_release (GimpTool              *tool,
++                                        const GimpCoords      *coords,
++                                        guint32                time,
++                                        GdkModifierType        state,
++                                        GimpButtonReleaseType  release_type,
++                                        GimpDisplay           *display)
++{
++  GimpObjectSelectTool *object_select = GIMP_OBJECT_SELECT_TOOL (tool);
++  GimpImage            *image         = gimp_display_get_image (display);
++  gint                  x, y, width, height;
++
++  gimp_tool_control_halt (tool->control);
++  gimp_draw_tool_stop (GIMP_DRAW_TOOL (tool));
++
++  if (release_type == GIMP_BUTTON_RELEASE_CANCEL)
++    return;
++
++  x      = MIN (object_select->start_x, object_select->end_x);
++  y      = MIN (object_select->start_y, object_select->end_y);
++  width  = ABS (object_select->end_x - object_select->start_x);
++  height = ABS (object_select->end_y - object_select->start_y);
++
++  /*  only what is on the canvas  */
++  width  = MIN (x + width,  gimp_image_get_width  (image)) - MAX (x, 0);
++  height = MIN (y + height, gimp_image_get_height (image)) - MAX (y, 0);
++  x      = MAX (x, 0);
++  y      = MAX (y, 0);
++
++  if (width < MIN_BOX || height < MIN_BOX)
++    return;
++
++  /*  the plug-in runs in a nested main loop, where the image can be
++   *  closed and the tool changed: run it once this event is done, with
++   *  the tool, image and display kept alive until it returns
++   */
++  object_select->running = TRUE;
++  object_select->image   = g_object_ref (image);
++  object_select->display = g_object_ref (display);
++  object_select->x       = x;
++  object_select->y       = y;
++  object_select->width   = width;
++  object_select->height  = height;
++
++  g_idle_add_full (G_PRIORITY_DEFAULT_IDLE,
++                   gimp_object_select_tool_run_idle,
++                   g_object_ref (object_select), g_object_unref);
++}
++
++static gboolean
++gimp_object_select_tool_run_idle (gpointer data)
++{
++  GimpObjectSelectTool *object_select = GIMP_OBJECT_SELECT_TOOL (data);
++  GimpImage            *image         = object_select->image;
++  GimpDisplay          *display       = object_select->display;
++  GimpValueArray       *return_vals;
++  GError               *error = NULL;
++
++  return_vals =
++    gimp_pdb_execute_procedure_by_name (image->gimp->pdb,
++                                        gimp_get_user_context (image->gimp),
++                                        GIMP_PROGRESS (display),
++                                        &error,
++                                        OBJECT_SELECT_PROC,
++                                        /*  not INTERACTIVE: libgimp would load the
++                                         *  last run's box over this one
++                                         */
++                                        GIMP_TYPE_RUN_MODE, GIMP_RUN_NONINTERACTIVE,
++                                        GIMP_TYPE_IMAGE,    image,
++                                        G_TYPE_INT,         object_select->operation,
++                                        G_TYPE_INT,         object_select->x,
++                                        G_TYPE_INT,         object_select->y,
++                                        G_TYPE_INT,         object_select->width,
++                                        G_TYPE_INT,         object_select->height,
++                                        G_TYPE_NONE);
++
++  if (error)
++    {
++      /*  the plug-in's own message (no local AI, ComfyUI not answering...)  */
++      gimp_message_literal (image->gimp, G_OBJECT (display),
++                            GIMP_MESSAGE_WARNING, error->message);
++      g_clear_error (&error);
++    }
++
++  gimp_value_array_unref (return_vals);
++  gimp_image_flush (image);
++
++  object_select->running = FALSE;
++  g_clear_object (&object_select->display);
++  g_clear_object (&object_select->image);
++
++  return G_SOURCE_REMOVE;
++}
++
++static void
++gimp_object_select_tool_draw (GimpDrawTool *draw_tool)
++{
++  GimpObjectSelectTool *object_select = GIMP_OBJECT_SELECT_TOOL (draw_tool);
++
++  gimp_draw_tool_add_rectangle (draw_tool, FALSE,
++                                MIN (object_select->start_x, object_select->end_x),
++                                MIN (object_select->start_y, object_select->end_y),
++                                ABS (object_select->end_x - object_select->start_x),
++                                ABS (object_select->end_y - object_select->start_y));
++}
+diff --git a/app/tools/gimpobjectselecttool.h b/app/tools/gimpobjectselecttool.h
+new file mode 100644
+index 0000000000..b83b4ef54b
+--- /dev/null
++++ b/app/tools/gimpobjectselecttool.h
+@@ -0,0 +1,69 @@
++/* GIMP - The GNU Image Manipulation Program
++ * Copyright (C) 1995 Spencer Kimball and Peter Mattis
++ *
++ * gimpobjectselecttool.h
++ * Copyright (C) 2026 GIMPhoto contributors
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 3 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
++ */
++
++#pragma once
++
++#include "gimpselectiontool.h"
++
++
++#define GIMP_TYPE_OBJECT_SELECT_TOOL            (gimp_object_select_tool_get_type ())
++#define GIMP_OBJECT_SELECT_TOOL(obj)            (G_TYPE_CHECK_INSTANCE_CAST ((obj), GIMP_TYPE_OBJECT_SELECT_TOOL, GimpObjectSelectTool))
++#define GIMP_OBJECT_SELECT_TOOL_CLASS(klass)    (G_TYPE_CHECK_CLASS_CAST ((klass), GIMP_TYPE_OBJECT_SELECT_TOOL, GimpObjectSelectToolClass))
++#define GIMP_IS_OBJECT_SELECT_TOOL(obj)         (G_TYPE_CHECK_INSTANCE_TYPE ((obj), GIMP_TYPE_OBJECT_SELECT_TOOL))
++#define GIMP_IS_OBJECT_SELECT_TOOL_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((klass), GIMP_TYPE_OBJECT_SELECT_TOOL))
++#define GIMP_OBJECT_SELECT_TOOL_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS ((obj), GIMP_TYPE_OBJECT_SELECT_TOOL, GimpObjectSelectToolClass))
++
++
++typedef struct _GimpObjectSelectTool      GimpObjectSelectTool;
++typedef struct _GimpObjectSelectToolClass GimpObjectSelectToolClass;
++
++/*  GIMPhoto: Photoshop's Object Selection tool. Drag a rough box around an
++ *  object: GIMPhoto's AI plug-in (gimphoto-object-select, SAM 2.1 on the
++ *  local ComfyUI) makes the object the selection, with the tool's
++ *  selection mode (Shift adds, Ctrl subtracts, as the other selection
++ *  tools).
++ */
++struct _GimpObjectSelectTool
++{
++  GimpSelectionTool parent_instance;
++
++  gdouble           start_x;
++  gdouble           start_y;
++  gdouble           end_x;
++  gdouble           end_y;
++  GimpChannelOps    operation;
++  gboolean          running;  /*  the plug-in is finding an object  */
++
++  /*  the box to find the object in, waiting for the idle run  */
++  GimpImage        *image;
++  GimpDisplay      *display;
++  gint              x, y, width, height;
++};
++
++struct _GimpObjectSelectToolClass
++{
++  GimpSelectionToolClass parent_class;
++};
++
++
++void    gimp_object_select_tool_register (GimpToolRegisterCallback  callback,
++                                          gpointer                  data);
++
++GType   gimp_object_select_tool_get_type (void) G_GNUC_CONST;
+diff --git a/app/tools/meson.build b/app/tools/meson.build
+index 37c87b75ad..e48ca2c591 100644
+--- a/app/tools/meson.build
++++ b/app/tools/meson.build
+@@ -94,6 +94,7 @@ libapptools_sources = [
+   'gimppathtool.c',
+   'gimpshapeoptions.c',
+   'gimpshapetool.c',
++  'gimpobjectselecttool.c',
+   'gimppenciltool.c',
+   'gimpperspectiveclonetool.c',
+   'gimpperspectivetool.c',

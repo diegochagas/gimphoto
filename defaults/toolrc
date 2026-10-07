@@ -37,8 +37,11 @@
             (visible yes))))
 (GimpToolGroup "tool group"
     (visible yes)
-    (active-tool "gimp-fuzzy-select-tool")
+    (active-tool "gimp-object-select-tool")
     (children
+        (GimpToolInfo "gimp-object-select-tool"
+            (icon-name "gimphoto-object-select")
+            (visible yes))
         (GimpToolInfo "gimp-fuzzy-select-tool"
             (icon-name "gimp-tool-fuzzy-select")
             (visible yes))

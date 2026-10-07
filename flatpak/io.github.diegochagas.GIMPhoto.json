@@ -889,7 +889,8 @@
                         "../patches/0007-Layers-dock-double-click-opens-a-smart-object-s-cont.patch",
                         "../patches/0008-Properties-panel-Transform-Align-and-Distribute-Quic.patch",
                         "../patches/0009-Default-layout-updates-reach-existing-profiles.patch",
-                        "../patches/0010-Docks-drop-a-dockable-between-two-dock-books.patch"
+                        "../patches/0010-Docks-drop-a-dockable-between-two-dock-books.patch",
+                        "../patches/0011-Object-Selection-tool-drag-a-box-around-an-object-to.patch"
                     ]
                 }
             ],
