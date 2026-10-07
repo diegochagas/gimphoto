@@ -27,6 +27,9 @@
 #   - Select Subject and Object Selection (AI), without the local AI, say
 #     where to install it and leave the selection alone (no ComfyUI is
 #     called); the Object Selection tool is compiled in;
+#   - Quick Selection: GEGL's paint-select, built by GIMPhoto, grows a
+#     stroke to the edges of what it is painted on, and GIMP's Paint Select
+#     is compiled in as Quick Selection (painting with it needs the GUI);
 #   - GIMPhoto's Properties panel is compiled in and in the default layout;
 #   - a profile with a layout saved before GIMPhoto's current default gets
 #     the default at the next start, its own moved aside (needs the GUI);
@@ -197,6 +200,14 @@ if flatpak run --command=sh "$app" -c 'grep -q gimp-object-select-tool /app/bin/
     echo "ok   Object Selection tool compiled in"
 else
     echo "FAIL the Object Selection tool (gimp-object-select-tool) is not in GIMP" >&2
+    status=1
+fi
+paint_select=$(flatpak run --filesystem="$PWD/tests:ro" --command=python3 "$app" "$PWD/tests/smoke_paint_select.py" 2>/dev/null | tail -n 1)
+if [ "$paint_select" = ok ] &&
+    flatpak run --command=sh "$app" -c 'grep -q "Quick Selection Tool" /app/bin/gimp-3.*' 2>/dev/null; then
+    echo "ok   Quick Selection: gegl:paint-select grows a stroke to its edges; the tool is compiled in"
+else
+    echo "FAIL Quick Selection: ${paint_select:-the tool is not in GIMP}" >&2
     status=1
 fi
 if flatpak run --command=sh "$app" -c 'grep -q gimp-properties-editor /app/bin/gimp-3.*' 2>/dev/null &&

@@ -133,17 +133,33 @@ class TransformTest(unittest.TestCase):
             self.assertTrue((make_manifest.BRANDING / name).is_file(), name)
 
     def test_gegl_ops_module_builds_each_operation_into_gegls_plugin_folder(self):
-        out = make_manifest.transform(UPSTREAM, [], [], gegl_ops=["a-op", "b-op"])
+        out = make_manifest.transform(UPSTREAM, [], [], gegl_ops=["a-op.c", "b-op.c"])
         module = out["modules"][-1]
         self.assertEqual(module["name"], "gimphoto-gegl-ops")
         self.assertEqual(module["sources"], [{"type": "dir", "path": "../gegl"}])
         commands = module["build-commands"]
-        self.assertIn("-o a-op.so a-op.c", commands[0])
-        self.assertIn("-o b-op.so b-op.c", commands[1])
+        self.assertIn("-o a-op.so a-op.c", commands[1])
+        self.assertIn("-o b-op.so b-op.c", commands[2])
         self.assertEqual(commands[-1], "install -Dm 755 -t ${FLATPAK_DEST}/lib/gegl-0.4 a-op.so b-op.so")
 
+    def test_gegl_ops_in_cplusplus_link_maxflow(self):
+        # GEGL's paint-select (Quick Selection) is C++ on the maxflow graph
+        # cut library, which Flathub's recipe builds before GEGL
+        out = make_manifest.transform(UPSTREAM, [], [], gegl_ops=["paint-select.cc"])
+        commands = out["modules"][-1]["build-commands"]
+        self.assertEqual(commands[0], "touch config.h")  # GEGL's sources include it
+        self.assertTrue(commands[1].startswith("c++ "))
+        self.assertIn("-o paint-select.so paint-select.cc", commands[1])
+        self.assertIn("maxflow", commands[1])
+        names = [m.get("name") for m in out["modules"] if isinstance(m, dict)]
+        self.assertGreater(names.index("gimphoto-gegl-ops"), names.index("maxflow"))
+
+    def test_gegl_ops_are_the_c_and_cplusplus_files(self):
+        self.assertIn("gradient-overlay.c", make_manifest.gegl_ops())
+        self.assertIn("paint-select.cc", make_manifest.gegl_ops())
+
     def test_gegl_ops_come_after_gegl_and_gimp(self):
-        out = make_manifest.transform(UPSTREAM, [], [], gegl_ops=["a-op"])
+        out = make_manifest.transform(UPSTREAM, [], [], gegl_ops=["a-op.c"])
         names = [m.get("name") for m in out["modules"] if isinstance(m, dict)]
         self.assertGreater(names.index("gimphoto-gegl-ops"), names.index("gegl"))
         self.assertGreater(names.index("gimphoto-gegl-ops"), names.index("gimp"))

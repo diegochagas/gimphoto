@@ -1,0 +1,185 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Diego Chagas <drochachagas@gmail.com>
+Date: Wed, 7 Oct 2026 12:16:52 -0300
+Subject: [PATCH] Quick Selection: GIMP's Paint Select in the toolbox, as
+ Photoshop's tool
+
+Paint Select is out of the Playground: it is registered whenever
+gegl:paint-select exists (GIMPhoto builds it), as Quick Selection, and it is
+no longer experimental, so it belongs in toolrc. [ and ] change its brush
+size (the tools-paint-select-size-set action its tool control already
+named), and Alt subtracts as in Photoshop (Shift adds, Ctrl subtracts).
+
+It no longer runs pending events while it cuts the graph after a stroke: a
+modifier released then was handled before the display handed the tool the
+button release's modifiers, which left the tool on Subtract after an Alt or
+Ctrl stroke.
+
+diff --git a/app/actions/tools-actions.c b/app/actions/tools-actions.c
+index 9efa957edb..d2b02e64e3 100644
+--- a/app/actions/tools-actions.c
++++ b/app/actions/tools-actions.c
+@@ -262,6 +262,15 @@ static const GimpEnumActionEntry tools_foreground_select_brush_size_actions[] =
+     NULL }
+ };
+ 
++static const GimpEnumActionEntry tools_paint_select_size_actions[] =
++{
++  { "tools-paint-select-size-set",
++    GIMP_ICON_TOOL_PAINT_SELECT,
++    "Set Quick Selection Brush Size", NULL, { NULL }, NULL,
++    GIMP_ACTION_SELECT_SET, TRUE,
++    NULL }
++};
++
+ static const GimpEnumActionEntry tools_transform_preview_opacity_actions[] =
+ {
+   { "tools-transform-preview-opacity-set", GIMP_ICON_TOOL_PERSPECTIVE,
+@@ -749,6 +758,11 @@ tools_actions_setup (GimpActionGroup *group)
+                                       G_N_ELEMENTS (tools_foreground_select_brush_size_actions),
+                                       tools_fg_select_brush_size_cmd_callback);
+ 
++  gimp_action_group_add_enum_actions (group, NULL,
++                                      tools_paint_select_size_actions,
++                                      G_N_ELEMENTS (tools_paint_select_size_actions),
++                                      tools_paint_select_size_cmd_callback);
++
+   gimp_action_group_add_enum_actions (group, NULL,
+                                       tools_transform_preview_opacity_actions,
+                                       G_N_ELEMENTS (tools_transform_preview_opacity_actions),
+diff --git a/app/actions/tools-commands.c b/app/actions/tools-commands.c
+index 7a4d19d081..c8f1582a6f 100644
+--- a/app/actions/tools-commands.c
++++ b/app/actions/tools-commands.c
+@@ -589,6 +589,30 @@ tools_fg_select_brush_size_cmd_callback (GimpAction *action,
+     }
+ }
+ 
++void
++tools_paint_select_size_cmd_callback (GimpAction *action,
++                                      GVariant   *value,
++                                      gpointer    data)
++{
++  GimpContext          *context;
++  GimpToolInfo         *tool_info;
++  GimpActionSelectType  select_type;
++  return_if_no_context (context, data);
++
++  select_type = (GimpActionSelectType) g_variant_get_int32 (value);
++
++  tool_info = gimp_context_get_tool (context);
++
++  if (tool_info && GIMP_IS_PAINT_SELECT_OPTIONS (tool_info->tool_options))
++    {
++      action_select_property (select_type,
++                              action_data_get_display (data),
++                              G_OBJECT (tool_info->tool_options),
++                              "stroke-width",
++                              1.0, 5.0, 50.0, 0.1, FALSE);
++    }
++}
++
+ void
+ tools_transform_preview_opacity_cmd_callback (GimpAction *action,
+                                               GVariant   *value,
+diff --git a/app/actions/tools-commands.h b/app/actions/tools-commands.h
+index c9ffc13adf..01609b272a 100644
+--- a/app/actions/tools-commands.h
++++ b/app/actions/tools-commands.h
+@@ -85,6 +85,9 @@ void   tools_mybrush_hardness_cmd_callback          (GimpAction *action,
+ void   tools_fg_select_brush_size_cmd_callback      (GimpAction *action,
+                                                      GVariant   *value,
+                                                      gpointer    data);
++void   tools_paint_select_size_cmd_callback         (GimpAction *action,
++                                                     GVariant   *value,
++                                                     gpointer    data);
+ 
+ void   tools_transform_preview_opacity_cmd_callback (GimpAction *action,
+                                                      GVariant   *value,
+diff --git a/app/tools/gimp-tools.c b/app/tools/gimp-tools.c
+index c05f424a23..aa08c71fb4 100644
+--- a/app/tools/gimp-tools.c
++++ b/app/tools/gimp-tools.c
+@@ -757,8 +757,7 @@ gimp_tools_register (GType                   tool_type,
+ 
+   /* hack to not require experimental tools to be present in toolrc */
+   if (tool_type == GIMP_TYPE_N_POINT_DEFORMATION_TOOL ||
+-      tool_type == GIMP_TYPE_SEAMLESS_CLONE_TOOL      ||
+-      tool_type == GIMP_TYPE_PAINT_SELECT_TOOL)
++      tool_type == GIMP_TYPE_SEAMLESS_CLONE_TOOL)
+     {
+       tool_info->experimental = TRUE;
+     }
+diff --git a/app/tools/gimppaintselecttool.c b/app/tools/gimppaintselecttool.c
+index 62a360797e..69e47b4b30 100644
+--- a/app/tools/gimppaintselecttool.c
++++ b/app/tools/gimppaintselecttool.c
+@@ -154,16 +154,19 @@ void
+ gimp_paint_select_tool_register (GimpToolRegisterCallback  callback,
+                                  gpointer                  data)
+ {
+-  if (gegl_has_operation ("gegl:paint-select") &&
+-      GIMP_GUI_CONFIG (GIMP (data)->config)->playground_paint_select_tool)
++  /*  GIMPhoto: Photoshop's Quick Selection, in the toolbox (not only in
++   *  the Playground); GIMPhoto builds gegl:paint-select itself
++   */
++  if (gegl_has_operation ("gegl:paint-select"))
+     (* callback) (GIMP_TYPE_PAINT_SELECT_TOOL,
+                   GIMP_TYPE_PAINT_SELECT_OPTIONS,
+                   gimp_paint_select_options_gui,
+                   0,
+                   "gimp-paint-select-tool",
+-                  _("Paint Select"),
+-                  _("Paint Select Tool: Select objects by painting roughly"),
+-                  N_("P_aint Select"), NULL,
++                  _("Quick Selection"),
++                  _("Quick Selection Tool: Paint over an area, the selection "
++                    "grows to its edges"),
++                  N_("_Quick Selection"), NULL,
+                   NULL, GIMP_HELP_TOOL_FOREGROUND_SELECT,
+                   GIMP_ICON_TOOL_PAINT_SELECT,
+                   data);
+@@ -209,7 +212,6 @@ gimp_paint_select_tool_init (GimpPaintSelectTool *ps_tool)
+                                            GIMP_CURSOR_MODIFIER_PLUS);
+   gimp_tool_control_set_action_pixel_size (tool->control,
+                                            "tools-paint-select-pixel-size-set");
+-  /* TODO: the size-set action is not implemented. */
+   gimp_tool_control_set_action_size       (tool->control,
+                                            "tools-paint-select-size-set");
+   ps_tool->image_mask  = NULL;
+@@ -293,8 +295,12 @@ gimp_paint_select_tool_button_release (GimpTool              *tool,
+       progress = gimp_progress_start (GIMP_PROGRESS (tool), FALSE,
+                                       "%s", "Selecting");
+ 
+-      while (g_main_context_pending (NULL))
+-        g_main_context_iteration (NULL, FALSE);
++      /*  GIMPhoto: no events are run here or while the graph is cut (a
++       *  fraction of a second): a modifier released in that time was
++       *  handled before the display gave the tool the button release's
++       *  modifiers, so the tool stayed on Subtract after an Alt or Ctrl
++       *  stroke
++       */
+ 
+       local_region = gimp_paint_select_tool_get_local_region (ps_tool, display);
+ 
+@@ -515,9 +521,10 @@ gimp_paint_select_tool_modifier_key (GimpTool        *tool,
+             button_op = ps_tool->saved_op;
+         }
+ 
++      /*  GIMPhoto: Alt subtracts, as Photoshop's Quick Selection  */
+       if (state & GDK_MOD1_MASK)
+         {
+-          button_op = ps_tool->saved_op;
++          button_op = GIMP_CHANNEL_OP_SUBTRACT;
+         }
+       else if (state & (extend_mask | modify_mask))
+         {
+@@ -655,8 +662,6 @@ gimp_paint_select_tool_progress (GeglNode     *ps_node,
+                                  GimpProgress *progress)
+ {
+   gimp_progress_set_value (progress, value);
+-  while (g_main_context_pending (NULL))
+-    g_main_context_iteration (NULL, FALSE);
+ }
+ 
+ static void

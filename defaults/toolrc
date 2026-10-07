@@ -42,6 +42,9 @@
         (GimpToolInfo "gimp-object-select-tool"
             (icon-name "gimphoto-object-select")
             (visible yes))
+        (GimpToolInfo "gimp-paint-select-tool"
+            (icon-name "gimp-tool-paint-select")
+            (visible yes))
         (GimpToolInfo "gimp-fuzzy-select-tool"
             (icon-name "gimp-tool-fuzzy-select")
             (visible yes))

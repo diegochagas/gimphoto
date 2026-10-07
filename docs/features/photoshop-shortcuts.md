@@ -48,7 +48,7 @@ own GIMP shortcut too, unless Photoshop uses that key for something else.
 | Lasso Tool (L) | L | `tools-free-select` | F |
 | Magnetic Lasso Tool (Shift+L) | Shift+L | `tools-iscissors` | I |
 | Object Selection Tool (W; Magic Wand is in its toolbox group) | W | `tools-object-select` | – |
-| Quick Selection Tool (Shift+W) | Shift+W | `tools-foreground-select` | – |
+| Quick Selection Tool (Shift+W) | Shift+W | `tools-paint-select` | – |
 | Crop Tool (C) | C | `tools-crop` | Shift+C |
 | Eyedropper Tool (I) | I | `tools-color-picker` | O |
 | Ruler Tool (Shift+I) | Shift+I | `tools-measure` | Shift+M |

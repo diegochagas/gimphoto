@@ -100,10 +100,11 @@ symbolic icon).
 - Rectangle mode only: Photoshop's lasso mode (draw roughly around the
   object) and its *Object Finder* (highlight objects on hover) are not
   there.
-- A profile that already existed keeps its toolbox and its shortcuts:
-  Object Selection is added at the end of the toolbox, not in the W group
-  (*Edit › Preferences › Toolbox* moves it), and **W** stays Fuzzy Select
-  (*Edit › Keyboard Shortcuts* gives W to Object Selection). A new profile
-  gets both.
+- A profile that already existed gets the new toolbox: GIMP finds its
+  saved toolbox without Object Selection out of date and uses GIMPhoto's
+  default one, W group included (changes made to the toolbox's order in
+  that profile are lost once). It keeps its shortcuts, though: **W** stays
+  Fuzzy Select there (*Edit › Keyboard Shortcuts* gives W to Object
+  Selection).
 - The box is sent to the AI as drawn; a box that cuts through the object
   selects the part SAM judges the object to be.
