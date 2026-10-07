@@ -73,8 +73,12 @@ comes from the service (`--port` of its command, 8188 by default).
   `systemctl --user stop comfyui`.
 - A GIMP and a GIMPhoto open together share one ComfyUI. Whichever started
   it stops it when it closes, even if the other is still open.
-- The AI tools that use it come with their own issues: [Select Subject](select-subject.md)
-  is the first; #30–#34 follow.
+- The AI tools that use it come with their own issues:
+  [Select Subject](select-subject.md),
+  [Object Selection](object-selection.md),
+  [Remove Background](remove-background.md) and
+  [Generative Fill and Generate Image](generative-fill.md) so far; #31 and
+  #34 follow.
 - The service name is fixed (`comfyui`), as linux-mint-setup installs it.
 - `GIMPHOTO_COMFYUI=off` in GIMPhoto's environment (`flatpak run
   --env=GIMPHOTO_COMFYUI=off …`) leaves ComfyUI alone even with a user

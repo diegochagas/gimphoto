@@ -891,7 +891,8 @@
                         "../patches/0009-Default-layout-updates-reach-existing-profiles.patch",
                         "../patches/0010-Docks-drop-a-dockable-between-two-dock-books.patch",
                         "../patches/0011-Object-Selection-tool-drag-a-box-around-an-object-to.patch",
-                        "../patches/0012-Quick-Selection-GIMP-s-Paint-Select-in-the-toolbox-a.patch"
+                        "../patches/0012-Quick-Selection-GIMP-s-Paint-Select-in-the-toolbox-a.patch",
+                        "../patches/0013-Layers-dock-double-click-opens-a-generated-layer-s-G.patch"
                     ]
                 }
             ],
@@ -925,6 +926,9 @@
                 "install -d ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/comfyui-service",
                 "find comfyui-service -maxdepth 1 -type f -exec install -m 644 -t ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/comfyui-service {} +",
                 "chmod 755 ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/comfyui-service/comfyui-service.py",
+                "install -d ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/generative-fill",
+                "find generative-fill -maxdepth 1 -type f -exec install -m 644 -t ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/generative-fill {} +",
+                "chmod 755 ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/generative-fill/generative-fill.py",
                 "install -d ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/layer-style",
                 "find layer-style -maxdepth 1 -type f -exec install -m 644 -t ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/layer-style {} +",
                 "chmod 755 ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/layer-style/layer-style.py",

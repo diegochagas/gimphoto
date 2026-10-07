@@ -1,6 +1,10 @@
 # Lint rules for the build tools and tests (scripts/check runs ruff when
 # installed; CI always does).
 line-length = 120
+# Vendored as is from gimp-setup (see its header): kept identical, not
+# reformatted. force-exclude applies this to the files scripts/check names.
+extend-exclude = ["plugins/comfyui-service/comfyui_client.py"]
+force-exclude = true
 
 [lint]
 select = ["E", "F", "W", "EXE", "RUF100"]

@@ -1,0 +1,63 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Diego Chagas <drochachagas@gmail.com>
+Date: Wed, 7 Oct 2026 18:37:54 -0300
+Subject: [PATCH] Layers dock: double click opens a generated layer's
+ Generative Fill window
+
+A double click on a layer made by GIMPhoto's Generative Fill or Generate
+Image (it carries their gimphoto-generative parasite) runs the
+generative-fill plug-in's Edit Generative Fill action, which opens their
+window with the layer's variations, instead of the layer attributes, as
+Photoshop's Properties do for a Generative Layer. Without the plug-in, or
+on any other layer, GIMP's behaviour is kept.
+
+diff --git a/app/actions/layers-commands.c b/app/actions/layers-commands.c
+index 81ca40b9dd..494ffaff10 100644
+--- a/app/actions/layers-commands.c
++++ b/app/actions/layers-commands.c
+@@ -254,6 +254,36 @@ layers_edit_smart_object (GimpLayer *layer)
+   return TRUE;
+ }
+ 
++/*  GIMPhoto: a double click on a layer made by Generative Fill or Generate
++ *  Image (it carries their "gimphoto-generative" parasite) opens their
++ *  window again, through the generative-fill plug-in's Edit Generative
++ *  Fill command, to pick another variation, as Photoshop's Properties do
++ *  for a Generative Layer. Returns FALSE when that is not possible, so the
++ *  caller opens the attributes as GIMP does.
++ */
++static gboolean
++layers_edit_generative (GimpLayer *layer)
++{
++  GList      *managers;
++  GimpAction *action = NULL;
++
++  if (! gimp_item_parasite_find (GIMP_ITEM (layer), "gimphoto-generative"))
++    return FALSE;
++
++  managers = gimp_ui_managers_from_name ("<Image>");
++
++  if (managers)
++    action = gimp_ui_manager_find_action (managers->data, "plug-in",
++                                          "gimphoto-generative-edit");
++
++  if (! action || ! gimp_action_is_sensitive (action, NULL))
++    return FALSE;
++
++  gimp_action_activate (action);
++
++  return TRUE;
++}
++
+ void
+ layers_edit_cmd_callback (GimpAction *action,
+                           GVariant   *value,
+@@ -272,6 +302,8 @@ layers_edit_cmd_callback (GimpAction *action,
+     layers_edit_text_cmd_callback (action, value, data);
+   else if (layers_edit_smart_object (layers->data))
+     return;
++  else if (layers_edit_generative (layers->data))
++    return;
+   else if (gimp_item_is_vector_layer (GIMP_ITEM (layers->data)))
+     layers_edit_vector_cmd_callback (action, value, data);
+   else
