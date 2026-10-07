@@ -37,6 +37,7 @@ screenshots of each feature are on its page.
 | **Smart Objects**: Convert to Smart Object, Edit Contents, Replace Contents, in the Layers panel's right-click menu; scale and transform without losing quality; kept in XCF and PSD, both ways with Photoshop | Layer › Smart Objects | plug-ins + core patch | [smart-objects.md](docs/features/smart-objects.md) |
 | **ComfyUI with GIMPhoto**: the local AI backend (ComfyUI, installed by linux-mint-setup) starts when GIMPhoto opens and stops when it closes, freeing the GPU | — (Photoshop's AI runs in Adobe's cloud) | plug-in + sandbox permission | [comfyui-with-gimphoto.md](docs/features/comfyui-with-gimphoto.md) |
 | **Properties panel** above Layers: the selected layer's kind; Transform (W/H linked, X/Y, rotation, flips); Align and Distribute (one layer to the canvas, several to each other); Quick Actions (Remove Background, Select Subject) | Properties panel | core patch + defaults | [properties-panel.md](docs/features/properties-panel.md) |
+| **Select Subject** (AI): the main subject of the picture becomes the selection, from *Select › Subject* or the Properties panel's Quick Action; BiRefNet on the local ComfyUI, nothing uploaded | Select › Subject | plug-in + local AI | [select-subject.md](docs/features/select-subject.md) |
 
 Apart from these, GIMPhoto is plain GIMP, with its own user profile.
 

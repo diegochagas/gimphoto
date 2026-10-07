@@ -54,11 +54,10 @@ Select one layer, or several, in the Layers panel.
     Both measure the layers' visible pixels, as Photoshop does.
   - Distribute horizontally / vertically (3 layers or more): the outer
     layers stay, and the gaps between all of them become equal.
-- **Quick Actions:** **Remove Background** and **Select Subject** run
-  GIMPhoto's AI plug-ins for them, which come with their own issues
-  ([#33](https://github.com/diegochagas/gimphoto/issues/33),
-  [#39](https://github.com/diegochagas/gimphoto/issues/39)). Until those are
-  installed, the buttons are greyed and say so.
+- **Quick Actions:** **Select Subject** runs [Select Subject (AI)](select-subject.md).
+  **Remove Background** comes with its own issue
+  ([#33](https://github.com/diegochagas/gimphoto/issues/33)); until then
+  its button is greyed and says so.
 
 Every button and edit is **one undo step**. The panel follows the selected
 layers and every change to them, including undo. *Windows › Dockable

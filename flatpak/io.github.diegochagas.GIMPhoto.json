@@ -917,6 +917,9 @@
                 }
             ],
             "build-commands": [
+                "install -d ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/ai-select",
+                "find ai-select -maxdepth 1 -type f -exec install -m 644 -t ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/ai-select {} +",
+                "chmod 755 ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/ai-select/ai-select.py",
                 "install -d ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/comfyui-service",
                 "find comfyui-service -maxdepth 1 -type f -exec install -m 644 -t ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/comfyui-service {} +",
                 "chmod 755 ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/comfyui-service/comfyui-service.py",
