@@ -5,7 +5,7 @@
 [`branding/`](../../branding/)
 
 A new GIMPhoto profile opens Photoshop-style: the toolbox in one narrow
-column with Photoshop's tool groups, Properties / Tool Options and Layers on the right, a
+column with Photoshop's tool groups, Tool Options, Properties and Layers stacked on the right, a
 dark canvas surround, larger layer previews. It's PhotoGIMP's setup
 (github.com/Diolinux/PhotoGIMP, GPL-3.0), shipped as GIMPhoto's defaults
 instead of files copied into a profile, with GIMPhoto's own splash screen
@@ -48,7 +48,7 @@ From PhotoGIMP 3.0 (commit eca3a8f), credited in each file:
 | PhotoGIMP file | In GIMPhoto | Changes |
 |---|---|---|
 | `toolrc`: toolbox order and groups like Photoshop's | `defaults/toolrc` | GIMPhoto's [shape tools](shape-tool.md) grouped after Text |
-| `sessionrc`: one window, toolbox on the left, GIMPhoto's [Properties panel](properties-panel.md) + Tool Options, brushes, patterns, fonts and gradients over Layers, Channels and Paths on the right | `defaults/sessionrc` | on GIMP 3.2's own sessionrc; without its window and dialog positions and sizes (made for one monitor); Paths is GIMP 3.2's `gimp-path-list` (PhotoGIMP's `gimp-vectors-list` no longer exists); the window starts maximized |
+| `sessionrc`: one window, toolbox on the left; on the right three stacked groups as Photoshop's: Tool Options (+ fonts, brushes, patterns, gradients), GIMPhoto's [Properties panel](properties-panel.md), and Layers, Channels and Paths | `defaults/sessionrc` | on GIMP 3.2's own sessionrc; without its window and dialog positions and sizes (made for one monitor); Paths is GIMP 3.2's `gimp-path-list` (PhotoGIMP's `gimp-vectors-list` no longer exists); the window starts maximized |
 | `gimprc`: layer previews extra large, thumbnails large, undo previews medium, 8 undo levels, alpha channel on imported images, dark canvas padding, no layer boundary, snap to canvas, toolbox brush/pattern/gradient area | `defaults/gimprc` | without its monitor resolution, the padding colour's embedded monitor profile, the image view opening fullscreen, and its fill and stroke options; the padding is Photoshop's `#282828` with the [Photoshop theme](photoshop-theme.md) |
 | `shortcutsrc` | — | GIMPhoto has its own Photoshop keymap ([#8](photoshop-shortcuts.md)) |
 | `contextrc`, `tool-options/`, `plug-in-settings/`, `filters/` | — | left out: last-used values from PhotoGIMP's author's own sessions (a 1920×1080 crop ratio, the Starfield pattern, JPEG export settings), not Photoshop-style defaults |

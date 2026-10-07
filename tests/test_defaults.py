@@ -17,6 +17,8 @@ SESSIONRC = ROOT / "defaults" / "sessionrc"
 # layout version -> SHA-256 of the layout (the file without its comments)
 LAYOUTS = {
     1: "c70cd755570ccac55aa5a564ca3e986815b6b0a07ee25706db7cdcaa4c0c6951",
+    # Properties in its own panel group, between Tool Options and Layers (#50)
+    2: "a445a1f231cae10a987a85bf5191a3be9eb0799b1d5f2693c395058c517dc0bc",
 }
 
 
