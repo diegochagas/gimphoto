@@ -24,9 +24,10 @@
 #   - the local ComfyUI (the `comfyui` user service, when this machine has
 #     it) is left alone by runs without a user interface, and the sandbox
 #     may talk to the user's systemd to start and stop it with GIMPhoto;
-#   - Select Subject and Object Selection (AI), without the local AI, say
-#     where to install it and leave the selection alone (no ComfyUI is
-#     called); the Object Selection tool is compiled in;
+#   - Select Subject, Object Selection and Remove Background (AI), without
+#     the local AI, say where to install it and leave the selection and the
+#     layer alone (no ComfyUI is called); the Object Selection tool is
+#     compiled in;
 #   - Quick Selection: GEGL's paint-select, built by GIMPhoto, grows a
 #     stroke to the edges of what it is painted on, and GIMP's Paint Select
 #     is compiled in as Quick Selection (painting with it needs the GUI);
@@ -45,7 +46,7 @@ cd "$(dirname "$0")/.."
 
 app="io.github.diegochagas.GIMPhoto"
 # one procedure per shipped plug-in that a feature depends on
-procedures=(layer-style-dialog layer-style-drop-shadow gimphoto-layer-via-copy gimphoto-layer-via-cut file-psd-text-load file-psd-text-export smart-object-convert smart-object-edit smart-object-replace gimphoto-comfyui-service gimphoto-select-subject gimphoto-object-select)
+procedures=(layer-style-dialog layer-style-drop-shadow gimphoto-layer-via-copy gimphoto-layer-via-cut file-psd-text-load file-psd-text-export smart-object-convert smart-object-edit smart-object-replace gimphoto-comfyui-service gimphoto-select-subject gimphoto-object-select gimphoto-remove-background)
 want="$(python3 tools/upstream_info.py gimp-version)"
 report="$(mktemp /tmp/gimphoto-smoke.XXXXXX)"
 trap 'rm -f "$report"' EXIT
@@ -191,7 +192,7 @@ flatpak run --env=GIMPHOTO_SMOKE_OUT="$subject_report" "$app" -i --batch-interpr
 subject_result="$(cat "$subject_report")"
 rm -f "$subject_report"
 if [[ "$subject_result" == ok ]]; then
-    echo "ok   Select Subject / Object Selection without the local AI say where to install it, selection unchanged"
+    echo "ok   Select Subject / Object Selection / Remove Background without the local AI say where to install it, nothing changed"
 else
     echo "FAIL AI selections without the local AI: ${subject_result:-did not run}" >&2
     status=1

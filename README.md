@@ -40,6 +40,7 @@ screenshots of each feature are on its page.
 | **Select Subject** (AI): the main subject of the picture becomes the selection, from *Select › Subject* or the Properties panel's Quick Action; BiRefNet on the local ComfyUI, nothing uploaded | Select › Subject | plug-in + local AI | [select-subject.md](docs/features/select-subject.md) |
 | **Object Selection tool** (AI, W): drag a box around an object and the object becomes the selection; Shift adds, Ctrl subtracts; SAM 2.1 on the local ComfyUI, nothing uploaded | Object Selection tool (W) | core patch + plug-in + local AI | [object-selection.md](docs/features/object-selection.md) |
 | **Quick Selection tool** (Shift+W): paint over an area and the selection grows to its edges; Shift adds, Alt subtracts, [ / ] brush size; GIMP's hidden Paint Select, with the GEGL operation it needs built in | Quick Selection tool (Shift+W) | core patch + GEGL operation | [quick-selection.md](docs/features/quick-selection.md) |
+| **Remove Background** (AI): the selected layer's subject becomes its layer mask, not applied, from the Properties panel's Quick Action or *Layer › Remove Background*; BiRefNet on the local ComfyUI, nothing uploaded | Properties › Quick Actions › Remove Background | plug-in + local AI | [remove-background.md](docs/features/remove-background.md) |
 
 Apart from these, GIMPhoto is plain GIMP, with its own user profile.
 
