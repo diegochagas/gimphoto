@@ -1,8 +1,9 @@
 # Run by scripts/smoke inside the installed GIMPhoto (python-fu-eval):
-# Select Subject, Object Selection and Remove Background without the local AI. GIMPhoto recorded ComfyUI as missing
+# GIMPhoto's AI commands without the local AI: Select Subject, Object
+# Selection, Remove Background, Generative Fill and Generate Image. GIMPhoto recorded ComfyUI as missing
 # (the gimphoto-comfyui parasite comfyui-service.py writes), so the command
 # fails at once with a message saying where to install it, and leaves the
-# selection and the layer (no mask) alone. No ComfyUI is called: tests never use outside services.
+# selection and the layers (no mask, no new layer) alone. No ComfyUI is called: tests never use outside services.
 # Writes "ok" or a reason to the file in GIMPHOTO_SMOKE_OUT.
 import json
 import os
@@ -24,6 +25,8 @@ def check():
         # what the Object Selection tool sends: a box and add (0)
         ("gimphoto-object-select", {"operation": 0, "x": 30, "y": 30, "width": 20, "height": 20}),
         ("gimphoto-remove-background", {"drawables": [layer]}),
+        ("gimphoto-generative-fill", {"drawables": [layer], "prompt": "a red ball", "model": "klein"}),
+        ("gimphoto-generate-image", {"drawables": [layer], "prompt": "a lighthouse"}),
     ):
         proc = Gimp.get_pdb().lookup_procedure(name)
         if proc is None:
@@ -48,6 +51,8 @@ def check():
             return f"the selection changed although {name} failed"
         if layer.get_mask() is not None:
             return f"the layer got a mask although {name} failed"
+        if len(img.get_layers()) != 1:
+            return f"{name} added a layer although it failed"
     return "ok"
 
 
