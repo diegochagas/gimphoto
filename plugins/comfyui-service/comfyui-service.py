@@ -102,7 +102,9 @@ class ComfyuiService(Gimp.PlugIn):
         # plug-ins its window class only when it has a GUI (gimp_display_name
         # is not in the Python bindings)
         try:
-            if Gimp.wm_class():
+            # GIMPHOTO_COMFYUI=off: a GUI run that does not need ComfyUI
+            # (scripts/smoke) leaves it alone too
+            if Gimp.wm_class() and os.environ.get("GIMPHOTO_COMFYUI") != "off":
                 self.start()
         except Exception as e:
             # no systemd user bus (another desktop, no permission): the AI

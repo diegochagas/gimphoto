@@ -98,6 +98,7 @@ default layout. Using it needs the GUI: it was checked on the built app
   uses the centre.
 - Photoshop's other Properties pages (Adjustments, Libraries, text and shape
   properties) are not there; text and shape settings stay in Tool Options.
-- Profiles that already exist keep their layout: open the panel from
-  *Windows › Dockable Dialogs › Properties*, or reset the layout
-  (*Preferences › Window Management › Reset Saved Window Positions*).
+- A profile that already existed gets the panel when its saved layout is
+  replaced by the current default (layout version 1, [#48](https://github.com/diegochagas/gimphoto/issues/48)).
+  After that, closing the panel is remembered; *Windows › Dockable Dialogs
+  › Properties* opens it again.

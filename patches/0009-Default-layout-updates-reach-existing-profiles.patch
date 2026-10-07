@@ -1,0 +1,174 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Diego Chagas <drochachagas@gmail.com>
+Date: Tue, 6 Oct 2026 22:38:29 -0300
+Subject: [PATCH] Default layout updates reach existing profiles
+
+GIMPhoto's default layout (the system sessionrc) carries a line
+"# gimphoto-layout-version N". Before reading the layout, GIMP compares N
+with the version the profile last received (its gimphoto-layout-version
+file): when GIMPhoto ships a newer one, the profile's saved sessionrc is
+moved aside to sessionrc-before-layout-N, so the new default is read as on
+a new profile. Between layout versions the person's own layout is kept.
+Without the line (plain GIMP's sessionrc) nothing changes.
+
+diff --git a/app/gui/session.c b/app/gui/session.c
+index 79caa11dac..7f0985228a 100644
+--- a/app/gui/session.c
++++ b/app/gui/session.c
+@@ -20,6 +20,8 @@
+ 
+ #include "config.h"
+ 
++#include <string.h>
++
+ #include <gegl.h>
+ #include <gtk/gtk.h>
+ 
+@@ -57,7 +59,8 @@ enum
+ };
+ 
+ 
+-static GFile * session_file (Gimp *gimp);
++static GFile * session_file                 (Gimp *gimp);
++static void    session_update_default_layout (Gimp *gimp);
+ 
+ 
+ /*  private variables  */
+@@ -77,6 +80,8 @@ session_init (Gimp *gimp)
+ 
+   g_return_if_fail (GIMP_IS_GIMP (gimp));
+ 
++  session_update_default_layout (gimp);
++
+   file = session_file (gimp);
+ 
+   scanner = gimp_scanner_new_file (file, &error);
+@@ -461,6 +466,128 @@ session_clear (Gimp    *gimp,
+ }
+ 
+ 
++/*  GIMPhoto: the default layout (the system sessionrc) carries a line
++ *  "# gimphoto-layout-version N". A profile remembers the version it last
++ *  received in its "gimphoto-layout-version" file; when GIMPhoto ships a
++ *  newer one, the profile's saved layout is moved aside (to
++ *  "sessionrc-before-layout-N") so the new default is read, as on a new
++ *  profile. Between layout versions the person's own layout is kept.
++ */
++#define GIMPHOTO_LAYOUT_VERSION_KEY "gimphoto-layout-version"
++
++/*  The N of a "# gimphoto-layout-version N" line (at the start of a line,
++ *  as tests/test_defaults.py reads it), or 0.
++ */
++static gint
++session_layout_version_in (const gchar *text)
++{
++  const gchar *prefix = "# " GIMPHOTO_LAYOUT_VERSION_KEY " ";
++  const gchar *found  = text;
++
++  while (found && (found = strstr (found, prefix)))
++    {
++      const gchar *number = found + strlen (prefix);
++
++      if ((found == text || found[-1] == '\n') && g_ascii_isdigit (*number))
++        return (gint) g_ascii_strtoll (number, NULL, 10);
++
++      found = number;
++    }
++
++  return 0;
++}
++
++static void
++session_update_default_layout (Gimp *gimp)
++{
++  GFile    *system_file;
++  GFile    *stamp_file;
++  GFile    *profile_file;
++  gchar    *stamp_name;
++  gchar    *text    = NULL;
++  gint      shipped = 0;
++  gint      received;
++  gboolean  moved   = TRUE;
++  GError   *error   = NULL;
++
++  system_file = gimp_sysconf_directory_file ("sessionrc", NULL);
++
++  if (g_file_load_contents (system_file, NULL, &text, NULL, NULL, NULL))
++    shipped = session_layout_version_in (text);
++
++  g_clear_pointer (&text, g_free);
++  g_object_unref (system_file);
++
++  if (shipped <= 0)
++    return;
++
++  /*  one per saved layout: "--session NAME" has its own sessionrc.NAME  */
++  if (gimp->session_name)
++    stamp_name = g_strconcat (GIMPHOTO_LAYOUT_VERSION_KEY, ".",
++                              gimp->session_name, NULL);
++  else
++    stamp_name = g_strdup (GIMPHOTO_LAYOUT_VERSION_KEY);
++
++  stamp_file = gimp_directory_file (stamp_name, NULL);
++  g_free (stamp_name);
++
++  received = 0;
++  if (g_file_load_contents (stamp_file, NULL, &text, NULL, NULL, NULL))
++    received = (gint) g_ascii_strtoll (text, NULL, 10);
++
++  g_clear_pointer (&text, g_free);
++
++  if (received != shipped)
++    {
++      profile_file = session_file (gimp);
++
++      if (g_file_query_exists (profile_file, NULL))
++        {
++          gchar *name   = g_strdup_printf ("sessionrc-before-layout-%d", shipped);
++          GFile *backup = gimp_directory_file (name, NULL);
++
++          if (gimp->be_verbose)
++            g_print ("GIMPhoto: new default layout (version %d), moving '%s' aside\n",
++                     shipped, gimp_file_get_utf8_name (profile_file));
++
++          moved = g_file_move (profile_file, backup, G_FILE_COPY_OVERWRITE,
++                               NULL, NULL, NULL, &error);
++          if (! moved)
++            {
++              g_printerr ("GIMPhoto: could not move the saved layout aside: %s\n",
++                          error->message);
++              g_clear_error (&error);
++            }
++
++          g_object_unref (backup);
++          g_free (name);
++        }
++
++      g_object_unref (profile_file);
++
++      /*  only once the old layout is out of the way, or the next start
++       *  would not try again
++       */
++      if (moved)
++        {
++          gchar *version = g_strdup_printf ("%d\n", shipped);
++
++          if (! g_file_replace_contents (stamp_file, version, strlen (version),
++                                         NULL, FALSE, G_FILE_CREATE_NONE,
++                                         NULL, NULL, &error))
++            {
++              g_printerr ("GIMPhoto: could not save the layout version: %s\n",
++                          error->message);
++              g_clear_error (&error);
++            }
++
++          g_free (version);
++        }
++    }
++
++  g_object_unref (stamp_file);
++}
++
+ static GFile *
+ session_file (Gimp *gimp)
+ {

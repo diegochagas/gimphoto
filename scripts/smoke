@@ -25,6 +25,8 @@
 #     it) is left alone by runs without a user interface, and the sandbox
 #     may talk to the user's systemd to start and stop it with GIMPhoto;
 #   - GIMPhoto's Properties panel is compiled in and in the default layout;
+#   - a profile with a layout saved before GIMPhoto's current default gets
+#     the default at the next start, its own moved aside (needs the GUI);
 #   - GIMPhoto's shape tools are compiled in (drawing with it needs the GUI);
 #   - it ships GIMPhoto's Photoshop-style toolbox, layout and settings over
 #     GIMP's system ones, a new profile gets them, and GIMPhoto's splash
@@ -183,6 +185,35 @@ else
     echo "FAIL the Properties panel (gimp-properties-editor) is not in GIMP or not in defaults/sessionrc" >&2
     status=1
 fi
+# Default layout updates: a profile holding an older saved layout (no layout
+# version yet) starts with GIMPhoto's default, its own moved aside
+layout_profile="$(mktemp -d /tmp/gimphoto-smoke.XXXXXX)"
+layout_version="$(sed -n 's/^# gimphoto-layout-version \([0-9]*\)$/\1/p' defaults/sessionrc)"
+printf '# an older saved layout\n(hide-docks no)\n' >"$layout_profile/sessionrc"
+flatpak run --env=GIMP3_DIRECTORY="$layout_profile" --env=GIMPHOTO_COMFYUI=off "$app" --batch-interpreter=python-fu-eval \
+    -b "Gimp.displays_flush()" --quit >/dev/null 2>&1 || true
+if grep -q "an older saved layout" "$layout_profile/sessionrc-before-layout-$layout_version" 2>/dev/null &&
+    [[ "$(cat "$layout_profile/gimphoto-layout-version" 2>/dev/null)" == "$layout_version" ]] &&
+    ! grep -q "an older saved layout" "$layout_profile/sessionrc" 2>/dev/null; then
+    echo "ok   an older saved layout is replaced by the default (version $layout_version), and kept aside"
+else
+    echo "FAIL a profile's older saved layout was not replaced by layout version ${layout_version:-?}" >&2
+    status=1
+fi
+rm -rf "$layout_profile"
+# ... and a profile already on that version keeps its own layout
+layout_profile="$(mktemp -d /tmp/gimphoto-smoke.XXXXXX)"
+printf '# my own layout\n(hide-docks no)\n' >"$layout_profile/sessionrc"
+printf '%s\n' "$layout_version" >"$layout_profile/gimphoto-layout-version"
+flatpak run --env=GIMP3_DIRECTORY="$layout_profile" --env=GIMPHOTO_COMFYUI=off "$app" --batch-interpreter=python-fu-eval \
+    -b "Gimp.displays_flush()" --quit >/dev/null 2>&1 || true
+if [[ ! -e "$layout_profile/sessionrc-before-layout-$layout_version" ]]; then
+    echo "ok   a profile already on layout version $layout_version keeps its own layout"
+else
+    echo "FAIL a profile already on layout version $layout_version had its layout replaced" >&2
+    status=1
+fi
+rm -rf "$layout_profile"
 if flatpak run --command=sh "$app" -c 'grep -q gimp-shape-rectangle-tool /app/bin/gimp-3.*' 2>/dev/null; then
     echo "ok   shape tools compiled in"
 else
