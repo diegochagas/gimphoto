@@ -2,6 +2,7 @@
 
 **Issue:** [#30](https://github.com/diegochagas/gimphoto/issues/30) ·
 **Plug-in:** [`plugins/generative-fill/`](../../plugins/generative-fill/) ·
+**Patch:** [`patches/0013-…`](../../patches/0013-Layers-dock-double-click-opens-a-generated-layer-s-G.patch) (double click) ·
 **Backend:** [ComfyUI with GIMPhoto](comfyui-with-gimphoto.md)
 
 Photoshop's **Edit › Generative Fill** and **Edit › Generate Image**:
@@ -62,9 +63,24 @@ The pictures are generated with the local FLUX.2 klein model.
    The three variations appear one by one; the first one is shown on the
    canvas as soon as it is ready. Click another to see it instead.
    **Stop** stops the run; **Generate** again adds three more.
-4. **OK** keeps the one shown, as a new layer named after the prompt
-   (above the layer that was selected when the window opened),
-   masked to the selection. It is one undo step.
+4. **OK**, or closing the window, keeps the one shown, as a new layer
+   named after its prompt (above the layer that was selected when the
+   window opened); **Discard** throws them away. The layer is masked
+   to the selection. It is one undo step.
+5. **Change it later:** double-click the layer in the Layers panel (or
+   *Layer › Edit Generative Fill…*). The window opens again with its
+   variations, the current one selected: pick another, or Generate more
+   (from the picture as it is now, without that layer). OK or closing the
+   window replaces the layer's pixels with the chosen variation, in one
+   undo step, keeping its mask, position and visibility; **Cancel** leaves
+   it as it was.
+
+   ![The window opened again by a double click on the layer, its three variations, the current one selected](../images/generative-fill-reopen.png)
+
+The variations are kept in the layer (parasites, saved in the XCF): the
+window can open again after GIMPhoto is closed and the file reopened.
+At most 12 are kept: the latest, and always the one chosen. Each keeps
+the prompt it was made with, which names the layer.
 
 The model sees the visible image (all layers), as Photoshop's
 Generative Fill does.
@@ -80,7 +96,7 @@ meets the picture, the new layer fades into it, so there is no visible
 seam.
 
 **Generate Image:** *Edit › Generate Image…*, a prompt, Generate, pick one,
-OK. The picture is made at about 1 megapixel in the canvas's proportions,
+OK (or close the window); a double click on its layer opens it again. The picture is made at about 1 megapixel in the canvas's proportions,
 then scaled to the canvas.
 
 **Needs** the local AI: ComfyUI with the `qwen` and `klein` model sets,
@@ -105,9 +121,20 @@ added.
     the client uses by default, the model copied a nearby apple in 2 of 3
     tries; with 64 px, in none of 3.
   - The layer: the variation cropped to the selection, with the mask
-    written into its layer mask. When completing an image, the mask is
+    written into its layer mask. Its parasites: `gimphoto-generative` (the
+    job: prompt, model, the boxes), `gimphoto-generative-mask` (what the
+    model was given as the selection) and `gimphoto-generative-0…11` (the
+    variations, PNGs the size of the layer), the PNGs as base64: parasite
+    data goes through GIMP's Python binding as signed bytes. Reopened, the layer is only
+    hidden under the preview while the window is open, then replaced by a
+    new one in one undo group. When completing an image, the mask is
     feathered by 24 px where the selection meets the picture, and stays
     fully opaque over the empty part.
+- **Double click** (`patches/0013-…`, `app/actions/layers-commands.c`):
+  GIMP's double click on a layer (the `layers-edit` action) runs the
+  plug-in's `gimphoto-generative-edit` when the layer has the
+  `gimphoto-generative` parasite, as it already runs Edit Contents for a
+  smart object; other layers open their attributes as in GIMP.
 - **ComfyUI graphs:** `plugins/comfyui-service/comfyui_client.py` is
   gimp-setup's ComfyUI client (MIT), vendored unchanged. It holds the
   tuned FLUX.2 klein / Qwen-Image-Edit inpainting (with a second pass when
@@ -116,7 +143,12 @@ added.
   the given prompt and model and apply it.
 
 **Tests:**
-- `scripts/smoke`: both procedures are registered. With ComfyUI recorded
+- `scripts/smoke` (`tests/smoke_generative_layer.py`): a Generative Fill
+  layer made from three stand-in variations keeps them through an XCF save
+  and reload, opens again with the same prompt, model and chosen one, and
+  changing the variation replaces the layer (same name, masked); no AI is
+  called. Without the base64 it fails on the first PNG byte above 127.
+- `scripts/smoke`: the three procedures are registered. With ComfyUI recorded
   as missing, they fail with a message naming linux-mint-setup, add no
   layer and leave the selection alone. Tests never call the real ComfyUI.
 - On the built app, with the real ComfyUI:

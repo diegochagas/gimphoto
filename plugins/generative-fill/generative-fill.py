@@ -7,8 +7,11 @@
 #   from its surroundings, Photoshop's content-aware behaviour). The window
 #   makes three variations, shown as thumbnails and on the canvas as each
 #   one is ready; the chosen one becomes a new layer masked to the
-#   selection (non-destructive, as Photoshop's Generative Layer). Generate
-#   again for three more.
+#   selection (non-destructive, as Photoshop's Generative Layer), also when
+#   the window is just closed. Generate again for three more. The layer
+#   keeps its variations (parasites, saved in the XCF): a double click on it
+#   (or Layer > Edit Generative Fill) opens the window again to pick another
+#   one or generate more.
 #
 #   A selection that is mostly empty (transparent, or canvas without any
 #   layer: the image made larger) is completed instead: the picture is
@@ -32,6 +35,7 @@
 # the Free Software Foundation; either version 3 of the License, or
 # (at your option) any later version.
 
+import base64
 import json
 import os
 import shutil
@@ -55,6 +59,15 @@ import comfyui_service as service
 
 FILL_PROC = "gimphoto-generative-fill"
 IMAGE_PROC = "gimphoto-generate-image"
+EDIT_PROC = "gimphoto-generative-edit"
+# On a layer Generative Fill or Generate Image made: the job as JSON, the
+# model's mask and each variation (PNG, the size of the layer), kept in the
+# XCF so the window can open again (a double click on the layer)
+META = "gimphoto-generative"
+MASK_PARASITE = "gimphoto-generative-mask"
+VARIATION_PARASITE = "gimphoto-generative-{}"
+PARASITE_FLAGS = Gimp.PARASITE_PERSISTENT | Gimp.PARASITE_UNDOABLE
+KEEP_VARIATIONS = 12
 VARIATIONS = 3
 MODELS = (
     ("qwen", "Qwen-Image-Edit: best results, about 1 min per variation"),
@@ -77,8 +90,6 @@ EXTEND_CONTEXT = 64
 # photo: a hard edge showed as a seam); the empty area stays covered
 EXTEND_BLEND = 24
 THUMB = 168
-# Around the selection in the thumbnails, as a share of its larger side
-THUMB_CONTEXT = 0.25
 NAME_CHARS = 40
 
 
@@ -216,21 +227,21 @@ def layer_name(kind, prompt):
     return f"{kind}: {prompt}"
 
 
-def load_cropped(path, box):
-    """A new image from the PNG at path, cropped to box (None: whole)."""
-    img = Gimp.file_load(Gimp.RunMode.NONINTERACTIVE, Gio.File.new_for_path(path))
+def crop_png(source, box, dest):
+    """The PNG at source, cropped to box (x, y, w, h; None: whole), saved
+    as dest. GdkPixbuf only: safe in the worker thread."""
+    pixbuf = GdkPixbuf.Pixbuf.new_from_file(source)
     if box:
-        x, y, w, h = box
-        img.crop(w, h, x, y)
-    return img
+        pixbuf = pixbuf.new_subpixbuf(*box)
+    pixbuf.savev(dest, "png", [], [])
 
 
-def add_variation_layer(image, path, name, box=None, at=None, mask_path=None, size=None, place=(None, 0)):
-    """The variation PNG as a new layer above the selected one: cropped to
-    box (in the PNG), put at `at` (in the image) and masked by mask_path
-    (Generative Fill), or scaled to size and at the canvas origin (Generate
-    Image). place: the parent and position it goes in. Returns the layer."""
-    src_image = load_cropped(path, box)
+def add_variation_layer(image, path, name, at, place, mask_path=None, mask_from=None, size=None):
+    """The variation PNG (already the layer's size) as a new layer at `at`
+    in place (parent, position), masked by the PNG at mask_path or by a copy
+    of the mask mask_from (Generative Fill), or scaled to size (Generate
+    Image). Returns the layer."""
+    src_image = Gimp.file_load(Gimp.RunMode.NONINTERACTIVE, Gio.File.new_for_path(path))
     try:
         layer = Gimp.Layer.new_from_drawable(src_image.get_layers()[0], image)
     finally:
@@ -239,110 +250,258 @@ def add_variation_layer(image, path, name, box=None, at=None, mask_path=None, si
     image.insert_layer(layer, *place)
     if size and (layer.get_width(), layer.get_height()) != size:
         layer.scale(size[0], size[1], False)
-    layer.set_offsets(*(at or (0, 0)))
-    if mask_path:
+    layer.set_offsets(*at)
+    if mask_path or mask_from:
         # written into the mask before it is added: a mask made from a
         # selection would need the selection, which the person may have
         # changed while the window was open
-        mask_image = load_cropped(mask_path, box)
-        try:
-            mask = layer.create_mask(Gimp.AddMaskType.WHITE)
-            rect = Gegl.Rectangle.new(0, 0, layer.get_width(), layer.get_height())
-            target = mask.get_buffer()
-            mask_image.get_layers()[0].get_buffer().copy(rect, Gegl.AbyssPolicy.NONE, target, rect)
-            target.flush()
-        finally:
-            mask_image.delete()
+        mask = layer.create_mask(Gimp.AddMaskType.WHITE)
+        rect = Gegl.Rectangle.new(0, 0, layer.get_width(), layer.get_height())
+        target = mask.get_buffer()
+        if mask_path:
+            mask_image = Gimp.file_load(Gimp.RunMode.NONINTERACTIVE, Gio.File.new_for_path(mask_path))
+            try:
+                mask_image.get_layers()[0].get_buffer().copy(rect, Gegl.AbyssPolicy.NONE, target, rect)
+            finally:
+                mask_image.delete()
+        else:
+            mask_from.get_buffer().copy(rect, Gegl.AbyssPolicy.NONE, target, rect)
+        target.flush()
         if not layer.has_alpha():
             layer.add_alpha()
         layer.add_mask(mask)
     return layer
 
 
+def read_parasite(item, name, binary=False):
+    parasite = item.get_parasite(name)
+    if parasite is None:
+        return None
+    data = bytes(parasite.get_data())
+    return base64.b64decode(data) if binary else data
+
+
+def write_parasite(item, name, data, binary=False):
+    """Parasite data goes through GObject as signed bytes (-128..127):
+    binary data (PNGs) is stored as base64, which is ASCII."""
+    if binary:
+        data = base64.b64encode(data)
+    item.attach_parasite(Gimp.Parasite.new(name, PARASITE_FLAGS, list(data)))
+
+
 # ------------------------------------------------------------- jobs
 
 
 class Job:
-    """What one Generate makes, and how its result becomes a layer."""
+    """One Generative Fill or Generate Image: what the model is given, the
+    variations made so far (PNGs the size of the layer), and how the chosen
+    one becomes the layer. A new job comes from the selection; Job.edit
+    reopens one from the layer it made (its parasites)."""
 
-    def __init__(self, image, kind, tmp):
+    def __init__(self, image, kind, tmp, target=None):
         self.image = image
         self.kind = kind  # "fill" or "image"
         self.tmp = tmp
-        self.box = self.local_box = self.region = None
-        self.layer_box = self.layer_at = None
-        self.image_png = self.mask_png = None
+        self.target = target  # the layer being changed (Job.edit), or None
+        self.prompt = ""
+        self.model = MODELS[0][0]
+        self.extend = False
+        self.box = self.region = None
+        self.layer_box = None  # in the model's PNG; None: all of it
+        self.layer_at = (0, 0)
         self.size = (image.get_width(), image.get_height())
+        self.image_png = self.mask_png = None
+        self.layer_mask_path = None
+        # the variations: PNGs the size of the layer, and the prompt and
+        # model each was made with
+        self.variations, self.prompts, self.models = [], [], []
+        self.chosen = None
         # new layers go above the layer selected when the window opened:
         # previews change the selection, so it is remembered here
         self.selected = image.get_selected_layers()
         self.place = (None, 0)
-        if self.selected:
-            top = self.selected[0]
+        top = target or (self.selected[0] if self.selected else None)
+        if top:
             self.place = (top.get_parent(), image.get_item_position(top))
-        self.extend = kind == "fill" and empty_share(image) > EMPTY_SHARE
-        if kind == "fill":
-            self.box = self.local_box = selection_box(image)
-            if self.extend:
-                # only the empty area and a little picture around it
-                self.region = grown(self.box, EXTEND_CONTEXT, *self.size)
-                x, y, w, h = self.box
-                self.local_box = (x - self.region[0], y - self.region[1], w, h)
-            self.image_path = os.path.join(tmp, "image.png")
-            self.mask_path = os.path.join(tmp, "mask.png")
-            visible_png(image, self.image_path, self.region)
-            selection_png(image, self.mask_path, self.region)
-            # the layer: the selection, or a little more where it fades
-            # into the picture
-            self.layer_mask_path = self.mask_path
-            self.layer_box, self.layer_at = self.local_box, self.box[:2]
-            if self.extend:
-                self.layer_mask_path = os.path.join(tmp, "layer-mask.png")
-                selection_png(image, self.layer_mask_path, self.region, blend=EXTEND_BLEND)
-                rw, rh = self.region[2:]
-                self.layer_box = grown(self.local_box, EXTEND_BLEND, rw, rh)
-                self.layer_at = (self.region[0] + self.layer_box[0], self.region[1] + self.layer_box[1])
-            with open(self.image_path, "rb") as f:
-                self.image_png = f.read()
-            with open(self.mask_path, "rb") as f:
-                self.mask_png = f.read()
+
+    @classmethod
+    def new(cls, image, kind, tmp):
+        job = cls(image, kind, tmp)
+        if kind == "image":
+            return job
+        job.extend = empty_share(image) > EMPTY_SHARE
+        job.box = selection_box(image)
+        local_box = job.box
+        if job.extend:
+            # only the empty area and a little picture around it
+            job.region = grown(job.box, EXTEND_CONTEXT, *job.size)
+            x, y, w, h = job.box
+            local_box = (x - job.region[0], y - job.region[1], w, h)
+        job.layer_box, job.layer_at = local_box, job.box[:2]
+        image_path = os.path.join(tmp, "image.png")
+        mask_path = os.path.join(tmp, "mask.png")
+        visible_png(image, image_path, job.region)
+        selection_png(image, mask_path, job.region)
+        with open(image_path, "rb") as f:
+            job.image_png = f.read()
+        with open(mask_path, "rb") as f:
+            job.mask_png = f.read()
+        layer_mask = mask_path
+        if job.extend:
+            # the layer: a little more than the selection, fading into the
+            # picture
+            layer_mask = os.path.join(tmp, "layer-mask-full.png")
+            selection_png(image, layer_mask, job.region, blend=EXTEND_BLEND)
+            job.layer_box = grown(local_box, EXTEND_BLEND, *job.region[2:])
+            job.layer_at = (job.region[0] + job.layer_box[0], job.region[1] + job.layer_box[1])
+        job.layer_mask_path = os.path.join(tmp, "layer-mask.png")
+        crop_png(layer_mask, job.layer_box, job.layer_mask_path)
+        return job
+
+    @classmethod
+    def edit(cls, image, layer, tmp):
+        """The job that made layer, from its parasites; the model is given
+        the image as it is now, without that layer."""
+        meta = json.loads(read_parasite(layer, META).decode())
+        job = cls(image, meta["kind"], tmp, target=layer)
+        job.prompt = meta.get("prompt", "")
+        job.model = meta.get("model", job.model)
+        job.extend = meta.get("extend", False)
+        job.size = tuple(meta["size"])
+        job.region = tuple(meta["region"]) if meta.get("region") else None
+        job.layer_box = tuple(meta["layer_box"]) if meta.get("layer_box") else None
+        # where the layer is now: it may have been moved since
+        job.layer_at = tuple(layer.get_offsets()[1:]) if job.kind == "fill" else (0, 0)
+        prompts = meta.get("prompts") or []
+        models = meta.get("models") or []
+        for i in range(meta["count"]):
+            data = read_parasite(layer, VARIATION_PARASITE.format(i), binary=True)
+            if data is None:
+                continue
+            path = os.path.join(tmp, f"variation-{i}.png")
+            with open(path, "wb") as f:
+                f.write(data)
+            job.add(path, prompts[i] if i < len(prompts) else job.prompt, models[i] if i < len(models) else job.model)
+        job.chosen = min(meta.get("chosen", 0), len(job.variations) - 1) if job.variations else None
+        if job.kind == "fill":
+            job.mask_png = read_parasite(layer, MASK_PARASITE, binary=True)
+            image_path = os.path.join(tmp, "image.png")
+            image.undo_freeze()
+            visible = layer.get_visible()
+            try:
+                layer.set_visible(False)
+                visible_png(image, image_path, job.region)
+            finally:
+                layer.set_visible(visible)
+                image.undo_thaw()
+            with open(image_path, "rb") as f:
+                job.image_png = f.read()
+        return job
+
+    def add(self, path, prompt, model):
+        self.variations.append(path)
+        self.prompts.append(prompt)
+        self.models.append(model)
 
     @property
     def title(self):
         return "Generative Fill" if self.kind == "fill" else "Generate Image"
 
     def make(self, url, prompt, model, progress=None):
-        """One variation as PNG bytes (worker thread: no GIMP calls)."""
+        """One variation, stored the size of the layer; returns its path
+        (worker thread: no GIMP calls)."""
         if self.extend:
-            prompt = f"{EXTEND_PROMPT}, {prompt}" if prompt else EXTEND_PROMPT
-            return client.inpaint(EXTEND_MODEL, self.image_png, self.mask_png, prompt, url=url, progress=progress)
-        if self.kind == "fill":
-            return client.inpaint(model, self.image_png, self.mask_png, prompt or None, url=url, progress=progress)
-        w, h = client.work_size(*self.size)
-        return client.generate(prompt, w, h, url=url, progress=progress)
+            text = f"{EXTEND_PROMPT}, {prompt}" if prompt else EXTEND_PROMPT
+            png = client.inpaint(EXTEND_MODEL, self.image_png, self.mask_png, text, url=url, progress=progress)
+        elif self.kind == "fill":
+            png = client.inpaint(model, self.image_png, self.mask_png, prompt or None, url=url, progress=progress)
+        else:
+            png = client.generate(prompt, *client.work_size(*self.size), url=url, progress=progress)
+        stamp = time.monotonic_ns()
+        full = os.path.join(self.tmp, f"full-{stamp}.png")
+        path = os.path.join(self.tmp, f"variation-new-{stamp}.png")
+        with open(full, "wb") as f:
+            f.write(png)
+        crop_png(full, self.layer_box, path)
+        os.remove(full)
+        return path
 
-    def apply(self, path, prompt):
-        if self.kind == "fill":
+    def new_layer(self, path, prompt):
+        """The variation at path as a new layer, where the result goes."""
+        kind = "Generative Fill" if self.kind == "fill" else "Generated"
+        name = layer_name(kind, prompt)
+        if self.kind == "image":
+            return add_variation_layer(self.image, path, name, (0, 0), self.place, size=self.size)
+        if self.target is not None:
             return add_variation_layer(
-                self.image,
-                path,
-                layer_name("Generative Fill", prompt),
-                self.layer_box,
-                self.layer_at,
-                self.layer_mask_path,
-                place=self.place,
+                self.image, path, name, self.layer_at, self.place, mask_from=self.target.get_mask()
             )
-        return add_variation_layer(self.image, path, layer_name("Generated", prompt), size=self.size, place=self.place)
+        return add_variation_layer(self.image, path, name, self.layer_at, self.place, mask_path=self.layer_mask_path)
+
+    def trim(self):
+        """At most KEEP_VARIATIONS: the latest, and always the chosen one."""
+        count = len(self.variations)
+        if count <= KEEP_VARIATIONS:
+            return
+        keep = list(range(count - KEEP_VARIATIONS, count))
+        if self.chosen not in keep:
+            keep = [self.chosen] + keep[1:]
+        self.variations = [self.variations[i] for i in keep]
+        self.prompts = [self.prompts[i] for i in keep]
+        self.models = [self.models[i] for i in keep]
+        self.chosen = keep.index(self.chosen)
+
+    def save(self, layer):
+        """The job on the layer (parasites, kept in the XCF), so a double
+        click on it opens the window again."""
+        self.trim()
+        meta = {
+            "version": 1,
+            "kind": self.kind,
+            "prompt": self.prompts[self.chosen],
+            "model": self.models[self.chosen],
+            "prompts": self.prompts,
+            "models": self.models,
+            "extend": self.extend,
+            "size": list(self.size),
+            "region": list(self.region) if self.region else None,
+            "layer_box": list(self.layer_box) if self.layer_box else None,
+            "layer_at": list(self.layer_at),
+            "chosen": self.chosen,
+            "count": len(self.variations),
+        }
+        write_parasite(layer, META, json.dumps(meta).encode())
+        if self.mask_png:
+            write_parasite(layer, MASK_PARASITE, self.mask_png, binary=True)
+        for i, path in enumerate(self.variations):
+            with open(path, "rb") as f:
+                write_parasite(layer, VARIATION_PARASITE.format(i), f.read(), binary=True)
+
+    def commit(self):
+        """The chosen variation as the layer, named after its prompt, in one
+        undo step: a new layer, or (Job.edit) a new one in place of the
+        target."""
+        image = self.image
+        prompt = self.prompts[self.chosen]
+        image.undo_group_start()
+        try:
+            layer = self.new_layer(self.variations[self.chosen], prompt)
+            self.save(layer)
+            if self.target is not None:
+                layer.set_visible(self.target.get_visible())
+                layer.set_opacity(self.target.get_opacity())
+                layer.set_mode(self.target.get_mode())
+                image.remove_layer(self.target)
+                # GIMP added " #1" while the old layer had the same name
+                layer.set_name(layer_name("Generative Fill" if self.kind == "fill" else "Generated", prompt))
+            image.set_selected_layers([layer])
+        finally:
+            image.undo_group_end()
+        Gimp.displays_flush()
+        return layer
 
     def thumbnail(self, path):
         pixbuf = GdkPixbuf.Pixbuf.new_from_file(path)
-        if self.local_box:
-            x, y, w, h = self.local_box
-            margin = round(THUMB_CONTEXT * max(w, h))
-            x0, y0 = max(0, x - margin), max(0, y - margin)
-            x1 = min(pixbuf.get_width(), x + w + margin)
-            y1 = min(pixbuf.get_height(), y + h + margin)
-            pixbuf = pixbuf.new_subpixbuf(x0, y0, x1 - x0, y1 - y0)
         scale = THUMB / float(max(pixbuf.get_width(), pixbuf.get_height()))
         return pixbuf.scale_simple(
             max(1, round(pixbuf.get_width() * scale)),
@@ -355,19 +514,21 @@ class Job:
 
 
 class GenerateDialog:
-    """Prompt, Generate, the variations as they come, OK to keep one."""
+    """Prompt, Generate, the variations as they come; the chosen one stays
+    when the window is closed (Discard / Cancel throws the change away)."""
 
-    def __init__(self, job, prompt, model):
+    def __init__(self, job):
         self.job = job
         self.state, self.url = backend()
         self.stop = threading.Event()
         self.running = False
-        self.paths = []
         self.preview = None
-        self.chosen = None
+        self.hidden = False  # the target hidden under a preview (Job.edit)
+        self.original = (job.chosen, len(job.variations))
 
         self.dialog = GimpUi.Dialog(title=job.title, role=job.title.lower().replace(" ", "-"))
-        self.dialog.add_button("_Cancel", Gtk.ResponseType.CANCEL)
+        editing = job.target is not None
+        self.dialog.add_button("_Cancel" if editing else "_Discard", Gtk.ResponseType.CANCEL)
         self.ok = self.dialog.add_button("_OK", Gtk.ResponseType.OK)
         self.ok.set_sensitive(False)
         self.dialog.set_default_size(760, -1)
@@ -376,7 +537,7 @@ class GenerateDialog:
         self.dialog.get_content_area().pack_start(box, True, True, 0)
 
         row = Gtk.Box(spacing=8)
-        self.prompt = Gtk.Entry(text=prompt or "", hexpand=True, activates_default=False)
+        self.prompt = Gtk.Entry(text=job.prompt or "", hexpand=True, activates_default=False)
         if job.extend:
             placeholder = "Optional: what the rest of the picture has (empty: complete the image)"
         elif job.kind == "fill":
@@ -395,7 +556,7 @@ class GenerateDialog:
         if job.kind == "fill":
             for key, label in MODELS:
                 self.model.append(key, label)
-            self.model.set_active_id(model if model in dict(MODELS) else MODELS[0][0])
+            self.model.set_active_id(job.model if job.model in dict(MODELS) else MODELS[0][0])
             model_row = Gtk.Box(spacing=8)
             model_row.pack_start(Gtk.Label(label="Model:"), False, False, 0)
             model_row.pack_start(self.model, True, True, 0)
@@ -416,11 +577,18 @@ class GenerateDialog:
         self.flow = Gtk.FlowBox(
             selection_mode=Gtk.SelectionMode.SINGLE, min_children_per_line=3, max_children_per_line=3, homogeneous=True
         )
-        self.flow.connect("selected-children-changed", self.on_selected)
         scroller = Gtk.ScrolledWindow(min_content_height=THUMB + 24)
         scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scroller.add(self.flow)
         box.pack_start(scroller, True, True, 0)
+
+        # the variations it already has (Job.edit), the current one selected
+        for path in job.variations:
+            self.add_thumbnail(path)
+        if job.chosen is not None:
+            self.flow.select_child(self.flow.get_child_at_index(job.chosen))
+            self.ok.set_sensitive(True)
+        self.flow.connect("selected-children-changed", self.on_selected)
 
         self.dialog.show_all()
         self.model.set_sensitive(not job.extend)
@@ -454,7 +622,8 @@ class GenerateDialog:
         threading.Thread(target=self.work, args=(prompt, model), daemon=True).start()
 
     def work(self, prompt, model):
-        """Worker thread: HTTP only; the window is updated with idle_add."""
+        """Worker thread: HTTP and PNG files only; the window is updated
+        with idle_add."""
         try:
             ready(
                 self.state,
@@ -475,13 +644,10 @@ class GenerateDialog:
                             + ("" if n > 1 or model == "klein" else ", the first one loads the model"),
                         )
 
-                png = self.job.make(self.url, prompt, model, progress=tick)
+                path = self.job.make(self.url, prompt, model, progress=tick)
                 if self.stop.is_set():
                     break
-                path = os.path.join(self.job.tmp, f"variation-{len(self.paths) + n}-{time.monotonic_ns()}.png")
-                with open(path, "wb") as f:
-                    f.write(png)
-                GLib.idle_add(self.add_variation, path, prompt)
+                GLib.idle_add(self.add_variation, path, prompt, model)
             self.later(False, "Stopped" if self.stop.is_set() else "Pick a variation, or Generate for more")
         except Exception as e:
             self.later(False, "Stopped" if self.stop.is_set() else str(e))
@@ -503,12 +669,19 @@ class GenerateDialog:
 
     # -- variations
 
-    def add_variation(self, path, prompt):
-        self.paths.append((path, prompt))
+    def add_thumbnail(self, path):
         image = Gtk.Image.new_from_pixbuf(self.job.thumbnail(path))
-        image.set_tooltip_text(f"Variation {len(self.paths)}")
+        image.set_tooltip_text(f"Variation {self.flow_count() + 1}")
         self.flow.add(image)
         image.show()
+        return image
+
+    def flow_count(self):
+        return len(self.flow.get_children())
+
+    def add_variation(self, path, prompt, model):
+        self.job.add(path, prompt, model)
+        image = self.add_thumbnail(path)
         if not self.flow.get_selected_children():
             self.flow.select_child(image.get_parent())
         return False
@@ -517,44 +690,52 @@ class GenerateDialog:
         children = flow.get_selected_children()
         if not children:
             return
-        index = children[0].get_index()
-        self.chosen = self.paths[index]
+        self.job.chosen = children[0].get_index()
         self.ok.set_sensitive(True)
         self.show_preview()
 
     def show_preview(self):
-        """The chosen variation on the canvas, outside the undo history."""
+        """The chosen variation on the canvas, outside the undo history.
+        When reopened (Job.edit), the layer itself is only hidden under the
+        preview, and shows again when its own variation is chosen."""
         image = self.job.image
         image.undo_freeze()
         try:
             self.remove_preview(frozen=True)
-            path, prompt = self.chosen
-            self.preview = self.job.apply(path, prompt)
+            target = self.job.target
+            if target is not None and (self.job.chosen, len(self.job.variations)) == self.original:
+                return
+            if target is not None:
+                self.hidden = target.get_visible()
+                target.set_visible(False)
+            self.preview = self.job.new_layer(self.job.variations[self.job.chosen], self.job.prompts[self.job.chosen])
         finally:
             image.undo_thaw()
-        Gimp.displays_flush()
+            Gimp.displays_flush()
 
     def remove_preview(self, frozen=False):
-        if self.preview is None:
-            return
         image = self.job.image
         if not frozen:
             image.undo_freeze()
         try:
-            if self.preview.is_valid():
+            if self.preview is not None and self.preview.is_valid():
                 image.remove_layer(self.preview)
+            if self.hidden and self.job.target.is_valid():
+                self.job.target.set_visible(True)
             selected = [layer for layer in self.job.selected if layer.is_valid()]
             if selected:
                 image.set_selected_layers(selected)
         finally:
             self.preview = None
+            self.hidden = False
             if not frozen:
                 image.undo_thaw()
 
     # -- result
 
     def run(self):
-        """The chosen (path, prompt), or None."""
+        """True to keep the chosen variation (job.chosen). Closing the
+        window keeps it, as OK does."""
         response = self.dialog.run()
         if self.running:
             self.stop.set()
@@ -562,21 +743,14 @@ class GenerateDialog:
         self.remove_preview()
         Gimp.displays_flush()
         self.dialog.destroy()
-        return self.chosen if response == Gtk.ResponseType.OK else None
+        if response == Gtk.ResponseType.CANCEL or self.job.chosen is None:
+            return False
+        if self.job.target is not None and (self.job.chosen, len(self.job.variations)) == self.original:
+            return False  # nothing changed
+        return True
 
 
 # ------------------------------------------------------------- procedures
-
-
-def apply_result(job, path, prompt):
-    image = job.image
-    image.undo_group_start()
-    try:
-        layer = job.apply(path, prompt)
-        image.set_selected_layers([layer])
-    finally:
-        image.undo_group_end()
-    Gimp.displays_flush()
 
 
 def run_job(kind, procedure, run_mode, image, config):
@@ -589,24 +763,24 @@ def run_job(kind, procedure, run_mode, image, config):
         )
     tmp = tempfile.mkdtemp(prefix="gimphoto-generate-")
     try:
-        job = Job(image, kind, tmp)
+        job = Job.new(image, kind, tmp)
+        job.prompt, job.model = prompt, model
         if run_mode == Gimp.RunMode.INTERACTIVE:
             GimpUi.init("generative-fill")
-            chosen = GenerateDialog(job, prompt, model).run()
-            if chosen is None:
+            if not GenerateDialog(job).run():
                 return procedure.new_return_values(Gimp.PDBStatusType.CANCEL, GLib.Error())
-            path, prompt = chosen
-            config.set_property("prompt", prompt)
+            config.set_property("prompt", job.prompts[job.chosen])
+            if kind == "fill":
+                config.set_property("model", job.models[job.chosen])
         else:
             if kind == "image" and not prompt.strip():
                 raise api.ComfyUIError("Generate Image needs a prompt.")
             state, url = backend()
             Gimp.progress_init(job.title)
             ready(state, url, job.title)
-            path = os.path.join(tmp, "variation.png")
-            with open(path, "wb") as f:
-                f.write(job.make(url, prompt, model, progress=lambda _s: Gimp.progress_pulse()))
-        apply_result(job, path, prompt)
+            job.add(job.make(url, prompt, model, progress=lambda _s: Gimp.progress_pulse()), prompt, model)
+            job.chosen = 0
+        job.commit()
     except Exception as e:
         return procedure.new_return_values(Gimp.PDBStatusType.EXECUTION_ERROR, GLib.Error(str(e)))
     finally:
@@ -622,14 +796,40 @@ def run_image(procedure, run_mode, image, drawables, config, data):
     return run_job("image", procedure, run_mode, image, config)
 
 
+def run_edit(procedure, run_mode, image, drawables, config, data):
+    layer = drawables[0] if len(drawables) == 1 else None
+    if not isinstance(layer, Gimp.Layer) or layer.get_parasite(META) is None:
+        return procedure.new_return_values(
+            Gimp.PDBStatusType.EXECUTION_ERROR,
+            GLib.Error("This layer was not made by Generative Fill or Generate Image."),
+        )
+    if run_mode != Gimp.RunMode.INTERACTIVE:
+        return procedure.new_return_values(
+            Gimp.PDBStatusType.CALLING_ERROR, GLib.Error("Editing a generated layer needs the window.")
+        )
+    tmp = tempfile.mkdtemp(prefix="gimphoto-generate-")
+    try:
+        job = Job.edit(image, layer, tmp)
+        GimpUi.init("generative-fill")
+        if GenerateDialog(job).run():
+            job.commit()
+    except Exception as e:
+        return procedure.new_return_values(Gimp.PDBStatusType.EXECUTION_ERROR, GLib.Error(str(e)))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    return procedure.new_return_values(Gimp.PDBStatusType.SUCCESS, GLib.Error())
+
+
 class GenerativeFill(Gimp.PlugIn):
     def do_set_i18n(self, procname):
         return False
 
     def do_query_procedures(self):
-        return [FILL_PROC, IMAGE_PROC]
+        return [FILL_PROC, IMAGE_PROC, EDIT_PROC]
 
     def do_create_procedure(self, name):
+        if name == EDIT_PROC:
+            return self.edit_procedure(name)
         fill = name == FILL_PROC
         procedure = Gimp.ImageProcedure.new(self, name, Gimp.PDBProcType.PLUGIN, run_fill if fill else run_image, None)
         procedure.set_image_types("*")
@@ -667,5 +867,24 @@ class GenerativeFill(Gimp.PlugIn):
             )
         return procedure
 
+    def edit_procedure(self, name):
+        """Layer > Edit Generative Fill, and a double click on such a layer
+        (GIMPhoto's Layers dock patch runs this action)."""
+        procedure = Gimp.ImageProcedure.new(self, name, Gimp.PDBProcType.PLUGIN, run_edit, None)
+        procedure.set_image_types("*")
+        procedure.set_sensitivity_mask(Gimp.ProcedureSensitivityMask.DRAWABLE)
+        procedure.set_menu_label("Edit _Generative Fill…")
+        procedure.set_documentation(
+            "Change a generated layer's variation (AI)",
+            "Opens the Generative Fill or Generate Image window of a layer they made, with its "
+            "variations: pick another one, or generate more.",
+            name,
+        )
+        procedure.set_attribution("GIMPhoto", "GIMPhoto contributors", "2026")
+        procedure.add_menu_path("<Image>/Layer")
+        return procedure
 
-Gimp.main(GenerativeFill.__gtype__, sys.argv)
+
+# a module when tests/smoke_generative_layer.py loads it inside GIMPhoto
+if __name__ == "__main__":
+    Gimp.main(GenerativeFill.__gtype__, sys.argv)

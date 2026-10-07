@@ -27,7 +27,8 @@
 #   - Select Subject, Object Selection, Remove Background, Generative Fill
 #     and Generate Image (AI), without the local AI, say where to install it
 #     and leave the selection and the layers alone (no ComfyUI is called);
-#     the Object Selection tool is compiled in;
+#     the Object Selection tool is compiled in; a Generative Fill layer
+#     keeps its variations through an XCF save and can be changed again;
 #   - Quick Selection: GEGL's paint-select, built by GIMPhoto, grows a
 #     stroke to the edges of what it is painted on, and GIMP's Paint Select
 #     is compiled in as Quick Selection (painting with it needs the GUI);
@@ -46,7 +47,7 @@ cd "$(dirname "$0")/.."
 
 app="io.github.diegochagas.GIMPhoto"
 # one procedure per shipped plug-in that a feature depends on
-procedures=(layer-style-dialog layer-style-drop-shadow gimphoto-layer-via-copy gimphoto-layer-via-cut file-psd-text-load file-psd-text-export smart-object-convert smart-object-edit smart-object-replace gimphoto-comfyui-service gimphoto-select-subject gimphoto-object-select gimphoto-remove-background gimphoto-generative-fill gimphoto-generate-image)
+procedures=(layer-style-dialog layer-style-drop-shadow gimphoto-layer-via-copy gimphoto-layer-via-cut file-psd-text-load file-psd-text-export smart-object-convert smart-object-edit smart-object-replace gimphoto-comfyui-service gimphoto-select-subject gimphoto-object-select gimphoto-remove-background gimphoto-generative-fill gimphoto-generate-image gimphoto-generative-edit)
 want="$(python3 tools/upstream_info.py gimp-version)"
 report="$(mktemp /tmp/gimphoto-smoke.XXXXXX)"
 trap 'rm -f "$report"' EXIT
@@ -195,6 +196,18 @@ if [[ "$subject_result" == ok ]]; then
     echo "ok   AI commands (Select Subject, Object Selection, Remove Background, Generative Fill, Generate Image) without the local AI say where to install it, nothing changed"
 else
     echo "FAIL AI selections without the local AI: ${subject_result:-did not run}" >&2
+    status=1
+fi
+# Generative Fill's layer keeps its variations through an XCF (no AI called)
+generative_report="$(mktemp /tmp/gimphoto-smoke.XXXXXX)"
+flatpak run --env=GIMPHOTO_SMOKE_OUT="$generative_report" "$app" -i --batch-interpreter=python-fu-eval \
+    -b "exec(open('$PWD/tests/smoke_generative_layer.py').read())" --quit >/dev/null 2>&1 || true
+generative_result="$(cat "$generative_report")"
+rm -f "$generative_report"
+if [[ "$generative_result" == ok ]]; then
+    echo "ok   a Generative Fill layer keeps its variations in the XCF and can be changed again"
+else
+    echo "FAIL Generative Fill layer: ${generative_result:-did not run}" >&2
     status=1
 fi
 if flatpak run --command=sh "$app" -c 'grep -q gimp-object-select-tool /app/bin/gimp-3.*' 2>/dev/null; then
