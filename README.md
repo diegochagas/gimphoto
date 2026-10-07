@@ -35,6 +35,7 @@ screenshots of each feature are on its page.
 | **Layer via Copy / Layer via Cut** (Ctrl+J / Ctrl+Shift+J): a new layer from the selected area, in place; Cut also removes it from the original | Layer › New › Layer via Copy / Cut | plug-in + keymap | [layer-via-copy-cut.md](docs/features/layer-via-copy-cut.md) |
 | **Shape tools** (U) in the toolbox, one group as Photoshop's flyout: Rectangle, Ellipse, Triangle, Polygon, Star, Line and Custom Shape (heart, arrow, speech bubble…), drawn as vector layers, fill and stroke in Tool Options | Shape tools (U) | core patch + icons | [shape-tool.md](docs/features/shape-tool.md) |
 | **Smart Objects**: Convert to Smart Object, Edit Contents, Replace Contents, in the Layers panel's right-click menu; scale and transform without losing quality; kept in XCF and PSD, both ways with Photoshop | Layer › Smart Objects | plug-ins + core patch | [smart-objects.md](docs/features/smart-objects.md) |
+| **ComfyUI with GIMPhoto**: the local AI backend (ComfyUI, installed by linux-mint-setup) starts when GIMPhoto opens and stops when it closes, freeing the GPU | — (Photoshop's AI runs in Adobe's cloud) | plug-in + sandbox permission | [comfyui-with-gimphoto.md](docs/features/comfyui-with-gimphoto.md) |
 
 Apart from these, GIMPhoto is plain GIMP, with its own user profile.
 

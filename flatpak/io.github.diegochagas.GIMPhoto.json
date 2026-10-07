@@ -36,7 +36,8 @@
         "--talk-name=org.gnome.Shell.Screenshot",
         "--talk-name=org.kde.kwin.Screenshot",
         "--talk-name=com.canonical.AppMenu.Registrar",
-        "--env=GIMP3_DIRECTORY=.var/app/io.github.diegochagas.GIMPhoto/config/GIMPhoto"
+        "--env=GIMP3_DIRECTORY=.var/app/io.github.diegochagas.GIMPhoto/config/GIMPhoto",
+        "--talk-name=org.freedesktop.systemd1"
     ],
     "tags": [
         "GTK+3",
@@ -913,6 +914,9 @@
                 }
             ],
             "build-commands": [
+                "install -d ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/comfyui-service",
+                "find comfyui-service -maxdepth 1 -type f -exec install -m 644 -t ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/comfyui-service {} +",
+                "chmod 755 ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/comfyui-service/comfyui-service.py",
                 "install -d ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/layer-style",
                 "find layer-style -maxdepth 1 -type f -exec install -m 644 -t ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/layer-style {} +",
                 "chmod 755 ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/layer-style/layer-style.py",

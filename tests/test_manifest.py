@@ -199,10 +199,16 @@ class TransformTest(unittest.TestCase):
         for name in make_manifest.plugin_names():
             self.assertTrue((ROOT / "plugins" / name / f"{name}.py").is_file(), name)
 
-    def test_sandbox_is_flathubs_plus_only_the_own_profile(self):
-        self.assertEqual(self.out["finish-args"][:-1], UPSTREAM["finish-args"])
+    def test_sandbox_is_flathubs_plus_only_the_own_profile_and_systemd(self):
+        # the own profile, and the user's systemd on the session bus, to
+        # start and stop the local ComfyUI service (comfyui-service plug-in)
+        self.assertEqual(self.out["finish-args"][:-2], UPSTREAM["finish-args"])
         self.assertEqual(
-            self.out["finish-args"][-1], "--env=GIMP3_DIRECTORY=.var/app/io.github.diegochagas.GIMPhoto/config/GIMPhoto"
+            self.out["finish-args"][-2:],
+            [
+                "--env=GIMP3_DIRECTORY=.var/app/io.github.diegochagas.GIMPhoto/config/GIMPhoto",
+                "--talk-name=org.freedesktop.systemd1",
+            ],
         )
 
     def test_profile_is_not_under_a_mounted_config_folder(self):
