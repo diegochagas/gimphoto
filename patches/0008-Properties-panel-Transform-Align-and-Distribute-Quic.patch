@@ -106,10 +106,10 @@ index 7c15ce47ff..cd8900d650 100644
              GIMP_HELP_SYMMETRY_DIALOG,
 diff --git a/app/widgets/gimppropertieseditor.c b/app/widgets/gimppropertieseditor.c
 new file mode 100644
-index 0000000000..37d86650d9
+index 0000000000..486a2d08c3
 --- /dev/null
 +++ b/app/widgets/gimppropertieseditor.c
-@@ -0,0 +1,934 @@
+@@ -0,0 +1,939 @@
 +/* GIMP - The GNU Image Manipulation Program
 + * Copyright (C) 1995 Spencer Kimball and Peter Mattis
 + *
@@ -350,6 +350,11 @@ index 0000000000..37d86650d9
 +  scrolled_window = gtk_scrolled_window_new (NULL, NULL);
 +  gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (scrolled_window),
 +                                  GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
++  /*  ask for the height of its contents, so a dock group made for it
++   *  (dropped between two groups) opens showing all of it
++   */
++  gtk_scrolled_window_set_propagate_natural_height (GTK_SCROLLED_WINDOW (scrolled_window),
++                                                    TRUE);
 +  gtk_box_pack_start (GTK_BOX (editor), scrolled_window, TRUE, TRUE, 0);
 +  gtk_widget_set_visible (scrolled_window, TRUE);
 +

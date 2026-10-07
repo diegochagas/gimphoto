@@ -18,8 +18,8 @@ gradients) and Layers / Channels / Paths
 This is only the default: drag the Properties tab into another group (or
 anywhere else) and GIMPhoto keeps it there. To put it back in the middle,
 drag its tab to the boundary between Tool Options and Layers: a blue line
-shows where it lands, and it becomes a group of its own again (drag its
-divider to size it).
+shows where it lands, and it becomes a group of its own again, tall enough
+to show the whole panel (the space comes from the group above it).
 
 ## Before and after
 
