@@ -13,10 +13,37 @@ model Select Subject uses.
 
 ## Before and after
 
-Left, the picture; right, after **Remove Background** (the checkerboard is
-the transparent part):
+Five pictures, each left as it was and right after **Remove Background**
+(the checkerboard is the transparent part), from the easy to the hard:
 
-![A rubber duck on a table, then the duck alone on transparency](../images/remove-background-pair.png)
+A rubber duck on a table:
+
+![A rubber duck on a table, then the duck alone on transparency](../images/remove-background-duck.png)
+
+Frizzy curly hair against a busy street: the curls are kept, with a faint
+haze of the street left between the outermost ones:
+
+![A woman with curly hair in a street, then the woman alone](../images/remove-background-hair.png)
+
+A white long-haired dog on grass, wisps of fur included:
+
+![A white dog on grass, then the dog alone](../images/remove-background-dog.png)
+
+A bicycle against a brick wall: the wall and the shadow are gone, even
+inside the frame and the wheels; the thinnest spokes are partly lost or
+keep a reddish edge from the bricks:
+
+![A bicycle against a brick wall, then the bicycle alone](../images/remove-background-bike.png)
+
+A fern with thin fronds in a cluttered kitchen:
+
+![A potted fern in a kitchen, then the fern alone](../images/remove-background-plant.png)
+
+WithoutBG (the background removal gimp-setup used, on a server of its
+own) was tried on the same five pictures: it was as good on the hair, the
+dog and the fern, left pieces of the wall inside the bicycle, and took 5–6
+s per picture where BiRefNet takes about 1 s (3 s the first time, to load
+the model).
 
 In GIMPhoto: the Properties panel's button, now active (until this
 feature it was greyed out), and the new mask next to the layer's
@@ -28,7 +55,7 @@ thumbnail in Layers:
 
 ![The Layer menu with Remove Background](../images/remove-background-menu.png)
 
-The picture is generated with the local FLUX.2 klein model.
+The pictures are generated with the local FLUX.2 klein model.
 
 ## Use
 
