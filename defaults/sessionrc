@@ -1,6 +1,7 @@
 # GIMPhoto's default window layout (sessionrc), Photoshop-style: one window,
 # maximized; the toolbox alone in one narrow column on the left; on the right,
-# Tool Options (as Photoshop's Properties) over Layers, Channels and Paths.
+# GIMPhoto's Properties panel (and Tool Options in the tab beside it) over
+# Layers, Channels and Paths.
 #
 # The dock layout is PhotoGIMP 3.0's (github.com/Diolinux/PhotoGIMP,
 # GPL-3.0, commit eca3a8f), on GIMP 3.2's own sessionrc. Left out: its
@@ -29,6 +30,10 @@
         (side right)
         (book
             (current-page 0)
+            (dockable "gimp-properties-editor"
+                (tab-style name)
+                (aux-info
+                    (show-button-bar "true")))
             (dockable "gimp-tool-options"
                 (locked)
                 (tab-style name)

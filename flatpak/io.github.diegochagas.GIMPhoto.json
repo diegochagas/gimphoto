@@ -886,7 +886,8 @@
                         "../patches/0004-Shape-tool-draw-rectangles-and-ellipses-as-vector-la.patch",
                         "../patches/0005-Shape-tools-one-per-shape-grouped-in-the-toolbox-as-.patch",
                         "../patches/0006-Smart-Objects-right-click-menu-entries-link-layer-co.patch",
-                        "../patches/0007-Layers-dock-double-click-opens-a-smart-object-s-cont.patch"
+                        "../patches/0007-Layers-dock-double-click-opens-a-smart-object-s-cont.patch",
+                        "../patches/0008-Properties-panel-Transform-Align-and-Distribute-Quic.patch"
                     ]
                 }
             ],

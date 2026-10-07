@@ -1,0 +1,1144 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Diego Chagas <drochachagas@gmail.com>
+Date: Tue, 6 Oct 2026 21:44:37 -0300
+Subject: [PATCH] Properties panel: Transform, Align and Distribute, Quick
+ Actions
+
+Photoshop's Properties panel as a dockable (gimp-properties-editor,
+Windows > Dockable Dialogs > Properties). For the selected layers:
+
+- the layer's kind (Pixel Layer, Text Layer, Smart Object, Shape Layer,
+  Layer Group, or how many layers);
+- Transform, for one layer: W and H (linked: the aspect ratio kept, the
+  top-left corner staying), X and Y, a rotation angle (the layer is
+  rotated about its centre and the field goes back to 0, as Photoshop's
+  for pixel layers), flip horizontally / vertically; locked position or
+  contents make the fields insensitive; with several layers the
+  fields show, read-only, the box around their pixels;
+- Align and Distribute: one layer to the canvas, several to the box around
+  their non-empty pixels, as Photoshop; distribute (3 layers or more) is
+  GIMP's own even-gap distribution;
+- Quick Actions: Remove Background and Select Subject, buttons running the
+  GIMPhoto plug-in procedures gimphoto-remove-background and
+  gimphoto-select-subject, insensitive until those plug-ins exist.
+
+Each button or edit is one undo step. The panel follows the image's
+selected layers and its undo events.
+
+diff --git a/app/actions/dialogs-actions.c b/app/actions/dialogs-actions.c
+index 2959dd4bdc..02f04de00e 100644
+--- a/app/actions/dialogs-actions.c
++++ b/app/actions/dialogs-actions.c
+@@ -69,6 +69,15 @@ const GimpStringActionEntry dialogs_dockable_actions[] =
+     "gimp-device-status",
+     GIMP_HELP_DEVICE_STATUS_DIALOG },
+ 
++  /*  GIMPhoto: Photoshop's Properties panel  */
++  { "dialogs-properties", GIMP_ICON_DOCUMENT_PROPERTIES,
++    NC_("dialogs-action", "_Properties Dialog"),
++    NC_("dialogs-action", "_Properties"),
++    { NULL },
++    NC_("dialogs-action", "Open the properties dialog: transform, align and quick actions"),
++    "gimp-properties-editor",
++    GIMP_HELP_LAYER_DIALOG },
++
+   { "dialogs-symmetry", GIMP_ICON_SYMMETRY,
+     NC_("dialogs-action", "_Symmetry Painting Dialog"),
+     NC_("dialogs-action", "_Symmetry Painting"),
+diff --git a/app/dialogs/dialogs-constructors.c b/app/dialogs/dialogs-constructors.c
+index de9bf98725..84b7c47399 100644
+--- a/app/dialogs/dialogs-constructors.c
++++ b/app/dialogs/dialogs-constructors.c
+@@ -57,6 +57,7 @@
+ #include "widgets/gimppatternfactoryview.h"
+ #include "widgets/gimpsamplepointeditor.h"
+ #include "widgets/gimpselectioneditor.h"
++#include "widgets/gimppropertieseditor.h"
+ #include "widgets/gimpsymmetryeditor.h"
+ #include "widgets/gimptemplateview.h"
+ #include "widgets/gimptoolbox.h"
+@@ -809,6 +810,15 @@ dialogs_selection_editor_new (GimpDialogFactory *factory,
+   return gimp_selection_editor_new (menus_get_global_menu_factory (context->gimp));
+ }
+ 
++GtkWidget *
++dialogs_properties_editor_new (GimpDialogFactory *factory,
++                               GimpContext       *context,
++                               GimpUIManager     *ui_manager,
++                               gint               view_size)
++{
++  return gimp_properties_editor_new (menus_get_global_menu_factory (context->gimp));
++}
++
+ GtkWidget *
+ dialogs_symmetry_editor_new (GimpDialogFactory *factory,
+                              GimpContext       *context,
+diff --git a/app/dialogs/dialogs-constructors.h b/app/dialogs/dialogs-constructors.h
+index daed8674ea..5e37a8fd3c 100644
+--- a/app/dialogs/dialogs-constructors.h
++++ b/app/dialogs/dialogs-constructors.h
+@@ -263,6 +263,10 @@ GtkWidget * dialogs_selection_editor_new        (GimpDialogFactory *factory,
+                                                  GimpContext       *context,
+                                                  GimpUIManager     *ui_manager,
+                                                  gint               view_size);
++GtkWidget * dialogs_properties_editor_new       (GimpDialogFactory *factory,
++                                                 GimpContext       *context,
++                                                 GimpUIManager     *ui_manager,
++                                                 gint               view_size);
+ GtkWidget * dialogs_symmetry_editor_new         (GimpDialogFactory *factory,
+                                                  GimpContext       *context,
+                                                  GimpUIManager     *ui_manager,
+diff --git a/app/dialogs/dialogs.c b/app/dialogs/dialogs.c
+index 7c15ce47ff..cd8900d650 100644
+--- a/app/dialogs/dialogs.c
++++ b/app/dialogs/dialogs.c
+@@ -396,6 +396,11 @@ static const GimpDialogFactoryEntry entries[] =
+             N_("Selection"), N_("Selection Editor"), GIMP_ICON_SELECTION,
+             GIMP_HELP_SELECTION_DIALOG,
+             dialogs_selection_editor_new, 0, FALSE),
++  /*  GIMPhoto: Photoshop's Properties panel  */
++  DOCKABLE ("gimp-properties-editor",
++            N_("Properties"), NULL, GIMP_ICON_DOCUMENT_PROPERTIES,
++            GIMP_HELP_LAYER_DIALOG,
++            dialogs_properties_editor_new, 0, FALSE),
+   DOCKABLE ("gimp-symmetry-editor",
+             N_("Symmetry Painting"), NULL, GIMP_ICON_SYMMETRY,
+             GIMP_HELP_SYMMETRY_DIALOG,
+diff --git a/app/widgets/gimppropertieseditor.c b/app/widgets/gimppropertieseditor.c
+new file mode 100644
+index 0000000000..37d86650d9
+--- /dev/null
++++ b/app/widgets/gimppropertieseditor.c
+@@ -0,0 +1,934 @@
++/* GIMP - The GNU Image Manipulation Program
++ * Copyright (C) 1995 Spencer Kimball and Peter Mattis
++ *
++ * gimppropertieseditor.c
++ * Copyright (C) 2026 GIMPhoto contributors
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 3 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
++ */
++
++#include "config.h"
++
++#include <gegl.h>
++#include <gtk/gtk.h>
++
++#include "libgimpbase/gimpbase.h"
++#include "libgimpmath/gimpmath.h"
++#include "libgimpwidgets/gimpwidgets.h"
++
++#include "widgets-types.h"
++
++#include "config/gimpcoreconfig.h"
++
++#include "core/gimp.h"
++#include "core/gimp-transform-utils.h"
++#include "core/gimpimage.h"
++#include "core/gimpimage-arrange.h"
++#include "core/gimpimage-undo.h"
++#include "core/gimplayer.h"
++#include "core/gimplinklayer.h"
++#include "core/gimppickable.h"
++#include "core/gimppickable-auto-shrink.h"
++
++#include "path/gimpvectorlayer.h"
++
++#include "text/gimptextlayer.h"
++
++#include "gimpaction.h"
++#include "gimpmenufactory.h"
++#include "gimppropertieseditor.h"
++#include "gimpuimanager.h"
++
++#include "gimp-intl.h"
++
++
++/*  The Quick Actions: GIMPhoto plug-in procedures (actions named after
++ *  them), insensitive until the plug-in is there.
++ */
++typedef struct
++{
++  const gchar *procedure;
++  const gchar *label;
++  const gchar *tooltip;
++} QuickAction;
++
++static const QuickAction quick_actions[] =
++{
++  { "gimphoto-remove-background", N_("Remove Background"),
++    N_("Put the subject on a transparent background (AI)") },
++  { "gimphoto-select-subject",    N_("Select Subject"),
++    N_("Select the main subject of the image (AI)") }
++};
++
++#define N_QUICK_ACTIONS G_N_ELEMENTS (quick_actions)
++
++static const GimpAlignmentType align_types[] =
++{
++  GIMP_ALIGN_LEFT, GIMP_ALIGN_HCENTER, GIMP_ALIGN_RIGHT,
++  GIMP_ALIGN_TOP,  GIMP_ALIGN_VCENTER, GIMP_ALIGN_BOTTOM,
++  GIMP_DISTRIBUTE_EVEN_HORIZONTAL_GAP, GIMP_DISTRIBUTE_EVEN_VERTICAL_GAP
++};
++
++#define N_ALIGN_BUTTONS G_N_ELEMENTS (align_types)
++
++
++struct _GimpPropertiesEditorPrivate
++{
++  GtkWidget     *kind_image;
++  GtkWidget     *kind_label;
++
++  GtkWidget     *transform_frame;
++  GtkAdjustment *width;
++  GtkAdjustment *height;
++  GtkAdjustment *x;
++  GtkAdjustment *y;
++  GtkAdjustment *angle;
++  GtkWidget     *chain;
++  GtkWidget     *size_spins[2];
++  GtkWidget     *offset_spins[2];
++  GtkWidget     *angle_spin;
++  GtkWidget     *flip_buttons[2];
++
++  GtkWidget     *align_frame;
++  GtkWidget     *align_buttons[N_ALIGN_BUTTONS];
++
++  GtkWidget     *quick_buttons[N_QUICK_ACTIONS];
++
++  gboolean       updating;
++};
++
++
++static void        gimp_properties_editor_set_image      (GimpImageEditor      *image_editor,
++                                                          GimpImage            *image);
++
++static void        gimp_properties_editor_image_changed  (GimpImage            *image,
++                                                          GimpPropertiesEditor *editor);
++static void        gimp_properties_editor_undo_event     (GimpImage            *image,
++                                                          GimpUndoEvent         event,
++                                                          GimpUndo             *undo,
++                                                          GimpPropertiesEditor *editor);
++static void        gimp_properties_editor_update         (GimpPropertiesEditor *editor);
++
++static void        gimp_properties_editor_size_changed   (GtkAdjustment        *adjustment,
++                                                          GimpPropertiesEditor *editor);
++static void        gimp_properties_editor_offset_changed (GtkAdjustment        *adjustment,
++                                                          GimpPropertiesEditor *editor);
++static void        gimp_properties_editor_angle_changed  (GtkAdjustment        *adjustment,
++                                                          GimpPropertiesEditor *editor);
++static void        gimp_properties_editor_flip_clicked   (GtkWidget            *button,
++                                                          GimpPropertiesEditor *editor);
++static void        gimp_properties_editor_align_clicked  (GtkWidget            *button,
++                                                          GimpPropertiesEditor *editor);
++static void        gimp_properties_editor_quick_clicked  (GtkWidget            *button,
++                                                          GimpPropertiesEditor *editor);
++
++static GimpLayer * gimp_properties_editor_get_layer      (GimpPropertiesEditor *editor);
++static void        gimp_properties_editor_content_bounds (GimpItem             *item,
++                                                          GeglRectangle        *rect);
++static GimpAction * gimp_properties_editor_quick_action  (const gchar          *procedure);
++
++
++G_DEFINE_TYPE_WITH_PRIVATE (GimpPropertiesEditor, gimp_properties_editor,
++                            GIMP_TYPE_IMAGE_EDITOR)
++
++#define parent_class gimp_properties_editor_parent_class
++
++
++static void
++gimp_properties_editor_class_init (GimpPropertiesEditorClass *klass)
++{
++  GimpImageEditorClass *image_editor_class = GIMP_IMAGE_EDITOR_CLASS (klass);
++
++  image_editor_class->set_image = gimp_properties_editor_set_image;
++}
++
++static GtkWidget *
++gimp_properties_editor_spin (GimpPropertiesEditor  *editor,
++                             GtkGrid               *grid,
++                             const gchar           *label,
++                             gint                   column,
++                             gint                   row,
++                             GtkAdjustment        **adjustment,
++                             gdouble                lower,
++                             gint                   digits,
++                             GCallback              callback)
++{
++  GtkWidget *title;
++  GtkWidget *spin;
++
++  *adjustment = gtk_adjustment_new (0, lower, GIMP_MAX_IMAGE_SIZE, 1, 10, 0);
++
++  title = gtk_label_new (label);
++  gtk_label_set_xalign (GTK_LABEL (title), 1.0);
++  gtk_grid_attach (grid, title, column, row, 1, 1);
++  gtk_widget_set_visible (title, TRUE);
++
++  spin = gimp_spin_button_new (*adjustment, 1.0, digits);
++  gtk_entry_set_width_chars (GTK_ENTRY (spin), 6);
++  gtk_widget_set_hexpand (spin, TRUE);
++  gtk_grid_attach (grid, spin, column + 1, row, 1, 1);
++  gtk_widget_set_visible (spin, TRUE);
++
++  g_signal_connect (*adjustment, "value-changed", callback, editor);
++
++  return spin;
++}
++
++static GtkWidget *
++gimp_properties_editor_icon_button (GtkWidget   *box,
++                                    const gchar *icon_name,
++                                    const gchar *tooltip)
++{
++  GtkWidget *button;
++  GtkWidget *image;
++
++  button = gtk_button_new ();
++  gtk_button_set_relief (GTK_BUTTON (button), GTK_RELIEF_NONE);
++  gtk_box_pack_start (GTK_BOX (box), button, FALSE, FALSE, 0);
++  gtk_widget_set_visible (button, TRUE);
++
++  image = gtk_image_new_from_icon_name (icon_name, GTK_ICON_SIZE_BUTTON);
++  gtk_container_add (GTK_CONTAINER (button), image);
++  gtk_widget_set_visible (image, TRUE);
++
++  gimp_help_set_help_data (button, tooltip, NULL);
++
++  return button;
++}
++
++static void
++gimp_properties_editor_init (GimpPropertiesEditor *editor)
++{
++  GimpPropertiesEditorPrivate *p;
++  GtkWidget                   *scrolled_window;
++  GtkWidget                   *vbox;
++  GtkWidget                   *hbox;
++  GtkWidget                   *frame;
++  GtkWidget                   *grid;
++  GtkWidget                   *row;
++  gint                         i;
++
++  static const gchar *align_icons[] =
++  {
++    GIMP_ICON_GRAVITY_WEST,  GIMP_ICON_CENTER_HORIZONTAL, GIMP_ICON_GRAVITY_EAST,
++    GIMP_ICON_GRAVITY_NORTH, GIMP_ICON_CENTER_VERTICAL,   GIMP_ICON_GRAVITY_SOUTH,
++    GIMP_ICON_EVEN_HORIZONTAL_GAP, GIMP_ICON_EVEN_VERTICAL_GAP
++  };
++  static const gchar *align_tooltips[] =
++  {
++    N_("Align left edges"),   N_("Align horizontal centers"), N_("Align right edges"),
++    N_("Align top edges"),    N_("Align vertical centers"),   N_("Align bottom edges"),
++    N_("Distribute horizontally (3 layers or more)"),
++    N_("Distribute vertically (3 layers or more)")
++  };
++
++  editor->p = p = gimp_properties_editor_get_instance_private (editor);
++
++  scrolled_window = gtk_scrolled_window_new (NULL, NULL);
++  gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (scrolled_window),
++                                  GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
++  gtk_box_pack_start (GTK_BOX (editor), scrolled_window, TRUE, TRUE, 0);
++  gtk_widget_set_visible (scrolled_window, TRUE);
++
++  vbox = gtk_box_new (GTK_ORIENTATION_VERTICAL, 8);
++  gtk_container_set_border_width (GTK_CONTAINER (vbox), 4);
++  gtk_container_add (GTK_CONTAINER (scrolled_window), vbox);
++  gtk_widget_set_visible (vbox, TRUE);
++
++  /*  the layer's kind, as Photoshop's "Pixel Layer" header  */
++  hbox = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 6);
++  gtk_box_pack_start (GTK_BOX (vbox), hbox, FALSE, FALSE, 0);
++  gtk_widget_set_visible (hbox, TRUE);
++
++  p->kind_image = gtk_image_new_from_icon_name (GIMP_ICON_LAYER,
++                                                GTK_ICON_SIZE_BUTTON);
++  gtk_box_pack_start (GTK_BOX (hbox), p->kind_image, FALSE, FALSE, 0);
++  gtk_widget_set_visible (p->kind_image, TRUE);
++
++  p->kind_label = gtk_label_new (NULL);
++  gtk_label_set_xalign (GTK_LABEL (p->kind_label), 0.0);
++  gtk_label_set_ellipsize (GTK_LABEL (p->kind_label), PANGO_ELLIPSIZE_END);
++  gimp_label_set_attributes (GTK_LABEL (p->kind_label),
++                             PANGO_ATTR_WEIGHT, PANGO_WEIGHT_BOLD, -1);
++  gtk_box_pack_start (GTK_BOX (hbox), p->kind_label, TRUE, TRUE, 0);
++  gtk_widget_set_visible (p->kind_label, TRUE);
++
++  /*  Transform  */
++  p->transform_frame = frame = gimp_frame_new (_("Transform"));
++  gtk_box_pack_start (GTK_BOX (vbox), frame, FALSE, FALSE, 0);
++  gtk_widget_set_visible (frame, TRUE);
++
++  grid = gtk_grid_new ();
++  gtk_grid_set_row_spacing (GTK_GRID (grid), 4);
++  gtk_grid_set_column_spacing (GTK_GRID (grid), 4);
++  gtk_container_add (GTK_CONTAINER (frame), grid);
++  gtk_widget_set_visible (grid, TRUE);
++
++  p->size_spins[0] =
++    gimp_properties_editor_spin (editor, GTK_GRID (grid), _("W"), 0, 0,
++                                 &p->width, 1, 0,
++                                 G_CALLBACK (gimp_properties_editor_size_changed));
++  p->size_spins[1] =
++    gimp_properties_editor_spin (editor, GTK_GRID (grid), _("H"), 3, 0,
++                                 &p->height, 1, 0,
++                                 G_CALLBACK (gimp_properties_editor_size_changed));
++
++  /*  W and H linked, as Photoshop's: one keeps the aspect of the other  */
++  p->chain = gimp_chain_button_new (GIMP_CHAIN_BOTTOM);
++  gimp_chain_button_set_active (GIMP_CHAIN_BUTTON (p->chain), TRUE);
++  gimp_help_set_help_data (p->chain, _("Keep the aspect ratio"), NULL);
++  gtk_grid_attach (GTK_GRID (grid), p->chain, 2, 0, 1, 1);
++  gtk_widget_set_visible (p->chain, TRUE);
++
++  p->offset_spins[0] =
++    gimp_properties_editor_spin (editor, GTK_GRID (grid), _("X"), 0, 1,
++                                 &p->x, -GIMP_MAX_IMAGE_SIZE, 0,
++                                 G_CALLBACK (gimp_properties_editor_offset_changed));
++  p->offset_spins[1] =
++    gimp_properties_editor_spin (editor, GTK_GRID (grid), _("Y"), 3, 1,
++                                 &p->y, -GIMP_MAX_IMAGE_SIZE, 0,
++                                 G_CALLBACK (gimp_properties_editor_offset_changed));
++
++  /*  rotation: entered angles rotate the layer, then the field is 0 again,
++   *  as Photoshop's for pixel layers
++   */
++  p->angle_spin =
++    gimp_properties_editor_spin (editor, GTK_GRID (grid), "∡", 0, 2,
++                                 &p->angle, -360, 1,
++                                 G_CALLBACK (gimp_properties_editor_angle_changed));
++  gtk_adjustment_set_upper (p->angle, 360);
++  gimp_help_set_help_data (p->angle_spin,
++                           _("Rotate the layer by this angle (degrees)"), NULL);
++
++  row = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 2);
++  gtk_grid_attach (GTK_GRID (grid), row, 3, 2, 2, 1);
++  gtk_widget_set_visible (row, TRUE);
++
++  p->flip_buttons[0] =
++    gimp_properties_editor_icon_button (row, GIMP_ICON_OBJECT_FLIP_HORIZONTAL,
++                                        _("Flip horizontally"));
++  p->flip_buttons[1] =
++    gimp_properties_editor_icon_button (row, GIMP_ICON_OBJECT_FLIP_VERTICAL,
++                                        _("Flip vertically"));
++
++  for (i = 0; i < 2; i++)
++    {
++      g_object_set_data (G_OBJECT (p->flip_buttons[i]), "gimphoto-flip",
++                         GINT_TO_POINTER (i == 0 ?
++                                          GIMP_ORIENTATION_HORIZONTAL :
++                                          GIMP_ORIENTATION_VERTICAL));
++      g_signal_connect (p->flip_buttons[i], "clicked",
++                        G_CALLBACK (gimp_properties_editor_flip_clicked),
++                        editor);
++    }
++
++  /*  Align and Distribute: one layer to the canvas, several to their
++   *  bounds, as Photoshop
++   */
++  p->align_frame = frame = gimp_frame_new (_("Align and Distribute"));
++  gtk_box_pack_start (GTK_BOX (vbox), frame, FALSE, FALSE, 0);
++  gtk_widget_set_visible (frame, TRUE);
++
++  row = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 0);
++  gtk_container_add (GTK_CONTAINER (frame), row);
++  gtk_widget_set_visible (row, TRUE);
++
++  for (i = 0; i < N_ALIGN_BUTTONS; i++)
++    {
++      p->align_buttons[i] =
++        gimp_properties_editor_icon_button (row, align_icons[i],
++                                            gettext (align_tooltips[i]));
++      g_object_set_data (G_OBJECT (p->align_buttons[i]), "gimphoto-align",
++                         GINT_TO_POINTER (align_types[i]));
++      g_signal_connect (p->align_buttons[i], "clicked",
++                        G_CALLBACK (gimp_properties_editor_align_clicked),
++                        editor);
++    }
++
++  /*  Quick Actions  */
++  frame = gimp_frame_new (_("Quick Actions"));
++  gtk_box_pack_start (GTK_BOX (vbox), frame, FALSE, FALSE, 0);
++  gtk_widget_set_visible (frame, TRUE);
++
++  row = gtk_box_new (GTK_ORIENTATION_VERTICAL, 4);
++  gtk_container_add (GTK_CONTAINER (frame), row);
++  gtk_widget_set_visible (row, TRUE);
++
++  for (i = 0; i < N_QUICK_ACTIONS; i++)
++    {
++      p->quick_buttons[i] = gtk_button_new_with_label (gettext (quick_actions[i].label));
++      g_object_set_data (G_OBJECT (p->quick_buttons[i]), "gimphoto-procedure",
++                         (gpointer) quick_actions[i].procedure);
++      gtk_box_pack_start (GTK_BOX (row), p->quick_buttons[i], FALSE, FALSE, 0);
++      gtk_widget_set_visible (p->quick_buttons[i], TRUE);
++
++      g_signal_connect (p->quick_buttons[i], "clicked",
++                        G_CALLBACK (gimp_properties_editor_quick_clicked),
++                        editor);
++    }
++
++  gimp_properties_editor_update (editor);
++}
++
++static void
++gimp_properties_editor_set_image (GimpImageEditor *image_editor,
++                                  GimpImage       *image)
++{
++  GimpPropertiesEditor *editor = GIMP_PROPERTIES_EDITOR (image_editor);
++
++  if (image_editor->image)
++    {
++      g_signal_handlers_disconnect_by_func (image_editor->image,
++                                            gimp_properties_editor_image_changed,
++                                            editor);
++      g_signal_handlers_disconnect_by_func (image_editor->image,
++                                            gimp_properties_editor_undo_event,
++                                            editor);
++    }
++
++  GIMP_IMAGE_EDITOR_CLASS (parent_class)->set_image (image_editor, image);
++
++  if (image)
++    {
++      g_signal_connect (image, "selected-layers-changed",
++                        G_CALLBACK (gimp_properties_editor_image_changed),
++                        editor);
++      /*  every change to a layer goes through the undo stack  */
++      g_signal_connect (image, "undo-event",
++                        G_CALLBACK (gimp_properties_editor_undo_event),
++                        editor);
++    }
++
++  gimp_properties_editor_update (editor);
++}
++
++static void
++gimp_properties_editor_image_changed (GimpImage            *image,
++                                      GimpPropertiesEditor *editor)
++{
++  gimp_properties_editor_update (editor);
++}
++
++static void
++gimp_properties_editor_undo_event (GimpImage            *image,
++                                   GimpUndoEvent         event,
++                                   GimpUndo             *undo,
++                                   GimpPropertiesEditor *editor)
++{
++  gimp_properties_editor_update (editor);
++}
++
++static const gchar *
++gimp_properties_editor_kind (GimpLayer    *layer,
++                             const gchar **icon_name)
++{
++  GimpItem *item = GIMP_ITEM (layer);
++
++  if (gimp_item_is_text_layer (item))
++    {
++      *icon_name = GIMP_ICON_LAYER_TEXT_LAYER;
++      return _("Text Layer");
++    }
++  else if (GIMP_IS_LINK_LAYER (layer))
++    {
++      *icon_name = GIMP_ICON_LAYER;
++      return _("Smart Object");
++    }
++  else if (gimp_item_is_vector_layer (item))
++    {
++      *icon_name = GIMP_ICON_LAYER;
++      return _("Shape Layer");
++    }
++  else if (gimp_viewable_get_children (GIMP_VIEWABLE (layer)))
++    {
++      *icon_name = GIMP_ICON_FOLDER_NEW;
++      return _("Layer Group");
++    }
++
++  *icon_name = GIMP_ICON_LAYER;
++  return _("Pixel Layer");
++}
++
++static void
++gimp_properties_editor_update (GimpPropertiesEditor *editor)
++{
++  GimpPropertiesEditorPrivate *p      = editor->p;
++  GimpImage                   *image  = GIMP_IMAGE_EDITOR (editor)->image;
++  GList                       *layers = NULL;
++  GimpLayer                   *layer  = NULL;
++  const gchar                 *icon_name = GIMP_ICON_LAYER;
++  gint                         n      = 0;
++  gboolean                     can_move    = FALSE;
++  gboolean                     can_reshape = FALSE;
++  gint                         i;
++
++  if (image)
++    {
++      layers = gimp_image_get_selected_layers (image);
++      n      = g_list_length (layers);
++    }
++
++  if (n == 1)
++    layer = layers->data;
++
++  if (! image)
++    gtk_label_set_text (GTK_LABEL (p->kind_label), _("No image"));
++  else if (n == 0)
++    gtk_label_set_text (GTK_LABEL (p->kind_label), _("No layer selected"));
++  else if (n == 1)
++    gtk_label_set_text (GTK_LABEL (p->kind_label),
++                        gimp_properties_editor_kind (layer, &icon_name));
++  else
++    {
++      gchar *text = g_strdup_printf (ngettext ("%d Layer", "%d Layers", n), n);
++
++      gtk_label_set_text (GTK_LABEL (p->kind_label), text);
++      g_free (text);
++    }
++
++  gtk_image_set_from_icon_name (GTK_IMAGE (p->kind_image), icon_name,
++                                GTK_ICON_SIZE_BUTTON);
++
++  if (layer)
++    {
++      GimpItem *item = GIMP_ITEM (layer);
++      gint      off_x;
++      gint      off_y;
++
++      can_move    = ! gimp_item_is_position_locked (item, NULL);
++      can_reshape = ! gimp_item_is_content_locked (item, NULL);
++
++      gimp_item_get_offset (item, &off_x, &off_y);
++
++      p->updating = TRUE;
++      gtk_adjustment_set_value (p->width,  gimp_item_get_width  (item));
++      gtk_adjustment_set_value (p->height, gimp_item_get_height (item));
++      gtk_adjustment_set_value (p->x,      off_x);
++      gtk_adjustment_set_value (p->y,      off_y);
++      gtk_adjustment_set_value (p->angle,  0);
++      p->updating = FALSE;
++    }
++  else if (n > 1)
++    {
++      GeglRectangle  bounds;
++      GList         *list;
++
++      /*  several layers: the box around their pixels, read-only, as
++       *  Photoshop shows it
++       */
++      gimp_properties_editor_content_bounds (layers->data, &bounds);
++
++      for (list = layers->next; list; list = g_list_next (list))
++        {
++          GeglRectangle rect;
++
++          gimp_properties_editor_content_bounds (list->data, &rect);
++          gegl_rectangle_bounding_box (&bounds, &bounds, &rect);
++        }
++
++      p->updating = TRUE;
++      gtk_adjustment_set_value (p->width,  bounds.width);
++      gtk_adjustment_set_value (p->height, bounds.height);
++      gtk_adjustment_set_value (p->x,      bounds.x);
++      gtk_adjustment_set_value (p->y,      bounds.y);
++      gtk_adjustment_set_value (p->angle,  0);
++      p->updating = FALSE;
++    }
++
++  /*  Transform: one layer, as Photoshop  */
++  gtk_widget_set_sensitive (p->transform_frame, layer != NULL);
++
++  for (i = 0; i < 2; i++)
++    {
++      gtk_widget_set_sensitive (p->size_spins[i],   can_reshape);
++      gtk_widget_set_sensitive (p->offset_spins[i], can_move);
++      gtk_widget_set_sensitive (p->flip_buttons[i], can_reshape);
++    }
++
++  gtk_widget_set_sensitive (p->chain,      can_reshape);
++  gtk_widget_set_sensitive (p->angle_spin, can_reshape);
++
++  /*  Align: one layer or more; Distribute: three or more  */
++  gtk_widget_set_sensitive (p->align_frame, n > 0);
++
++  for (i = 0; i < N_ALIGN_BUTTONS; i++)
++    {
++      if (align_types[i] == GIMP_DISTRIBUTE_EVEN_HORIZONTAL_GAP ||
++          align_types[i] == GIMP_DISTRIBUTE_EVEN_VERTICAL_GAP)
++        gtk_widget_set_sensitive (p->align_buttons[i], n > 2);
++    }
++
++  /*  Quick Actions: when their plug-in is there and can run  */
++  for (i = 0; i < N_QUICK_ACTIONS; i++)
++    {
++      GimpAction *action = gimp_properties_editor_quick_action (quick_actions[i].procedure);
++
++      gtk_widget_set_sensitive (p->quick_buttons[i],
++                                action && gimp_action_is_sensitive (action, NULL));
++
++      if (action)
++        gimp_help_set_help_data (p->quick_buttons[i],
++                                 gettext (quick_actions[i].tooltip), NULL);
++      else
++        gimp_help_set_help_data (p->quick_buttons[i],
++                                 _("Not available yet: GIMPhoto's plug-in for "
++                                   "it is not installed"), NULL);
++    }
++}
++
++static GimpLayer *
++gimp_properties_editor_get_layer (GimpPropertiesEditor *editor)
++{
++  GimpImage *image = GIMP_IMAGE_EDITOR (editor)->image;
++  GList     *layers;
++
++  if (! image || editor->p->updating)
++    return NULL;
++
++  layers = gimp_image_get_selected_layers (image);
++
++  if (g_list_length (layers) != 1)
++    return NULL;
++
++  return layers->data;
++}
++
++static GimpInterpolationType
++gimp_properties_editor_interpolation (GimpImage *image)
++{
++  return image->gimp->config->interpolation_type;
++}
++
++static void
++gimp_properties_editor_size_changed (GtkAdjustment        *adjustment,
++                                     GimpPropertiesEditor *editor)
++{
++  GimpPropertiesEditorPrivate *p     = editor->p;
++  GimpLayer                   *layer = gimp_properties_editor_get_layer (editor);
++  GimpItem                    *item;
++  GimpImage                   *image;
++  gint                         width;
++  gint                         height;
++  gint                         off_x;
++  gint                         off_y;
++
++  if (! layer)
++    return;
++
++  item   = GIMP_ITEM (layer);
++  image  = gimp_item_get_image (item);
++  width  = RINT (gtk_adjustment_get_value (p->width));
++  height = RINT (gtk_adjustment_get_value (p->height));
++
++  if (gimp_chain_button_get_active (GIMP_CHAIN_BUTTON (p->chain)))
++    {
++      gdouble ratio = (gdouble) gimp_item_get_height (item) /
++                      (gdouble) gimp_item_get_width (item);
++
++      if (adjustment == p->width)
++        height = MAX (1, RINT (width * ratio));
++      else
++        width = MAX (1, RINT (height / ratio));
++    }
++
++  if (width  == gimp_item_get_width  (item) &&
++      height == gimp_item_get_height (item))
++    return;
++
++  if (! gimp_item_check_scaling (item, width, height))
++    {
++      gimp_properties_editor_update (editor);
++      return;
++    }
++
++  /*  the top-left corner stays, as the X and Y fields say  */
++  gimp_item_get_offset (item, &off_x, &off_y);
++  gimp_item_scale (item, width, height, off_x, off_y,
++                   gimp_properties_editor_interpolation (image), NULL);
++  gimp_image_flush (image);
++}
++
++static void
++gimp_properties_editor_offset_changed (GtkAdjustment        *adjustment,
++                                       GimpPropertiesEditor *editor)
++{
++  GimpPropertiesEditorPrivate *p     = editor->p;
++  GimpLayer                   *layer = gimp_properties_editor_get_layer (editor);
++  GimpItem                    *item;
++  gint                         off_x;
++  gint                         off_y;
++
++  if (! layer)
++    return;
++
++  item = GIMP_ITEM (layer);
++  gimp_item_get_offset (item, &off_x, &off_y);
++
++  gimp_item_translate (item,
++                       RINT (gtk_adjustment_get_value (p->x)) - off_x,
++                       RINT (gtk_adjustment_get_value (p->y)) - off_y,
++                       TRUE);
++  gimp_image_flush (gimp_item_get_image (item));
++}
++
++static void
++gimp_properties_editor_angle_changed (GtkAdjustment        *adjustment,
++                                      GimpPropertiesEditor *editor)
++{
++  GimpLayer   *layer = gimp_properties_editor_get_layer (editor);
++  GimpItem    *item;
++  GimpImage   *image;
++  GimpMatrix3  matrix;
++  gdouble      angle = gtk_adjustment_get_value (adjustment);
++  gint         off_x;
++  gint         off_y;
++
++  if (! layer || angle == 0.0)
++    return;
++
++  item  = GIMP_ITEM (layer);
++  image = gimp_item_get_image (item);
++
++  gimp_item_get_offset (item, &off_x, &off_y);
++
++  gimp_matrix3_identity (&matrix);
++  gimp_transform_matrix_rotate_center (&matrix,
++                                       off_x + gimp_item_get_width  (item) / 2.0,
++                                       off_y + gimp_item_get_height (item) / 2.0,
++                                       gimp_deg_to_rad (angle));
++
++  gimp_item_transform (item, GIMP_IMAGE_EDITOR (editor)->context, &matrix,
++                       GIMP_TRANSFORM_FORWARD,
++                       gimp_properties_editor_interpolation (image),
++                       gimp_item_get_clip (item, GIMP_TRANSFORM_RESIZE_ADJUST),
++                       NULL);
++  gimp_image_flush (image);
++
++  /*  the undo event already set the field back to 0  */
++}
++
++static void
++gimp_properties_editor_flip_clicked (GtkWidget            *button,
++                                     GimpPropertiesEditor *editor)
++{
++  GimpLayer           *layer = gimp_properties_editor_get_layer (editor);
++  GimpItem            *item;
++  GimpOrientationType  flip;
++  gint                 off_x;
++  gint                 off_y;
++
++  if (! layer)
++    return;
++
++  item = GIMP_ITEM (layer);
++  flip = GPOINTER_TO_INT (g_object_get_data (G_OBJECT (button), "gimphoto-flip"));
++
++  gimp_item_get_offset (item, &off_x, &off_y);
++
++  gimp_item_flip (item, GIMP_IMAGE_EDITOR (editor)->context, flip,
++                  flip == GIMP_ORIENTATION_HORIZONTAL ?
++                  off_x + gimp_item_get_width  (item) / 2.0 :
++                  off_y + gimp_item_get_height (item) / 2.0,
++                  FALSE);
++  gimp_image_flush (gimp_item_get_image (item));
++}
++
++/*  The item's non-empty pixels on the canvas, as GIMP's Align tool measures
++ *  them ("align contents") and Photoshop aligns layers.
++ */
++static void
++gimp_properties_editor_content_bounds (GimpItem     *item,
++                                       GeglRectangle *rect)
++{
++  gint x;
++  gint y;
++  gint width;
++  gint height;
++  gint off_x;
++  gint off_y;
++
++  gimp_item_bounds (item, &rect->x, &rect->y, &rect->width, &rect->height);
++
++  if (GIMP_IS_PICKABLE (item) &&
++      gimp_pickable_auto_shrink (GIMP_PICKABLE (item), 0, 0,
++                                 gimp_item_get_width  (item),
++                                 gimp_item_get_height (item),
++                                 &x, &y, &width, &height) == GIMP_AUTO_SHRINK_SHRINK)
++    {
++      rect->x     += x;
++      rect->y     += y;
++      rect->width  = width;
++      rect->height = height;
++    }
++
++  gimp_item_get_offset (item, &off_x, &off_y);
++
++  rect->x += off_x;
++  rect->y += off_y;
++}
++
++static void
++gimp_properties_editor_align_clicked (GtkWidget            *button,
++                                      GimpPropertiesEditor *editor)
++{
++  GimpImage         *image = GIMP_IMAGE_EDITOR (editor)->image;
++  GimpAlignmentType  type;
++  GList             *layers;
++  GList             *list;
++  GList             *movable = NULL;
++  GeglRectangle      reference;
++
++  if (! image)
++    return;
++
++  type   = GPOINTER_TO_INT (g_object_get_data (G_OBJECT (button), "gimphoto-align"));
++  layers = gimp_image_get_selected_layers (image);
++
++  for (list = layers; list; list = g_list_next (list))
++    {
++      GList *other;
++
++      if (gimp_item_is_position_locked (list->data, NULL))
++        continue;
++
++      /*  a layer inside a selected group moves with the group, not twice  */
++      for (other = layers; other; other = g_list_next (other))
++        if (other != list &&
++            gimp_viewable_is_ancestor (other->data, list->data))
++          break;
++
++      if (! other)
++        movable = g_list_prepend (movable, list->data);
++    }
++
++  movable = g_list_reverse (movable);
++
++  if (! movable)
++    return;
++
++  if (type == GIMP_DISTRIBUTE_EVEN_HORIZONTAL_GAP ||
++      type == GIMP_DISTRIBUTE_EVEN_VERTICAL_GAP)
++    {
++      /*  GIMP's own distribution: the outer layers stay, the gaps between
++       *  all of them become equal
++       */
++      gimp_image_arrange_objects (image, movable, 0.0, 0.0, NULL, type, TRUE);
++      gimp_image_flush (image);
++      g_list_free (movable);
++      return;
++    }
++
++  /*  one layer: to the canvas; several: to the box around them all  */
++  if (! movable->next)
++    {
++      reference = *GEGL_RECTANGLE (0, 0,
++                                   gimp_image_get_width  (image),
++                                   gimp_image_get_height (image));
++    }
++  else
++    {
++      gimp_properties_editor_content_bounds (movable->data, &reference);
++
++      for (list = movable->next; list; list = g_list_next (list))
++        {
++          GeglRectangle rect;
++
++          gimp_properties_editor_content_bounds (list->data, &rect);
++          gegl_rectangle_bounding_box (&reference, &reference, &rect);
++        }
++    }
++
++  gimp_image_undo_group_start (image, GIMP_UNDO_GROUP_ITEM_DISPLACE,
++                               C_("undo-type", "Align Layers"));
++
++  for (list = movable; list; list = g_list_next (list))
++    {
++      GeglRectangle rect;
++      gdouble       dx = 0.0;
++      gdouble       dy = 0.0;
++
++      gimp_properties_editor_content_bounds (list->data, &rect);
++
++      switch (type)
++        {
++        case GIMP_ALIGN_LEFT:
++          dx = reference.x - rect.x;
++          break;
++        case GIMP_ALIGN_HCENTER:
++          dx = RINT (reference.x + reference.width / 2.0 -
++                     (rect.x + rect.width / 2.0));
++          break;
++        case GIMP_ALIGN_RIGHT:
++          dx = (reference.x + reference.width) - (rect.x + rect.width);
++          break;
++        case GIMP_ALIGN_TOP:
++          dy = reference.y - rect.y;
++          break;
++        case GIMP_ALIGN_VCENTER:
++          dy = RINT (reference.y + reference.height / 2.0 -
++                     (rect.y + rect.height / 2.0));
++          break;
++        case GIMP_ALIGN_BOTTOM:
++          dy = (reference.y + reference.height) - (rect.y + rect.height);
++          break;
++        default:
++          break;
++        }
++
++      if (dx != 0.0 || dy != 0.0)
++        gimp_item_translate (list->data, dx, dy, TRUE);
++    }
++
++  gimp_image_undo_group_end (image);
++  gimp_image_flush (image);
++
++  g_list_free (movable);
++}
++
++static GimpAction *
++gimp_properties_editor_quick_action (const gchar *procedure)
++{
++  GList *managers = gimp_ui_managers_from_name ("<Image>");
++
++  if (! managers)
++    return NULL;
++
++  return gimp_ui_manager_find_action (managers->data, "plug-in", procedure);
++}
++
++static void
++gimp_properties_editor_quick_clicked (GtkWidget            *button,
++                                      GimpPropertiesEditor *editor)
++{
++  GimpAction *action;
++
++  action = gimp_properties_editor_quick_action (g_object_get_data (G_OBJECT (button),
++                                                                   "gimphoto-procedure"));
++
++  if (action && gimp_action_is_sensitive (action, NULL))
++    gimp_action_activate (action);
++}
++
++
++/*  public functions  */
++
++GtkWidget *
++gimp_properties_editor_new (GimpMenuFactory *menu_factory)
++{
++  g_return_val_if_fail (GIMP_IS_MENU_FACTORY (menu_factory), NULL);
++
++  return g_object_new (GIMP_TYPE_PROPERTIES_EDITOR,
++                       "menu-factory", menu_factory,
++                       NULL);
++}
+diff --git a/app/widgets/gimppropertieseditor.h b/app/widgets/gimppropertieseditor.h
+new file mode 100644
+index 0000000000..08a44ae94a
+--- /dev/null
++++ b/app/widgets/gimppropertieseditor.h
+@@ -0,0 +1,56 @@
++/* GIMP - The GNU Image Manipulation Program
++ * Copyright (C) 1995 Spencer Kimball and Peter Mattis
++ *
++ * gimppropertieseditor.h
++ * Copyright (C) 2026 GIMPhoto contributors
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 3 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
++ */
++
++#pragma once
++
++#include "gimpimageeditor.h"
++
++
++#define GIMP_TYPE_PROPERTIES_EDITOR            (gimp_properties_editor_get_type ())
++#define GIMP_PROPERTIES_EDITOR(obj)            (G_TYPE_CHECK_INSTANCE_CAST ((obj), GIMP_TYPE_PROPERTIES_EDITOR, GimpPropertiesEditor))
++#define GIMP_PROPERTIES_EDITOR_CLASS(klass)    (G_TYPE_CHECK_CLASS_CAST ((klass), GIMP_TYPE_PROPERTIES_EDITOR, GimpPropertiesEditorClass))
++#define GIMP_IS_PROPERTIES_EDITOR(obj)         (G_TYPE_CHECK_INSTANCE_TYPE ((obj), GIMP_TYPE_PROPERTIES_EDITOR))
++#define GIMP_IS_PROPERTIES_EDITOR_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((klass), GIMP_TYPE_PROPERTIES_EDITOR))
++#define GIMP_PROPERTIES_EDITOR_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS ((obj), GIMP_TYPE_PROPERTIES_EDITOR, GimpPropertiesEditorClass))
++
++
++typedef struct _GimpPropertiesEditorPrivate  GimpPropertiesEditorPrivate;
++typedef struct _GimpPropertiesEditorClass    GimpPropertiesEditorClass;
++
++/*  GIMPhoto: Photoshop's Properties panel. The selected layer's kind, its
++ *  Transform (size, position, rotation, flips), Align and Distribute for the
++ *  selected layers, and Quick Actions run by GIMPhoto's plug-ins.
++ */
++struct _GimpPropertiesEditor
++{
++  GimpImageEditor              parent_instance;
++
++  GimpPropertiesEditorPrivate *p;
++};
++
++struct _GimpPropertiesEditorClass
++{
++  GimpImageEditorClass  parent_class;
++};
++
++
++GType       gimp_properties_editor_get_type (void);
++
++GtkWidget * gimp_properties_editor_new      (GimpMenuFactory *menu_factory);
+diff --git a/app/widgets/meson.build b/app/widgets/meson.build
+index b038b1a7e2..c943e5fb14 100644
+--- a/app/widgets/meson.build
++++ b/app/widgets/meson.build
+@@ -218,6 +218,7 @@ libappwidgets_sources = [
+   'gimpstringaction.c',
+   'gimpstrokeeditor.c',
+   'gimpsymmetryeditor.c',
++  'gimppropertieseditor.c',
+   'gimptagentry.c',
+   'gimptagpopup.c',
+   'gimptemplateeditor.c',
+diff --git a/app/widgets/widgets-types.h b/app/widgets/widgets-types.h
+index e59fb997be..b48f825bcb 100644
+--- a/app/widgets/widgets-types.h
++++ b/app/widgets/widgets-types.h
+@@ -78,6 +78,7 @@ typedef struct _GimpImageEditor              GimpImageEditor;
+ typedef struct _GimpSamplePointEditor        GimpSamplePointEditor;
+ typedef struct _GimpSelectionEditor          GimpSelectionEditor;
+ typedef struct _GimpSymmetryEditor           GimpSymmetryEditor;
++typedef struct _GimpPropertiesEditor         GimpPropertiesEditor;
+ typedef struct _GimpUndoEditor               GimpUndoEditor;
+ 
+ 
+diff --git a/menus/dialogs-menuitems.ui.in b/menus/dialogs-menuitems.ui.in
+index d9e6131d7f..9cbbfc8d46 100644
+--- a/menus/dialogs-menuitems.ui.in
++++ b/menus/dialogs-menuitems.ui.in
+@@ -1,6 +1,7 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ 
+ <section>
++  <item><attribute name="action">@GROUP@.dialogs-properties</attribute></item>
+   <item><attribute name="action">@GROUP@.dialogs-tool-options</attribute></item>
+   <item><attribute name="action">@GROUP@.dialogs-device-status</attribute></item>
+   <section>

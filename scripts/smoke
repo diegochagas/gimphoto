@@ -24,6 +24,7 @@
 #   - the local ComfyUI (the `comfyui` user service, when this machine has
 #     it) is left alone by runs without a user interface, and the sandbox
 #     may talk to the user's systemd to start and stop it with GIMPhoto;
+#   - GIMPhoto's Properties panel is compiled in and in the default layout;
 #   - GIMPhoto's shape tools are compiled in (drawing with it needs the GUI);
 #   - it ships GIMPhoto's Photoshop-style toolbox, layout and settings over
 #     GIMP's system ones, a new profile gets them, and GIMPhoto's splash
@@ -173,6 +174,13 @@ if flatpak info --user --show-permissions "$app" 2>/dev/null | grep -q 'org.free
     fi
 else
     echo "FAIL the sandbox cannot talk to org.freedesktop.systemd1 (finish-args)" >&2
+    status=1
+fi
+if flatpak run --command=sh "$app" -c 'grep -q gimp-properties-editor /app/bin/gimp-3.*' 2>/dev/null &&
+    grep -q '(dockable "gimp-properties-editor"' defaults/sessionrc; then
+    echo "ok   Properties panel compiled in and in the default layout"
+else
+    echo "FAIL the Properties panel (gimp-properties-editor) is not in GIMP or not in defaults/sessionrc" >&2
     status=1
 fi
 if flatpak run --command=sh "$app" -c 'grep -q gimp-shape-rectangle-tool /app/bin/gimp-3.*' 2>/dev/null; then
