@@ -20,8 +20,9 @@ What changes against Flathub's recipe, and nothing else:
   - one module after GIMP installs GIMPhoto's own plug-ins (plugins/<name>/)
     as system plug-ins, so the features that need them work out of the box;
   - one builds GIMPhoto's own GEGL operations (gegl/<name>.c, e.g.
-    gimphoto:gradient-overlay) against the GEGL just built, into GEGL's
-    plug-in folder;
+    gimphoto:gradient-overlay, and GEGL's own paint-select.cc, which
+    Flathub's GEGL leaves out with the rest of its workshop) against the
+    GEGL just built, into GEGL's plug-in folder;
   - one more installs GIMPhoto's default settings: defaults/shortcutsrc
     (made by tools/make_keymap.py) into GIMP's data folder, under gimphoto/;
     defaults/sessionrc and toolrc over GIMP's system ones, and
@@ -129,22 +130,30 @@ def plugins_module(names):
     }
 
 
-def gegl_op_names():
-    """GEGL operation sources in gegl/: one shared module per <name>.c."""
+def gegl_ops():
+    """GEGL operation sources in gegl/: one shared module per <name>.c, or
+    <name>.cc for C++ (GEGL's own paint-select)."""
     if not GEGL_OPS.is_dir():
         return []
-    return sorted(p.stem for p in GEGL_OPS.glob("*.c"))
+    return sorted(p.name for p in GEGL_OPS.iterdir() if p.suffix in (".c", ".cc"))
 
 
-def gegl_ops_module(names):
-    """flatpak-builder module compiling gegl/<name>.c into GEGL's plug-in
-    folder, where GIMP's GEGL loads them (-I.: gegl-op.h includes the source
-    by name)."""
+def gegl_ops_module(files):
+    """flatpak-builder module compiling gegl/<name>.c (or .cc) into GEGL's
+    plug-in folder, where GIMP's GEGL loads them (-I.: gegl-op.h includes the
+    source by name). C++ sources are GEGL's own and link maxflow, the graph
+    cut library Flathub's recipe builds for GEGL."""
     flags = "-shared -fPIC -O2 -Wall -I. -DGETTEXT_PACKAGE='\"gimphoto\"'"
-    commands = [
-        f"cc {flags} $(pkg-config --cflags gegl-0.4) -o {name}.so {name}.c $(pkg-config --libs gegl-0.4) -lm"
-        for name in names
-    ]
+    # GEGL's own sources include its config.h; ours need nothing from it
+    commands = ["touch config.h"]
+    names = []
+    for file in files:
+        name, ext = file.rsplit(".", 1)
+        names.append(name)
+        compiler, pkgs = ("c++", "gegl-0.4 maxflow") if ext == "cc" else ("cc", "gegl-0.4")
+        commands.append(
+            f"{compiler} {flags} $(pkg-config --cflags {pkgs}) -o {name}.so {file} $(pkg-config --libs {pkgs}) -lm"
+        )
     commands.append("install -Dm 755 -t ${FLATPAK_DEST}/lib/gegl-0.4 " + " ".join(f"{n}.so" for n in names))
     return {
         "name": "gimphoto-gegl-ops",
@@ -339,7 +348,7 @@ def render():
         read_series(),
         plugin_names(),
         DEFAULTS.is_dir(),
-        gegl_op_names(),
+        gegl_ops(),
         BRANDING.is_dir(),
         ICONS.is_dir(),
         theme_names(),

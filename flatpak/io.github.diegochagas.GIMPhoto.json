@@ -890,7 +890,8 @@
                         "../patches/0008-Properties-panel-Transform-Align-and-Distribute-Quic.patch",
                         "../patches/0009-Default-layout-updates-reach-existing-profiles.patch",
                         "../patches/0010-Docks-drop-a-dockable-between-two-dock-books.patch",
-                        "../patches/0011-Object-Selection-tool-drag-a-box-around-an-object-to.patch"
+                        "../patches/0011-Object-Selection-tool-drag-a-box-around-an-object-to.patch",
+                        "../patches/0012-Quick-Selection-GIMP-s-Paint-Select-in-the-toolbox-a.patch"
                     ]
                 }
             ],
@@ -988,9 +989,11 @@
                 }
             ],
             "build-commands": [
+                "touch config.h",
                 "cc -shared -fPIC -O2 -Wall -I. -DGETTEXT_PACKAGE='\"gimphoto\"' $(pkg-config --cflags gegl-0.4) -o gradient-overlay.so gradient-overlay.c $(pkg-config --libs gegl-0.4) -lm",
+                "c++ -shared -fPIC -O2 -Wall -I. -DGETTEXT_PACKAGE='\"gimphoto\"' $(pkg-config --cflags gegl-0.4 maxflow) -o paint-select.so paint-select.cc $(pkg-config --libs gegl-0.4 maxflow) -lm",
                 "cc -shared -fPIC -O2 -Wall -I. -DGETTEXT_PACKAGE='\"gimphoto\"' $(pkg-config --cflags gegl-0.4) -o pattern-overlay.so pattern-overlay.c $(pkg-config --libs gegl-0.4) -lm",
-                "install -Dm 755 -t ${FLATPAK_DEST}/lib/gegl-0.4 gradient-overlay.so pattern-overlay.so"
+                "install -Dm 755 -t ${FLATPAK_DEST}/lib/gegl-0.4 gradient-overlay.so paint-select.so pattern-overlay.so"
             ]
         },
         {
