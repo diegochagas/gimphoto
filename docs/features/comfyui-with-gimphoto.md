@@ -76,3 +76,6 @@ comes from the service (`--port` of its command, 8188 by default).
 - The AI tools that use it come with their own issues (#30–#34): this
   feature only runs ComfyUI and records what it found for them.
 - The service name is fixed (`comfyui`), as linux-mint-setup installs it.
+- `GIMPHOTO_COMFYUI=off` in GIMPhoto's environment (`flatpak run
+  --env=GIMPHOTO_COMFYUI=off …`) leaves ComfyUI alone even with a user
+  interface, as `scripts/smoke` does for its GUI runs.

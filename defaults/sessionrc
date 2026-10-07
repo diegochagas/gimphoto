@@ -10,6 +10,14 @@
 # starts maximized; tabs show their names, as Photoshop's panel tabs (from
 # gimp-setup's Photoshop theme). GIMP reads this file from /app/etc/gimp/3.0 when the
 # profile has no sessionrc of its own, and saves yours there on exit.
+#
+# Layout version: raise it with every change to this file. A profile whose
+# saved layout is from an older version gets this one at the next start, its
+# own moved aside to sessionrc-before-layout-<version> (GIMPhoto's patch
+# "Default layout updates reach existing profiles"; tests/test_defaults.py
+# checks the version moves with the file).
+#
+# gimphoto-layout-version 1
 
 (session-info "toplevel"
     (factory-entry "gimp-empty-image-window")

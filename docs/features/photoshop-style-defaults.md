@@ -28,9 +28,18 @@ Nothing to set up: a new GIMPhoto profile starts this way. Change anything
 as in GIMP (Edit > Preferences, Windows, the toolbox's own settings): GIMP
 saves your changes in your profile, and those win.
 
-Profiles that already exist keep their own layout and settings. To start
-over with GIMPhoto's, close GIMPhoto and move `sessionrc`, `toolrc` and
-`gimprc` out of `~/.var/app/io.github.diegochagas.GIMPhoto/config/GIMPhoto/`.
+**The default layout is always the current one**, for profiles that
+already exist too ([#48](https://github.com/diegochagas/gimphoto/issues/48)).
+`defaults/sessionrc` has a layout version (`# gimphoto-layout-version N`),
+raised with every change to it. When a GIMPhoto update ships a newer
+version, the next start moves the profile's saved layout aside, to
+`sessionrc-before-layout-N` in the profile, and opens with the new default.
+Your own layout changes are kept until the next layout version.
+
+Your settings and toolbox are yours: profiles that already exist keep
+their `toolrc` and `gimprc`. To start those over with GIMPhoto's, close
+GIMPhoto and move them out of
+`~/.var/app/io.github.diegochagas.GIMPhoto/config/GIMPhoto/`.
 
 ## What came from PhotoGIMP
 
@@ -48,9 +57,13 @@ From PhotoGIMP 3.0 (commit eca3a8f), credited in each file:
 
 ## What changed
 
-No change to GIMP's code: GIMP already reads `toolrc`, `sessionrc` and
-`gimprc` from its system folder (`/app/etc/gimp/3.0/`) when the profile
-has none of its own. The manifest's `gimphoto-defaults` module installs
+GIMP already reads `toolrc`, `sessionrc` and `gimprc` from its system
+folder (`/app/etc/gimp/3.0/`) when the profile has none of its own.
+`patches/0009-…` (`app/gui/session.c`) adds the layout version check
+before the layout is read: when the profile's `gimphoto-layout-version`
+file holds an older version than `defaults/sessionrc`, the profile's
+`sessionrc` is moved aside, and the new version is recorded. Without the
+version line (plain GIMP's sessionrc) nothing changes. The manifest's `gimphoto-defaults` module installs
 `defaults/toolrc` and `defaults/sessionrc` there over GIMP's, and appends
 `defaults/gimprc` to GIMP's system gimprc.
 
@@ -67,9 +80,15 @@ has none of its own. The manifest's `gimphoto-defaults` module installs
   profile still win, as in GIMP) and the icon as `gimp`, which Flathub's
   recipe then renames to the app ID for the launcher.
 
-**Tests:** `scripts/smoke` checks the installed `toolrc` and `sessionrc` are
-`defaults/`'s, that a new profile gets the `gimprc` settings, and that the
-splash and launcher icon are `branding/`'s.
+**Tests:**
+- `scripts/smoke` checks that the installed `toolrc` and `sessionrc` are
+  `defaults/`'s, that a new profile gets the `gimprc` settings, and that
+  the splash and launcher icon are `branding/`'s.
+- It also starts GIMPhoto with a profile holding an older saved layout:
+  that layout is moved aside and the version recorded. A profile already
+  on the current version keeps its layout.
+- `tests/test_defaults.py` fails when `defaults/sessionrc` changes without
+  a new layout version.
 
 ## Limits
 
