@@ -1,7 +1,7 @@
 # Properties panel
 
 **Issue:** [#38](https://github.com/diegochagas/gimphoto/issues/38) ·
-**Patch:** [`patches/0008-…`](../../patches/0008-Properties-panel-Transform-Align-and-Distribute-Quic.patch) ·
+**Patches:** [`patches/0008-…`](../../patches/0008-Properties-panel-Transform-Align-and-Distribute-Quic.patch), [`patches/0010-…`](../../patches/0010-Docks-drop-a-dockable-between-two-dock-books.patch) (docking between groups) ·
 **Layout:** [`defaults/sessionrc`](../../defaults/sessionrc)
 
 Photoshop's **Properties** panel, docked above Layers, shows what the selected
@@ -16,7 +16,10 @@ gradients) and Layers / Channels / Paths
 ![GIMPhoto at 1920×1080: Tool Options on top, Properties in the middle, Layers at the bottom of the right-hand column](../images/properties-three-panels.png)
 
 This is only the default: drag the Properties tab into another group (or
-anywhere else) and GIMPhoto keeps it there.
+anywhere else) and GIMPhoto keeps it there. To put it back in the middle,
+drag its tab to the boundary between Tool Options and Layers: a blue line
+shows where it lands, and it becomes a group of its own again (drag its
+divider to size it).
 
 ## Before and after
 
@@ -81,8 +84,15 @@ Dialogs › Properties* opens it in a profile with another layout.
   (*Windows › Dockable Dialogs › Properties*), `widgets-types.h`,
   `meson.build`.
 
-**Defaults:** `defaults/sessionrc` puts the panel first in the top-right
-dock.
+**Defaults:** `defaults/sessionrc` gives the panel its own group between
+Tool Options and Layers (layout version 2).
+
+**Docks** (`patches/0010-…`, `app/widgets/gimppanedbox.c`): GIMP accepted a
+dropped panel as a new group only at the top or bottom edge of a dock
+column, and could only add a group first or last. Each boundary between
+two groups is now a drop area too (same size and blue line as the edges),
+and a group dropped there is inserted in the middle, so a middle group
+can be made again after it was emptied.
 
 **Tests:** `scripts/smoke` checks that the panel is compiled in and is in the
 default layout. Using it needs the GUI: it was checked on the built app
