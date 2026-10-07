@@ -1,11 +1,12 @@
-# The local ComfyUI's HTTP API, for GIMPhoto's AI plug-ins (Select Subject
-# now; Remove Background, Generative Fill... later). Plain Python, no GIMP:
-# the plug-ins pass what GIMPhoto found (the gimphoto-comfyui parasite of
-# comfyui-service.py), and tests/test_comfyui_api.py drives it with a fake
-# server.
+# The local ComfyUI's HTTP API, for GIMPhoto's AI plug-ins (Select Subject,
+# Object Selection and Remove Background now; Generative Fill... later).
+# Plain Python, no GIMP: the plug-ins pass what GIMPhoto found (the
+# gimphoto-comfyui parasite of comfyui-service.py), and
+# tests/test_comfyui_api.py drives it with a fake server.
 #
 # ComfyUI and its nodes are installed by linux-mint-setup's ComfyUI steps:
-# BiRefNet (model set "birefnet") and its nodes, for the main subject;
+# BiRefNet (model set "birefnet") and its nodes, for the main subject
+# (Select Subject, Remove Background);
 # SAM 2.1 (model set "sam"), the SAM 2 nodes and its BBoxFromJSON node, for
 # selecting the object in a box.
 

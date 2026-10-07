@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 #
-# GIMPhoto's AI selections (Select Subject and the Object Selection tool).
+# GIMPhoto's AI selections (Select Subject, the Object Selection tool and
+# Remove Background).
 #
 # Select Subject (AI): Photoshop's Select > Subject. The main subject of the
 # image becomes the selection, in one click, with a local model: BiRefNet
@@ -16,10 +17,15 @@
 # dragged and the tool's selection mode; SAM 2.1 finds the object in the
 # box, on the area around it at full detail.
 #
-# What the model sees is the visible image (all layers), as Photoshop's
-# "Sample All Layers". ComfyUI is found and started by GIMPhoto's
-# comfyui-service plug-in (its gimphoto-comfyui parasite); the HTTP API is
-# in comfyui_api.py next to it. Without ComfyUI, a message says where to
+# Remove Background (gimphoto-remove-background): Photoshop's Properties
+# Quick Action. The selected layer's subject, found by the same BiRefNet
+# model in that layer's own pixels, becomes its layer mask, not applied, as
+# in Photoshop: the background is hidden, not deleted. One undo step.
+#
+# For the selections, what the model sees is the visible image (all
+# layers), as Photoshop's "Sample All Layers". ComfyUI is found and started
+# by GIMPhoto's comfyui-service plug-in (its gimphoto-comfyui parasite); the
+# HTTP API is in comfyui_api.py next to it. Without ComfyUI, a message says where to
 # install it (linux-mint-setup).
 #
 # This program is free software: you can redistribute it and/or modify
@@ -36,7 +42,7 @@ import tempfile
 import gi
 
 gi.require_version("Gimp", "3.0")
-from gi.repository import Gimp, Gio, GLib, GObject
+from gi.repository import Gegl, Gimp, Gio, GLib, GObject
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "comfyui-service"))
 import comfyui_api as api
@@ -44,6 +50,7 @@ import comfyui_service as service
 
 SUBJECT_PROC = "gimphoto-select-subject"
 OBJECT_PROC = "gimphoto-object-select"
+REMOVE_BG_PROC = "gimphoto-remove-background"
 # Context around the box, as a share of its larger side (at least
 # MARGIN_MIN px): SAM needs to see where the object ends
 MARGIN_SHARE = 0.25
@@ -189,6 +196,99 @@ def select_subject(image, operation):
     Gimp.displays_flush()
 
 
+def layer_png(layer, path):
+    """The layer's own pixels (transparent parts on white), at most MAX_SIDE
+    px, as a PNG."""
+    w, h = layer.get_width(), layer.get_height()
+    tmp = Gimp.Image.new(w, h, Gimp.ImageBaseType.RGB)
+    try:
+        copy = Gimp.Layer.new_from_drawable(layer, tmp)
+        tmp.insert_layer(copy, None, 0)
+        copy.set_offsets(0, 0)
+        if copy.get_mask():
+            copy.remove_mask(Gimp.MaskApplyMode.DISCARD)
+        tmp.flatten()
+        scale = min(1.0, MAX_SIDE / float(max(w, h)))
+        if scale < 1.0:
+            tmp.scale(max(1, round(w * scale)), max(1, round(h * scale)))
+        Gimp.file_save(Gimp.RunMode.NONINTERACTIVE, tmp, Gio.File.new_for_path(path), None)
+    finally:
+        tmp.delete()
+
+
+def set_layer_mask(image, layer, mask_path):
+    """The mask PNG, scaled to the layer, becomes the layer's mask (an
+    existing one is replaced). Its pixels are written into the new mask
+    before it is added: a mask made from a selection would stop at the
+    canvas (a layer can be larger), and copy/paste would change the
+    clipboard."""
+    w, h = layer.get_width(), layer.get_height()
+    # loaded in its own image: in the person's (maybe indexed) image the
+    # matte's greys would be turned into palette colours
+    matte_image = Gimp.file_load(Gimp.RunMode.NONINTERACTIVE, Gio.File.new_for_path(mask_path))
+    try:
+        if (matte_image.get_width(), matte_image.get_height()) != (w, h):
+            matte_image.scale(w, h)
+        matte = matte_image.get_layers()[0]
+        mask = layer.create_mask(Gimp.AddMaskType.WHITE)
+        rect = Gegl.Rectangle.new(0, 0, w, h)
+        target = mask.get_buffer()
+        matte.get_buffer().copy(rect, Gegl.AbyssPolicy.NONE, target, rect)
+        target.flush()
+    finally:
+        matte_image.delete()
+    if layer.get_mask():
+        layer.remove_mask(Gimp.MaskApplyMode.DISCARD)
+    if not layer.has_alpha():
+        layer.add_alpha()
+    layer.add_mask(mask)
+    layer.set_show_mask(False)
+    layer.set_edit_mask(False)
+
+
+def remove_background(image, layer):
+    """The subject of the layer becomes its layer mask (not applied); an
+    existing mask is replaced. One undo step."""
+    url = ready_backend("Remove Background")
+
+    def working(elapsed):
+        Gimp.progress_set_text("Finding the subject (BiRefNet)... %d s, the first run loads the model" % elapsed)
+        Gimp.progress_pulse()
+
+    tmp = tempfile.mkdtemp(prefix="gimphoto-removebg-")
+    Gimp.progress_init("Remove Background")
+    try:
+        png = os.path.join(tmp, "layer.png")
+        layer_png(layer, png)
+        with open(png, "rb") as f:
+            mask_png = api.subject(url, f.read(), progress=working)
+        mask_path = os.path.join(tmp, "mask.png")
+        with open(mask_path, "wb") as f:
+            f.write(mask_png)
+        image.undo_group_start()
+        try:
+            set_layer_mask(image, layer, mask_path)
+        finally:
+            image.undo_group_end()
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+        Gimp.progress_end()
+    Gimp.displays_flush()
+
+
+def run_remove_background(procedure, run_mode, image, drawables, config, data):
+    layers = [d for d in drawables if isinstance(d, Gimp.Layer)]
+    if len(drawables) != 1 or len(layers) != 1:
+        return procedure.new_return_values(
+            Gimp.PDBStatusType.CALLING_ERROR, GLib.Error("Remove Background works on one layer: select only one.")
+        )
+    try:
+        remove_background(image, layers[0])
+    except Exception as e:
+        return procedure.new_return_values(Gimp.PDBStatusType.EXECUTION_ERROR, GLib.Error(str(e)))
+    return procedure.new_return_values(Gimp.PDBStatusType.SUCCESS, GLib.Error())
+
+
 def object_region(image, box):
     """The box with the context SAM needs around it, inside the image."""
     x, y, width, height = box
@@ -259,11 +359,13 @@ class AiSelect(Gimp.PlugIn):
         return False
 
     def do_query_procedures(self):
-        return [SUBJECT_PROC, OBJECT_PROC]
+        return [SUBJECT_PROC, OBJECT_PROC, REMOVE_BG_PROC]
 
     def do_create_procedure(self, name):
         if name == OBJECT_PROC:
             return self.object_procedure(name)
+        if name == REMOVE_BG_PROC:
+            return self.remove_background_procedure(name)
         procedure = Gimp.ImageProcedure.new(self, name, Gimp.PDBProcType.PLUGIN, run, None)
         procedure.set_image_types("*")
         procedure.set_sensitivity_mask(
@@ -281,6 +383,23 @@ class AiSelect(Gimp.PlugIn):
         )
         procedure.set_attribution("GIMPhoto", "GIMPhoto contributors", "2026")
         procedure.add_menu_path("<Image>/Select")
+        return procedure
+
+    def remove_background_procedure(self, name):
+        """Layer > Remove Background, and the Properties panel's Quick Action."""
+        procedure = Gimp.ImageProcedure.new(self, name, Gimp.PDBProcType.PLUGIN, run_remove_background, None)
+        procedure.set_image_types("*")
+        procedure.set_sensitivity_mask(Gimp.ProcedureSensitivityMask.DRAWABLE)
+        procedure.set_menu_label("Remove Bac_kground")
+        procedure.set_documentation(
+            "Hide the background of the layer (AI)",
+            "Like Photoshop's Remove Background: the subject of the selected layer "
+            "becomes its layer mask (BiRefNet on the local ComfyUI), not applied, so "
+            "nothing is deleted. An existing layer mask is replaced.",
+            name,
+        )
+        procedure.set_attribution("GIMPhoto", "GIMPhoto contributors", "2026")
+        procedure.add_menu_path("<Image>/Layer")
         return procedure
 
     def object_procedure(self, name):
