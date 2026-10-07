@@ -1,5 +1,5 @@
 # Run by scripts/smoke inside the installed GIMPhoto (python-fu-eval):
-# Select Subject without the local AI. GIMPhoto recorded ComfyUI as missing
+# Select Subject and Object Selection without the local AI. GIMPhoto recorded ComfyUI as missing
 # (the gimphoto-comfyui parasite comfyui-service.py writes), so the command
 # fails at once with a message saying where to install it, and leaves the
 # selection alone. No ComfyUI is called: tests never use outside services.
@@ -19,23 +19,32 @@ def check():
     # not called
     data = json.dumps({"state": "missing", "url": "http://127.0.0.1:9"}).encode()
     Gimp.attach_parasite(Gimp.Parasite.new("gimphoto-comfyui", 0, list(data)))
-    proc = Gimp.get_pdb().lookup_procedure("gimphoto-select-subject")
-    if proc is None:
-        return "gimphoto-select-subject is not registered"
-    config = proc.create_config()
-    config.set_property("run-mode", Gimp.RunMode.NONINTERACTIVE)
-    config.set_property("image", img)
-    config.set_core_object_array("drawables", [layer])
-    result = proc.run(config)
-    if result.index(0) == Gimp.PDBStatusType.SUCCESS:
-        return "Select Subject succeeded without the local AI"
-    message = result.index(1) if result.length() > 1 else ""
-    message = getattr(message, "message", str(message))
-    if "linux-mint-setup" not in message:
-        return f"the error does not say where to install the local AI: {message!r}"
-    _ok, non_empty, x1, y1, x2, y2 = Gimp.Selection.bounds(img)
-    if (non_empty, x1, y1, x2, y2) != (True, 8, 8, 24, 24):
-        return "the selection changed although Select Subject failed"
+    for name, args in (
+        ("gimphoto-select-subject", {"drawables": [layer]}),
+        # what the Object Selection tool sends: a box and add (0)
+        ("gimphoto-object-select", {"operation": 0, "x": 30, "y": 30, "width": 20, "height": 20}),
+    ):
+        proc = Gimp.get_pdb().lookup_procedure(name)
+        if proc is None:
+            return f"{name} is not registered"
+        config = proc.create_config()
+        config.set_property("run-mode", Gimp.RunMode.NONINTERACTIVE)
+        config.set_property("image", img)
+        for key, value in args.items():
+            if key == "drawables":
+                config.set_core_object_array(key, value)
+            else:
+                config.set_property(key, value)
+        result = proc.run(config)
+        if result.index(0) == Gimp.PDBStatusType.SUCCESS:
+            return f"{name} succeeded without the local AI"
+        message = result.index(1) if result.length() > 1 else ""
+        message = getattr(message, "message", str(message))
+        if "linux-mint-setup" not in message:
+            return f"{name}: the error does not say where to install the local AI: {message!r}"
+        _ok, non_empty, x1, y1, x2, y2 = Gimp.Selection.bounds(img)
+        if (non_empty, x1, y1, x2, y2) != (True, 8, 8, 24, 24):
+            return f"the selection changed although {name} failed"
     return "ok"
 
 

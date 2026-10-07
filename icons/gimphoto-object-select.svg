@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- GIMPhoto's Object Selection tool icon: a dashed box around an object (GPL-3.0, github.com/diegochagas/gimphoto) -->
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- filled shapes only: GTK fills every shape of a symbolic icon, so a stroked outline becomes a solid square;
+       and this note stays inside <svg>: gdk-pixbuf looks for "<svg" near the start of the file -->
+  <g fill="#eeeeec">
+    <rect x="1" y="1" width="3" height="1"/><rect x="1" y="2" width="1" height="2"/>
+    <rect x="12" y="1" width="3" height="1"/><rect x="14" y="2" width="1" height="2"/>
+    <rect x="1" y="14" width="3" height="1"/><rect x="1" y="12" width="1" height="2"/>
+    <rect x="12" y="14" width="3" height="1"/><rect x="14" y="12" width="1" height="2"/>
+    <rect x="7" y="1" width="2" height="1"/><rect x="7" y="14" width="2" height="1"/>
+    <rect x="1" y="7" width="1" height="2"/><rect x="14" y="7" width="1" height="2"/>
+    <circle cx="8" cy="9" r="3"/><rect x="7" y="4" width="2" height="2" rx="0.5"/>
+  </g>
+</svg>

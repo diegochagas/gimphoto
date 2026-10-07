@@ -114,6 +114,18 @@ class TransformTest(unittest.TestCase):
             if not name.endswith("-symbolic.svg"):
                 self.assertIn(name.replace(".svg", "-symbolic.svg"), names)
 
+    def test_every_icon_is_recognised_as_svg(self):
+        # shared-mime-info looks for "<svg" in the first 256 bytes only:
+        # past them, GTK cannot load the icon and GIMP shows Wilber instead
+        for path in make_manifest.ICONS.glob("*.svg"):
+            self.assertIn("<svg", path.read_bytes()[:256].decode(errors="replace"), path.name)
+
+    def test_symbolic_icons_have_no_strokes(self):
+        # GTK fills every shape of a symbolic icon: a stroked outline
+        # (fill="none") becomes a solid shape
+        for path in make_manifest.ICONS.glob("*-symbolic.svg"):
+            self.assertNotIn("stroke", path.read_text().split("-->")[-1], path.name)
+
     def test_branding_and_default_files_exist(self):
         for name in make_manifest.SYSCONF_FILES + ["gimprc"]:
             self.assertTrue((make_manifest.DEFAULTS / name).is_file(), name)
