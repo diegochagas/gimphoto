@@ -14,6 +14,7 @@ Each folder is one plug-in; GIMP runs the file named after the folder
 | `layer-style/` | The Layers panel's **fx** button ([docs](../docs/features/layer-style-fx-button.md)); also *Layer > Layer Style* | gimp-setup's [Layer Style](https://github.com/diegochagas/gimp-setup/blob/main/docs/LAYER_STYLE.md) plug-in |
 | `layer-via/` | Layer via Copy / Cut on Ctrl+J / Ctrl+Shift+J ([docs](../docs/features/layer-via-copy-cut.md)) | GIMPhoto |
 | `psd-text/` | PSD with editable text and Layer Styles, open and export ([docs](../docs/features/psd-editable-text.md)) | gimp-setup's [PSD with editable text](https://github.com/diegochagas/gimp-setup/blob/main/docs/PSD_TEXT.md) |
+| `ai-select/` | Select Subject (AI), *Select › Subject* and the Properties panel's Quick Action ([docs](../docs/features/select-subject.md)) | GIMPhoto (BiRefNet; gimp-setup's AI Object Selection used SAM) |
 | `comfyui-service/` | Starts the local ComfyUI with GIMPhoto and stops it on quit ([docs](../docs/features/comfyui-with-gimphoto.md)) | GIMPhoto (gimp-setup's `gimp-with-comfyui` launcher does the same for GIMP) |
 | `smart-objects/` | Smart Objects in *Layer > Smart Object* and the Layers panel's right-click menu ([docs](../docs/features/smart-objects.md)) | gimp-setup's Smart Objects plug-in |
 

@@ -24,6 +24,8 @@
 #   - the local ComfyUI (the `comfyui` user service, when this machine has
 #     it) is left alone by runs without a user interface, and the sandbox
 #     may talk to the user's systemd to start and stop it with GIMPhoto;
+#   - Select Subject (AI), without the local AI, says where to install it
+#     and leaves the selection alone (no ComfyUI is called);
 #   - GIMPhoto's Properties panel is compiled in and in the default layout;
 #   - a profile with a layout saved before GIMPhoto's current default gets
 #     the default at the next start, its own moved aside (needs the GUI);
@@ -39,7 +41,7 @@ cd "$(dirname "$0")/.."
 
 app="io.github.diegochagas.GIMPhoto"
 # one procedure per shipped plug-in that a feature depends on
-procedures=(layer-style-dialog layer-style-drop-shadow gimphoto-layer-via-copy gimphoto-layer-via-cut file-psd-text-load file-psd-text-export smart-object-convert smart-object-edit smart-object-replace gimphoto-comfyui-service)
+procedures=(layer-style-dialog layer-style-drop-shadow gimphoto-layer-via-copy gimphoto-layer-via-cut file-psd-text-load file-psd-text-export smart-object-convert smart-object-edit smart-object-replace gimphoto-comfyui-service gimphoto-select-subject)
 want="$(python3 tools/upstream_info.py gimp-version)"
 report="$(mktemp /tmp/gimphoto-smoke.XXXXXX)"
 trap 'rm -f "$report"' EXIT
@@ -176,6 +178,18 @@ if flatpak info --user --show-permissions "$app" 2>/dev/null | grep -q 'org.free
     fi
 else
     echo "FAIL the sandbox cannot talk to org.freedesktop.systemd1 (finish-args)" >&2
+    status=1
+fi
+# Select Subject (AI) without the local AI: a clear message, no change
+subject_report="$(mktemp /tmp/gimphoto-smoke.XXXXXX)"
+flatpak run --env=GIMPHOTO_SMOKE_OUT="$subject_report" "$app" -i --batch-interpreter=python-fu-eval \
+    -b "exec(open('$PWD/tests/smoke_select_subject.py').read())" --quit >/dev/null 2>&1 || true
+subject_result="$(cat "$subject_report")"
+rm -f "$subject_report"
+if [[ "$subject_result" == ok ]]; then
+    echo "ok   Select Subject without the local AI says where to install it, selection unchanged"
+else
+    echo "FAIL Select Subject without the local AI: ${subject_result:-did not run}" >&2
     status=1
 fi
 if flatpak run --command=sh "$app" -c 'grep -q gimp-properties-editor /app/bin/gimp-3.*' 2>/dev/null &&
