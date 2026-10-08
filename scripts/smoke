@@ -17,6 +17,8 @@
 #     Style exported to PSD is a Photoshop Type layer with its effects, and
 #     opens again as an editable text layer with its Layer Style;
 #   - Layer via Copy / Cut (Ctrl+J / Ctrl+Shift+J) work on a selection;
+#   - Merge Layers (Ctrl+E): several selected layers into one, one layer
+#     down, a group, layers inside a group;
 #   - Smart Objects: layers become one link layer showing an XCF next to the
 #     image, scaled down and back up it stays sharp, a PSD keeps it as a
 #     Photoshop smart object (upright and rotated) and opens it as one
@@ -50,7 +52,7 @@ cd "$(dirname "$0")/.."
 
 app="io.github.diegochagas.GIMPhoto"
 # one procedure per shipped plug-in that a feature depends on
-procedures=(layer-style-dialog layer-style-drop-shadow gimphoto-layer-via-copy gimphoto-layer-via-cut file-psd-text-load file-psd-text-export smart-object-convert smart-object-edit smart-object-replace gimphoto-comfyui-service gimphoto-select-subject gimphoto-object-select gimphoto-remove-background gimphoto-generative-fill gimphoto-generate-image gimphoto-generative-edit gimphoto-remove gimphoto-photo-restoration gimphoto-modern-photo)
+procedures=(layer-style-dialog layer-style-drop-shadow gimphoto-layer-via-copy gimphoto-layer-via-cut gimphoto-merge-layers file-psd-text-load file-psd-text-export smart-object-convert smart-object-edit smart-object-replace gimphoto-comfyui-service gimphoto-select-subject gimphoto-object-select gimphoto-remove-background gimphoto-generative-fill gimphoto-generate-image gimphoto-generative-edit gimphoto-remove gimphoto-photo-restoration gimphoto-modern-photo)
 want="$(python3 tools/upstream_info.py gimp-version)"
 report="$(mktemp /tmp/gimphoto-smoke.XXXXXX)"
 trap 'rm -f "$report"' EXIT
@@ -219,6 +221,18 @@ if [[ "$generative_result" == ok ]]; then
     echo "ok   a Generative Fill layer keeps its variations in the XCF and can be changed again"
 else
     echo "FAIL Generative Fill layer: ${generative_result:-did not run}" >&2
+    status=1
+fi
+# Merge Layers (Ctrl+E): several layers, one layer, a group, inside a group
+merge_report="$(mktemp /tmp/gimphoto-smoke.XXXXXX)"
+flatpak run --env=GIMPHOTO_SMOKE_OUT="$merge_report" "$app" -i --batch-interpreter=python-fu-eval \
+    -b "exec(open('$PWD/tests/smoke_merge_layers.py').read())" --quit >/dev/null 2>&1 || true
+merge_result="$(cat "$merge_report")"
+rm -f "$merge_report"
+if [[ "$merge_result" == ok ]]; then
+    echo "ok   Merge Layers: several layers into one (top's name), one layer down, a group, inside a group"
+else
+    echo "FAIL Merge Layers: ${merge_result:-did not run}" >&2
     status=1
 fi
 # Modern Photo's black-and-white check on GIMP images (no AI called)

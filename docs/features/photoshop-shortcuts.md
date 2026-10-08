@@ -6,7 +6,8 @@
 
 GIMPhoto starts with Photoshop's keyboard shortcuts: **Ctrl+D** deselects
 (in GIMP it duplicates the whole image into a new tab), **Ctrl+J** /
-**Ctrl+Shift+J** make a layer via copy / cut ([Layer via Copy / Cut](layer-via-copy-cut.md)), **Ctrl+T** transforms, **V** is the Move tool,
+**Ctrl+Shift+J** make a layer via copy / cut ([Layer via Copy / Cut](layer-via-copy-cut.md)), **Ctrl+E** /
+**Ctrl+Shift+E** merge layers / merge visible ([Merge Layers](merge-layers.md)), **Ctrl+T** transforms, **V** is the Move tool,
 **B** the brush, **Ctrl+L / M / U** open Levels, Curves and Hue-Saturation,
 and so on. Menus show the new shortcuts next to their entries, as GIMP's
 own did.
@@ -95,8 +96,8 @@ own GIMP shortcut too, unless Photoshop uses that key for something else.
 | Layer > New > Layer via Copy (Ctrl+J; no selection: duplicate the layer) | Ctrl+J | `gimphoto-layer-via-copy` | – |
 | Layer > New > Layer via Cut (Ctrl+Shift+J) | Ctrl+Shift+J | `gimphoto-layer-via-cut` | – |
 | Layer > Group Layers (Ctrl+G) | Ctrl+G | `layers-new-group` | – |
-| Layer > Merge Down (Ctrl+E) | Ctrl+E | `layers-merge-down` | – |
-| Layer > Merge Visible (Ctrl+Shift+E) | Ctrl+Shift+E | `image-merge-layers` | Ctrl+M |
+| Layer > Merge Layers (Ctrl+E; one layer: Merge Down; a group: Merge Group) | Ctrl+E | `gimphoto-merge-layers` | – |
+| Layer > Merge Visible (Ctrl+Shift+E, no dialog) | Ctrl+Shift+E | `layers-merge-layers-last-values` | – |
 | Stamp Visible (Ctrl+Alt+Shift+E) | Ctrl+Alt+Shift+E | `layers-new-from-visible` | – |
 | Layer > Arrange > Bring Forward (Ctrl+]) | Ctrl+] | `layers-raise` | – |
 | Layer > Arrange > Send Backward (Ctrl+[) | Ctrl+[ | `layers-lower` | – |
@@ -128,8 +129,8 @@ The ones a GIMP user will notice:
 | Key | GIMP | GIMPhoto |
 |---|---|---|
 | Ctrl+D | Image > Duplicate (a new tab) | Select > None |
-| Ctrl+E | File > Export | Layer > Merge Down (Export: Ctrl+Alt+Shift+S) |
-| Ctrl+Shift+E | File > Export As | Image > Merge Visible Layers (Export As: Ctrl+Alt+Shift+W) |
+| Ctrl+E | File > Export | Layer > Merge Layers: the selected layers into one; one layer: Merge Down ([Merge Layers](merge-layers.md); Export: Ctrl+Alt+Shift+S) |
+| Ctrl+Shift+E | File > Export As | Merge Visible Layers at once, no dialog ([Merge Layers](merge-layers.md); Export As: Ctrl+Alt+Shift+W) |
 | Ctrl+I | Select > Invert | Colors > Invert (Select > Invert: Ctrl+Shift+I) |
 | Ctrl+M | Image > Merge Visible Layers | Colors > Curves |
 | Ctrl+L | Layers dialog | Colors > Levels (Layers dialog: F7) |
