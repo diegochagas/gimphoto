@@ -38,6 +38,8 @@
 #     stroke to the edges of what it is painted on, and GIMP's Paint Select
 #     is compiled in as Quick Selection (painting with it needs the GUI);
 #   - GIMPhoto's Properties panel is compiled in and in the default layout;
+#   - adjustment layers are compiled in and an XCF with one applies its
+#     adjustment to the layer below, through its mask, also after a save;
 #   - a profile saved before a default shortcut moved (Ctrl+E to Merge
 #     Layers) gets the move once, keeping its own shortcuts;
 #   - a profile with a layout saved before GIMPhoto's current default gets
@@ -247,6 +249,21 @@ if [[ "$modern_result" == ok ]]; then
     echo "ok   Modern Photo tells black and white (Grayscale mode, sepia) from colour photos"
 else
     echo "FAIL Modern Photo's black-and-white check: ${modern_result:-did not run}" >&2
+    status=1
+fi
+# Adjustment layers: compiled in, and an XCF with one applies its Invert to
+# the layer below through its mask, also after saving and reopening
+adjustment_report="$(mktemp /tmp/gimphoto-smoke.XXXXXX)"
+flatpak run --filesystem="$PWD/tests:ro" --env=GIMPHOTO_SMOKE_OUT="$adjustment_report" \
+    --env=GIMPHOTO_ADJUSTMENT_XCF="$PWD/tests/fixtures/adjustment-layer.xcf" "$app" -i --batch-interpreter=python-fu-eval \
+    -b "exec(open('$PWD/tests/smoke_adjustment_layer.py').read())" --quit >/dev/null 2>&1 || true
+adjustment_result="$(cat "$adjustment_report")"
+rm -f "$adjustment_report"
+if [[ "$adjustment_result" == ok ]] &&
+    flatpak run --command=sh "$app" -c 'grep -q "New Adjustment Layer" /app/bin/gimp-3.*' 2>/dev/null; then
+    echo "ok   adjustment layers: compiled in; an Invert adjustment layer applies to the layer below through its mask, also after an XCF save"
+else
+    echo "FAIL adjustment layers: ${adjustment_result:-the actions are not in GIMP}" >&2
     status=1
 fi
 if flatpak run --command=sh "$app" -c 'grep -q gimp-remove-tool /app/bin/gimp-3.*' 2>/dev/null; then

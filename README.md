@@ -46,6 +46,7 @@ screenshots of each feature are on its page.
 | **Remove tool** (AI, J group): brush over an object and it disappears, the background filled in; brushing most of an object removes all of it (SAM 2.1 finds it); LaMa on the local ComfyUI, about a second | Remove tool | core patch + plug-in + local AI | [remove-tool.md](docs/features/remove-tool.md) |
 | **Photo Restoration** (AI): repairs a scanned print's blotches, stains, scratches and specks with a local model, as a new layer masked to the repaired damage; *Filters › Neural Filters* | Filters › Neural Filters › Photo Restoration | plug-in + local AI + bundled numpy/scipy/Pillow | [photo-restoration.md](docs/features/photo-restoration.md) |
 | **Modern Photo** (AI): an old photo redrawn by a local model as if taken today with a modern phone camera (sharp, clean, true colours; black and white comes back in colour), as a new layer above it | Filters › Neural Filters › Modern Photo | plug-in + local AI | [modern-photo.md](docs/features/modern-photo.md) |
+| **Adjustment layers**: *Layer › New Adjustment Layer › Curves, Levels, Hue-Saturation…* adds a layer with no pixels whose adjustment applies to everything below it, with its own mask (from the selection), opacity and blend mode; double-click to change it; kept in the XCF | Layer › New Adjustment Layer | core patch + icon | [adjustment-layers.md](docs/features/adjustment-layers.md) |
 
 Apart from these, GIMPhoto is plain GIMP, with its own user profile.
 
