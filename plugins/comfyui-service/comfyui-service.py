@@ -5,7 +5,7 @@
 # holds. Only if GIMPhoto started it: a ComfyUI already running (started by
 # hand, by a script or by GIMP's own launcher) keeps running.
 #
-# ComfyUI is the `comfyui` systemd user service that linux-mint-setup's
+# ComfyUI is the `comfyui` systemd user service that local-ai-setup's
 # ComfyUI steps install; GIMPhoto never installs it. Without that service
 # GIMPhoto starts alone, and the global parasite "gimphoto-comfyui" says so to
 # the AI tools.
@@ -89,7 +89,7 @@ class ComfyuiService(Gimp.PlugIn):
         procedure = Gimp.Procedure.new(self, name, Gimp.PDBProcType.PERSISTENT, self.run, None)
         procedure.set_documentation(
             "Start the local ComfyUI with GIMPhoto and stop it when GIMPhoto closes",
-            "Starts the comfyui systemd user service (installed by linux-mint-setup) "
+            "Starts the comfyui systemd user service (installed by local-ai-setup) "
             "when GIMPhoto opens, if it is not running, and stops it when GIMPhoto "
             "quits, if GIMPhoto started it.",
             name,

@@ -41,7 +41,7 @@ sees is the visible picture (all layers), as Photoshop's "Sample All
 Layers".
 
 **Needs** the local AI: ComfyUI with the `birefnet` model set, installed by
-[linux-mint-setup's ComfyUI steps](https://github.com/diegochagas/linux-mint-setup#local-ai-image-models-comfyui).
+[local-ai-setup](https://github.com/diegochagas/local-ai-setup).
 GIMPhoto starts and stops it ([ComfyUI with GIMPhoto](comfyui-with-gimphoto.md)).
 Without it, Select Subject says so and where to install it, and the
 selection is left alone.
@@ -59,7 +59,7 @@ selection is left alone.
   HTTP API (upload, run a graph, wait for the image), the BiRefNet graph,
   and the SAM 2.1 graph for Object Selection (#32). It is plain Python, so
   `tests/test_comfyui_api.py` tests it against a fake ComfyUI.
-- **In ComfyUI** (linux-mint-setup): the BiRefNet nodes
+- **In ComfyUI** (local-ai-setup): the BiRefNet nodes
   (`LoadRembgByBiRefNetModel`, `GetMaskByBiRefNet`, MIT) and the BiRefNet
   general model (MIT, ~450 MB). The mask is soft: no threshold.
 - **Why not SAM:** SAM 2.1 needs a prompt. Given the whole picture as its
@@ -70,7 +70,7 @@ selection is left alone.
 - `tests/test_comfyui_api.py` (no network): the graph sent, the upload, the
   wait for a booting ComfyUI, missing nodes and failed runs explained.
 - `scripts/smoke`: the procedure is registered; with ComfyUI recorded as
-  missing, Select Subject fails with a message naming linux-mint-setup and
+  missing, Select Subject fails with a message naming local-ai-setup and
   leaves the selection alone. Tests never call the real ComfyUI.
 - On the built app, with the real ComfyUI: the screenshots above.
 

@@ -25,7 +25,7 @@
 # on the local ComfyUI, through gimp-setup's ComfyUI client vendored in
 # plugins/comfyui-service/comfyui_client.py. GIMPhoto's comfyui-service
 # plug-in starts ComfyUI with GIMPhoto (its gimphoto-comfyui parasite says
-# where); without it, a message says where to install it (linux-mint-setup).
+# where); without it, a message says where to install it (local-ai-setup).
 #
 # Run non-interactively (scripts), each procedure makes one variation with
 # the given prompt and model and applies it.

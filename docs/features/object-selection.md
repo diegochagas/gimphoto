@@ -44,7 +44,7 @@ sees is the visible picture (all layers), as Photoshop's "Sample All
 Layers".
 
 **Needs** the local AI: ComfyUI with the `sam` model set, installed by
-[linux-mint-setup's ComfyUI steps](https://github.com/diegochagas/linux-mint-setup#local-ai-image-models-comfyui).
+[local-ai-setup](https://github.com/diegochagas/local-ai-setup).
 GIMPhoto starts and stops it ([ComfyUI with GIMPhoto](comfyui-with-gimphoto.md)).
 Without it, the tool says so and where to install it, and the selection is
 left alone.
@@ -70,7 +70,7 @@ menu entry):
 3. SAM 2.1 returns the mask of the object in the box, which becomes the
    selection in the chosen mode, in one undo group.
 
-The ComfyUI graph (SAM 2.1 with linux-mint-setup's `BBoxFromJSON` node) is
+The ComfyUI graph (SAM 2.1 with local-ai-setup's `BBoxFromJSON` node) is
 in the shared client `plugins/comfyui-service/comfyui_api.py`.
 
 **Icons:** `icons/gimphoto-object-select.svg` (and `-symbolic`): a dashed
@@ -89,7 +89,7 @@ symbolic icon).
   box; missing nodes and failed runs explained.
 - `scripts/smoke`: the tool is compiled in and the procedure registered;
   with ComfyUI recorded as missing, the procedure fails with a message
-  naming linux-mint-setup and leaves the selection alone. Tests never call
+  naming local-ai-setup and leaves the selection alone. Tests never call
   the real ComfyUI.
 - On the built app, with the real ComfyUI: the screenshots above (replace,
   Shift to add, replace again), and Ctrl taking the mug back out of the

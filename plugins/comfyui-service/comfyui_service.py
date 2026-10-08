@@ -1,5 +1,5 @@
 # The local ComfyUI behind GIMPhoto's AI tools: found, started and stopped
-# through its systemd user service (`comfyui`, installed by linux-mint-setup's
+# through its systemd user service (`comfyui`, installed by local-ai-setup's
 # steps/comfyui), over the session bus. GIMPhoto never installs it.
 #
 # The decisions are plain functions (no GIMP, no D-Bus) so the unit tests in
@@ -52,5 +52,5 @@ def describe(load_state, active_state, started, port):
     state "missing" (not installed), "started" (by GIMPhoto, booting or up)
     or "running" (started by someone else, left running on quit)."""
     if load_state != "loaded":
-        return {"state": "missing", "install": "linux-mint-setup's ComfyUI steps (steps/comfyui)"}
+        return {"state": "missing", "install": "local-ai-setup (github.com/diegochagas/local-ai-setup)"}
     return {"state": "started" if started else "running", "url": url_for(port), "active": active_state}

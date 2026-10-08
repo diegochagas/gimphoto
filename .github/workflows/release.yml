@@ -1,0 +1,44 @@
+# Release: a tag vX.Y.Z-N (GIMP's version, then GIMPhoto's release number for
+# it) builds the Flatpak bundle and publishes it as GIMPhoto.flatpak on a
+# GitHub release for the tag. linux-mint-setup installs the latest one.
+name: release
+on:
+  push:
+    # vX.Y.Z-N only, e.g. v3.2.6-1
+    tags: ["v[0-9]+.[0-9]+.[0-9]+-[0-9]+"]
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - run: sudo apt-get update && sudo apt-get install -y shellcheck shfmt
+      - run: pipx install ruff
+      - run: GIMPHOTO_CHECK_PATCHES=1 scripts/check
+
+  build:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-51
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          manifest-path: flatpak/io.github.diegochagas.GIMPhoto.json
+          bundle: GIMPhoto.flatpak
+          cache-key: gimphoto-${{ hashFiles('flatpak/**', 'patches/**') }}
+          upload-artifact: false
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: GIMPhoto.flatpak
+          generate_release_notes: true

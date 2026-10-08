@@ -53,7 +53,7 @@ position and size.
 
 **Needs** the local AI: ComfyUI with the `lama` model set (and `sam` for
 finding objects), installed by
-[linux-mint-setup's ComfyUI steps](https://github.com/diegochagas/linux-mint-setup#local-ai-image-models-comfyui).
+[local-ai-setup](https://github.com/diegochagas/local-ai-setup).
 GIMPhoto starts and stops it ([ComfyUI with GIMPhoto](comfyui-with-gimphoto.md)).
 Without it, the tool says so and where to install it, and the layer is
 left alone.
@@ -87,7 +87,7 @@ left alone.
   4. the result, masked, is merged down into the layer, in one undo group.
      A plug-in's GEGL has no operations loaded, so the compositing is done
      with GIMP's own layer operations.
-- **linux-mint-setup:** the `lama` model set (Big-LaMa, Apache-2.0, about
+- **local-ai-setup:** the `lama` model set (Big-LaMa, Apache-2.0, about
   200 MB) and the comfyui-inpaint-nodes (GPL-3.0, pinned).
 
 **Why LaMa:** on a ball on a beach and a backpack on a lawn, LaMa (about
@@ -97,11 +97,11 @@ where a banana had been.
 
 **Tests:**
 - `tests/test_comfyui_api.py`: the LaMa graph (image, mask through
-  `ImageToMask`, `big-lama.pt`), and the message naming linux-mint-setup
+  `ImageToMask`, `big-lama.pt`), and the message naming local-ai-setup
   when its nodes are missing.
 - `scripts/smoke`: the tool is compiled in and the procedure is
   registered. With ComfyUI recorded as missing, it fails with a message
-  naming linux-mint-setup and leaves the layer alone.
+  naming local-ai-setup and leaves the layer alone.
 - On the built app, with the real ComfyUI: the screenshots above, Enter
   and Escape without *Remove after each stroke*, **[** / **]**, and one
   Ctrl+Z undoing a removal.

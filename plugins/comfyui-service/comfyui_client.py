@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Vendored from gimp-setup (github.com/diegochagas/gimp-setup,
-# assets/plug-ins/comfyui/comfyui_client.py at a453c5c), MIT License,
+# assets/plug-ins/comfyui/comfyui_client.py at a4fc462), MIT License,
 # Copyright (c) 2026. Unchanged: GIMPhoto's Generative Fill and
 # Generate Image use its tuned FLUX.2 klein / Qwen-Image-Edit graphs; the
 # address is passed in (GIMPhoto's gimphoto-comfyui parasite), so its own
@@ -59,7 +59,7 @@ import urllib.request
 import uuid
 
 DEFAULT_URL = "http://127.0.0.1:8188"   # ComfyUI's default listen address
-SERVICE = "comfyui"     # systemd user unit written by linux-mint-setup (steps/comfyui)
+SERVICE = "comfyui"     # systemd user unit written by local-ai-setup
 
 MODELS = {
     "klein": "FLUX.2 klein",
@@ -230,7 +230,7 @@ def get_url(configured=None):
 
 
 def start_command():
-    """Shell command that starts the ComfyUI service linux-mint-setup
+    """Shell command that starts the ComfyUI service local-ai-setup
     installs (steps/comfyui); COMFYUI_SERVICE names another systemd unit."""
     unit = os.environ.get("COMFYUI_SERVICE", "").strip() or SERVICE
     return "systemctl --user start %s" % unit
@@ -1107,7 +1107,7 @@ def generate(prompt, width=1024, height=1024, url=None, progress=None,
 
 
 # SAM 2.1 (Segment Anything) through ComfyUI-segment-anything-2, for the
-# Object Selection tool; linux-mint-setup (steps/comfyui) installs the node
+# Object Selection tool; local-ai-setup installs the node
 # and the model (set "sam"), features/comfyui-nodes.sh gimp-setup's own
 # GimpSetupBBox node.
 SAM_MODEL = "sam2.1_hiera_large.safetensors"
@@ -1123,13 +1123,12 @@ def _require_nodes(url, *nodes):
             info = {}
         if node not in info:
             # gimp-setup's own node comes from its features/comfyui-nodes.sh;
-            # ComfyUI and every other node from linux-mint-setup's ComfyUI
-            # steps (steps/comfyui)
+            # ComfyUI and every other node from local-ai-setup
             if node == "GimpSetupBBox":
                 where = "Re-run gimp-setup's ./setup.sh (it adds this node)"
             else:
-                where = ("Re-run linux-mint-setup's ComfyUI steps "
-                         "(steps/comfyui install it)")
+                where = ("Re-run local-ai-setup "
+                         "(github.com/diegochagas/local-ai-setup installs it)")
             raise ComfyUIError(
                 "ComfyUI has no %s node. %s, then restart ComfyUI (close "
                 "and reopen GIMP)." % (node, where))

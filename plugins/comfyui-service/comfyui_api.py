@@ -4,7 +4,7 @@
 # gimphoto-comfyui parasite of comfyui-service.py), and
 # tests/test_comfyui_api.py drives it with a fake server.
 #
-# ComfyUI and its nodes are installed by linux-mint-setup's ComfyUI steps:
+# ComfyUI and its nodes are installed by local-ai-setup:
 # BiRefNet (model set "birefnet") and its nodes, for the main subject
 # (Select Subject, Remove Background);
 # SAM 2.1 (model set "sam"), the SAM 2 nodes and its BBoxFromJSON node, for
@@ -20,7 +20,7 @@ import uuid
 
 SAM_MODEL = "sam2.1_hiera_large.safetensors"
 SUBJECT_MODEL = "General.safetensors"
-INSTALL_HINT = "linux-mint-setup's ComfyUI steps (steps/comfyui)"
+INSTALL_HINT = "local-ai-setup (github.com/diegochagas/local-ai-setup)"
 # a ComfyUI that GIMPhoto has just started takes ~20 s to answer
 STARTUP_WAIT = 120
 TIMEOUT = 600

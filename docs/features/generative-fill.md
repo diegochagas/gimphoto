@@ -101,7 +101,7 @@ then scaled to the canvas.
 
 **Needs** the local AI: ComfyUI with the `qwen` and `klein` model sets,
 installed by
-[linux-mint-setup's ComfyUI steps](https://github.com/diegochagas/linux-mint-setup#local-ai-image-models-comfyui).
+[local-ai-setup](https://github.com/diegochagas/local-ai-setup).
 GIMPhoto starts and stops it ([ComfyUI with GIMPhoto](comfyui-with-gimphoto.md)).
 Without it, the window says so and where to install it, and nothing is
 added.
@@ -149,7 +149,7 @@ added.
   changing the variation replaces the layer (same name, masked); no AI is
   called. Without the base64 it fails on the first PNG byte above 127.
 - `scripts/smoke`: the three procedures are registered. With ComfyUI recorded
-  as missing, they fail with a message naming linux-mint-setup, add no
+  as missing, they fail with a message naming local-ai-setup, add no
   layer and leave the selection alone. Tests never call the real ComfyUI.
 - On the built app, with the real ComfyUI:
   - the screenshots above;

@@ -11,7 +11,7 @@ memory and many GB of RAM while it runs, so it should run only while
 GIMPhoto is open.
 
 GIMPhoto **does not install ComfyUI**.
-[linux-mint-setup's ComfyUI steps](https://github.com/diegochagas/linux-mint-setup#local-ai-image-models-comfyui)
+[local-ai-setup](https://github.com/diegochagas/local-ai-setup)
 install it, with its models, as the `comfyui` systemd user service (not
 started at boot). GIMPhoto starts and stops that service:
 
@@ -22,7 +22,7 @@ started at boot). GIMPhoto starts and stops that service:
 | ComfyUI started by hand, a script or GIMP's launcher | — | left running when GIMPhoto closes |
 | No `comfyui` service | — | GIMPhoto starts alone, and records ComfyUI as missing (with where to install it) for the AI tools |
 
-In use (the `comfyui` service of linux-mint-setup, on a test machine):
+In use (the `comfyui` service of local-ai-setup, on a test machine):
 
 ```text
 $ systemctl --user is-active comfyui
@@ -79,7 +79,7 @@ comes from the service (`--port` of its command, 8188 by default).
   [Remove Background](remove-background.md) and
   [Generative Fill and Generate Image](generative-fill.md) and the
   [Remove tool](remove-tool.md) and [Photo Restoration](photo-restoration.md).
-- The service name is fixed (`comfyui`), as linux-mint-setup installs it.
+- The service name is fixed (`comfyui`), as local-ai-setup installs it.
 - `GIMPHOTO_COMFYUI=off` in GIMPhoto's environment (`flatpak run
   --env=GIMPHOTO_COMFYUI=off …`) leaves ComfyUI alone even with a user
   interface, as `scripts/smoke` does for its GUI runs.
