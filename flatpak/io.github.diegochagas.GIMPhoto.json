@@ -896,7 +896,8 @@
                         "../patches/0014-Remove-tool-paint-over-an-object-to-remove-it-AI.patch",
                         "../patches/0015-Default-shortcut-updates-reach-existing-profiles.patch",
                         "../patches/0016-Adjustment-layers-Layer-New-Adjustment-Layer-applied.patch",
-                        "../patches/0017-Clipping-masks-Create-Release-Clipping-Mask-Alt-clic.patch"
+                        "../patches/0017-Clipping-masks-Create-Release-Clipping-Mask-Alt-clic.patch",
+                        "../patches/0018-Fill-layers-Layer-New-Fill-Layer-submenu-Layer-Conte.patch"
                     ]
                 }
             ],
@@ -930,6 +931,9 @@
                 "install -d ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/comfyui-service",
                 "find comfyui-service -maxdepth 1 -type f -exec install -m 644 -t ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/comfyui-service {} +",
                 "chmod 755 ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/comfyui-service/comfyui-service.py",
+                "install -d ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/fill-layers",
+                "find fill-layers -maxdepth 1 -type f -exec install -m 644 -t ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/fill-layers {} +",
+                "chmod 755 ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/fill-layers/fill-layers.py",
                 "install -d ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/generative-fill",
                 "find generative-fill -maxdepth 1 -type f -exec install -m 644 -t ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/generative-fill {} +",
                 "chmod 755 ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/generative-fill/generative-fill.py",
