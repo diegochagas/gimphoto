@@ -4,7 +4,8 @@
 name: release
 on:
   push:
-    tags: ["v*"]
+    # vX.Y.Z-N only, e.g. v3.2.6-1
+    tags: ["v[0-9]+.[0-9]+.[0-9]+-[0-9]+"]
 
 permissions:
   contents: write
