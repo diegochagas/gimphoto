@@ -25,12 +25,13 @@
 #     it) is left alone by runs without a user interface, and the sandbox
 #     may talk to the user's systemd to start and stop it with GIMPhoto;
 #   - Select Subject, Object Selection, Remove Background, Generative Fill,
-#     Generate Image, the Remove tool and Photo Restoration (AI), without
-#     the local AI, say where to install it and leave the selection and the
-#     layers alone (no ComfyUI is called); the Object Selection and Remove
-#     tools are compiled in; a Generative Fill layer keeps its variations
+#     Generate Image, the Remove tool, Photo Restoration and Modern Photo
+#     (AI), without the local AI, say where to install it and leave the
+#     selection and the layers alone (no ComfyUI is called); the Object
+#     Selection and Remove tools are compiled in; a Generative Fill layer keeps its variations
 #     through an XCF save and can be changed again; Photo Restoration's
 #     damage mask runs on the numpy, scipy and Pillow shipped in the app;
+#     Modern Photo tells black and white photos from colour ones;
 #   - Quick Selection: GEGL's paint-select, built by GIMPhoto, grows a
 #     stroke to the edges of what it is painted on, and GIMP's Paint Select
 #     is compiled in as Quick Selection (painting with it needs the GUI);
@@ -49,7 +50,7 @@ cd "$(dirname "$0")/.."
 
 app="io.github.diegochagas.GIMPhoto"
 # one procedure per shipped plug-in that a feature depends on
-procedures=(layer-style-dialog layer-style-drop-shadow gimphoto-layer-via-copy gimphoto-layer-via-cut file-psd-text-load file-psd-text-export smart-object-convert smart-object-edit smart-object-replace gimphoto-comfyui-service gimphoto-select-subject gimphoto-object-select gimphoto-remove-background gimphoto-generative-fill gimphoto-generate-image gimphoto-generative-edit gimphoto-remove gimphoto-photo-restoration)
+procedures=(layer-style-dialog layer-style-drop-shadow gimphoto-layer-via-copy gimphoto-layer-via-cut file-psd-text-load file-psd-text-export smart-object-convert smart-object-edit smart-object-replace gimphoto-comfyui-service gimphoto-select-subject gimphoto-object-select gimphoto-remove-background gimphoto-generative-fill gimphoto-generate-image gimphoto-generative-edit gimphoto-remove gimphoto-photo-restoration gimphoto-modern-photo)
 want="$(python3 tools/upstream_info.py gimp-version)"
 report="$(mktemp /tmp/gimphoto-smoke.XXXXXX)"
 trap 'rm -f "$report"' EXIT
@@ -195,7 +196,7 @@ flatpak run --env=GIMPHOTO_SMOKE_OUT="$subject_report" "$app" -i --batch-interpr
 subject_result="$(cat "$subject_report")"
 rm -f "$subject_report"
 if [[ "$subject_result" == ok ]]; then
-    echo "ok   AI commands (Select Subject, Object Selection, Remove Background, Generative Fill, Generate Image, Remove tool, Photo Restoration) without the local AI say where to install it, nothing changed"
+    echo "ok   AI commands (Select Subject, Object Selection, Remove Background, Generative Fill, Generate Image, Remove tool, Photo Restoration, Modern Photo) without the local AI say where to install it, nothing changed"
 else
     echo "FAIL AI selections without the local AI: ${subject_result:-did not run}" >&2
     status=1
@@ -218,6 +219,18 @@ if [[ "$generative_result" == ok ]]; then
     echo "ok   a Generative Fill layer keeps its variations in the XCF and can be changed again"
 else
     echo "FAIL Generative Fill layer: ${generative_result:-did not run}" >&2
+    status=1
+fi
+# Modern Photo's black-and-white check on GIMP images (no AI called)
+modern_report="$(mktemp /tmp/gimphoto-smoke.XXXXXX)"
+flatpak run --env=GIMPHOTO_SMOKE_OUT="$modern_report" "$app" -i --batch-interpreter=python-fu-eval \
+    -b "exec(open('$PWD/tests/smoke_modern_photo.py').read())" --quit >/dev/null 2>&1 || true
+modern_result="$(cat "$modern_report")"
+rm -f "$modern_report"
+if [[ "$modern_result" == ok ]]; then
+    echo "ok   Modern Photo tells black and white (Grayscale mode, sepia) from colour photos"
+else
+    echo "FAIL Modern Photo's black-and-white check: ${modern_result:-did not run}" >&2
     status=1
 fi
 if flatpak run --command=sh "$app" -c 'grep -q gimp-remove-tool /app/bin/gimp-3.*' 2>/dev/null; then

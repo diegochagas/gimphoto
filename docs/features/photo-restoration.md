@@ -115,5 +115,5 @@ image is left alone.
 - The patches where blotches were can be a little flat, or a different
   tone.
 - RGB images only.
-- Photoshop's other Neural Filters are not there; this is the only entry
-  in the submenu.
+- Of Photoshop's other Neural Filters, only GIMPhoto's own
+  [Modern Photo](modern-photo.md) is in the submenu.
