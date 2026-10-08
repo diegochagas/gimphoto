@@ -47,7 +47,7 @@ From PhotoGIMP 3.0 (commit eca3a8f), credited in each file:
 
 | PhotoGIMP file | In GIMPhoto | Changes |
 |---|---|---|
-| `toolrc`: toolbox order and groups like Photoshop's | `defaults/toolrc` | GIMPhoto's [shape tools](shape-tool.md) grouped after Text; its [Object Selection](object-selection.md) and [Quick Selection](quick-selection.md) tools first in the W group |
+| `toolrc`: toolbox order and groups like Photoshop's | `defaults/toolrc` | GIMPhoto's [shape tools](shape-tool.md) grouped after Text; its [Object Selection](object-selection.md) and [Quick Selection](quick-selection.md) tools first in the W group; the [Remove tool](remove-tool.md) next to Healing in the J group |
 | `sessionrc`: one window, toolbox on the left; on the right three stacked groups as Photoshop's: Tool Options (+ fonts, brushes, patterns, gradients), GIMPhoto's [Properties panel](properties-panel.md), and Layers, Channels and Paths | `defaults/sessionrc` | on GIMP 3.2's own sessionrc; without its window and dialog positions and sizes (made for one monitor); Paths is GIMP 3.2's `gimp-path-list` (PhotoGIMP's `gimp-vectors-list` no longer exists); the window starts maximized |
 | `gimprc`: layer previews extra large, thumbnails large, undo previews medium, 8 undo levels, alpha channel on imported images, dark canvas padding, no layer boundary, snap to canvas, toolbox brush/pattern/gradient area | `defaults/gimprc` | without its monitor resolution, the padding colour's embedded monitor profile, the image view opening fullscreen, and its fill and stroke options; the padding is Photoshop's `#282828` with the [Photoshop theme](photoshop-theme.md) |
 | `shortcutsrc` | — | GIMPhoto has its own Photoshop keymap ([#8](photoshop-shortcuts.md)) |

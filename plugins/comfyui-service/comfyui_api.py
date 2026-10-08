@@ -8,7 +8,8 @@
 # BiRefNet (model set "birefnet") and its nodes, for the main subject
 # (Select Subject, Remove Background);
 # SAM 2.1 (model set "sam"), the SAM 2 nodes and its BBoxFromJSON node, for
-# selecting the object in a box.
+# selecting the object in a box; Big-LaMa (model set "lama") and
+# comfyui-inpaint-nodes, for the Remove tool.
 
 import json
 import time
@@ -205,3 +206,30 @@ def subject(url, image_png, progress=None):
     require_nodes(url, "LoadRembgByBiRefNetModel", "GetMaskByBiRefNet")
     name = upload_png(url, "subject.png", image_png)
     return run(url, subject_graph(name), progress)
+
+
+LAMA_MODEL = "big-lama.pt"
+
+
+def remove_graph(image_name, mask_name):
+    """LaMa (comfyui-inpaint-nodes): the white of the mask filled in from
+    around it, the rest of the image unchanged."""
+    return {
+        "img": {"class_type": "LoadImage", "inputs": {"image": image_name}},
+        "mask_img": {"class_type": "LoadImage", "inputs": {"image": mask_name}},
+        "mask": {"class_type": "ImageToMask", "inputs": {"image": ["mask_img", 0], "channel": "red"}},
+        "lama": {"class_type": "INPAINT_LoadInpaintModel", "inputs": {"model_name": LAMA_MODEL}},
+        "fill": {
+            "class_type": "INPAINT_InpaintWithModel",
+            "inputs": {"inpaint_model": ["lama", 0], "image": ["img", 0], "mask": ["mask", 0], "seed": 0},
+        },
+        "out": {"class_type": "PreviewImage", "inputs": {"images": ["fill", 0]}},
+    }
+
+
+def remove(url, image_png, mask_png, progress=None):
+    """PNG of the image with the mask's white area removed (LaMa)."""
+    require_nodes(url, "INPAINT_LoadInpaintModel", "INPAINT_InpaintWithModel")
+    image_name = upload_png(url, "remove.png", image_png)
+    mask_name = upload_png(url, "remove-mask.png", mask_png)
+    return run(url, remove_graph(image_name, mask_name), progress)

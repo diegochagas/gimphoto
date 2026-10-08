@@ -60,6 +60,25 @@ import comfyui_service as service
 FILL_PROC = "gimphoto-generative-fill"
 IMAGE_PROC = "gimphoto-generate-image"
 EDIT_PROC = "gimphoto-generative-edit"
+REMOVE_PROC = "gimphoto-remove"
+# The Remove tool's brush: hard and round, so the area sent is the area
+# painted (the client grows it a little for the model)
+REMOVE_BRUSH = "2. Hardness 100"
+# Each stroke is sent this much wider (a share of the brush, per side): a
+# rim of the object left uncovered made the model draw it again (a banana
+# came back with the strokes as painted; gone with 16 px more per side on a
+# 90 px brush, while 32 px reached into the mug next to it)
+REMOVE_GROW = 0.18
+# An object SAM finds under a stroke is removed whole when the strokes
+# cover at least this share of it (Photoshop's Remove: brush most of it),
+# unless it is far bigger than what was painted (the table, the wall); it
+# is grown a little, for its edge
+REMOVE_OBJECT_COVER = 0.5
+REMOVE_OBJECT_MAX = 4.0
+REMOVE_OBJECT_GROW = 6
+# Picture LaMa gets around the area, in px (at least; half the area's size
+# when that is more): enough to fill from, without sending a whole photo
+LAMA_CONTEXT = 256
 # On a layer Generative Fill or Generate Image made: the job as JSON, the
 # model's mask and each variation (PNG, the size of the layer), kept in the
 # XCF so the window can open again (a double click on the layer)
@@ -820,14 +839,234 @@ def run_edit(procedure, run_mode, image, drawables, config, data):
     return procedure.new_return_values(Gimp.PDBStatusType.SUCCESS, GLib.Error())
 
 
+# ------------------------------------------------------------- Remove tool
+
+
+def paint_strokes(layer, strokes, grow=0.0):
+    """The strokes painted white on layer, each brush wider by grow (a
+    share of its size, per side)."""
+    Gimp.context_push()
+    try:
+        Gimp.context_set_foreground(Gegl.Color.new("white"))
+        Gimp.context_set_brush(Gimp.Brush.get_by_name(REMOVE_BRUSH))
+        Gimp.context_set_opacity(100.0)
+        Gimp.context_set_paint_mode(Gimp.LayerMode.NORMAL)
+        Gimp.context_enable_dynamics(False)
+        for stroke in strokes:
+            points = [float(v) for v in stroke["points"]]
+            if len(points) < 2:
+                continue
+            if len(points) == 2:  # a click: one dab
+                points = points * 2
+            Gimp.context_set_brush_size(float(stroke["size"]) * (1 + 2 * grow))
+            Gimp.paintbrush_default(layer, points)
+    finally:
+        Gimp.context_pop()
+
+
+def stroke_box(stroke, width, height):
+    """The box around a stroke, its brush included, inside the image."""
+    xs, ys = stroke["points"][0::2], stroke["points"][1::2]
+    r = float(stroke["size"]) / 2
+    x0, y0 = max(0, int(min(xs) - r)), max(0, int(min(ys) - r))
+    x1, y1 = min(width, int(max(xs) + r) + 1), min(height, int(max(ys) + r) + 1)
+    return x0, y0, x1, y1
+
+
+def black_layer(image, name):
+    layer = Gimp.Layer.new(
+        image, name, image.get_width(), image.get_height(), Gimp.ImageType.RGB_IMAGE, 100, Gimp.LayerMode.NORMAL
+    )
+    image.insert_layer(layer, None, 0)
+    Gimp.context_push()
+    Gimp.context_set_foreground(Gegl.Color.new("black"))
+    layer.fill(Gimp.FillType.FOREGROUND)
+    Gimp.context_pop()
+    return layer
+
+
+def white_share(image, layer):
+    """(pixels selected, share of them that are white on layer)."""
+    ok, _mean, _std, _median, pixels, _count, share = layer.histogram(Gimp.HistogramChannel.VALUE, 0.5, 1.0)
+    return (pixels, share) if ok else (0, 0.0)
+
+
+def remove_mask(image, strokes, path, url=None, image_png=None):
+    """What the Remove tool removes, white on black, the image's size, as a
+    PNG. For each stroke, with url: the object SAM 2.1 finds under it, when
+    the strokes cover most of it (Photoshop's Remove: brush most of an
+    object, all of it goes), plus the stroke as painted; otherwise (no
+    object, or no SAM) the stroke a little wider than painted, so no rim of
+    what it covers is left. Returns the area's box, or None when empty."""
+    w, h = image.get_width(), image.get_height()
+    tmp = Gimp.Image.new(w, h, Gimp.ImageBaseType.RGB)
+    try:
+        painted = black_layer(tmp, "painted")
+        paint_strokes(painted, strokes)
+        mask = black_layer(tmp, "mask")
+        tmp.select_color(Gimp.ChannelOps.REPLACE, painted, Gegl.Color.new("white"))
+        painted_px = white_share(tmp, painted)[0]
+        sam_path = os.path.join(os.path.dirname(path), "object.png")
+        use_sam = bool(url and painted_px)
+        for stroke in strokes:
+            found_object = False
+            if use_sam:
+                try:
+                    found = api.segment(url, image_png, [list(stroke_box(stroke, w, h))])
+                except api.ComfyUIError:
+                    use_sam = False  # no SAM (model set "sam"): the strokes alone
+                else:
+                    with open(sam_path, "wb") as f:
+                        f.write(found)
+                    obj = Gimp.file_load_layer(Gimp.RunMode.NONINTERACTIVE, tmp, Gio.File.new_for_path(sam_path))
+                    tmp.insert_layer(obj, None, 0)
+                    if (obj.get_width(), obj.get_height()) != (w, h):
+                        obj.scale(w, h, False)
+                    tmp.select_color(Gimp.ChannelOps.REPLACE, obj, Gegl.Color.new("white"))
+                    object_px, covered = white_share(tmp, painted)
+                    if object_px and covered >= REMOVE_OBJECT_COVER and object_px <= REMOVE_OBJECT_MAX * painted_px:
+                        found_object = True
+                        Gimp.Selection.grow(tmp, REMOVE_OBJECT_GROW)
+                        Gimp.context_push()
+                        Gimp.context_set_foreground(Gegl.Color.new("white"))
+                        mask.edit_fill(Gimp.FillType.FOREGROUND)
+                        Gimp.context_pop()
+                    tmp.remove_layer(obj)
+                    Gimp.Selection.none(tmp)
+            paint_strokes(mask, [stroke], 0.0 if found_object else REMOVE_GROW)
+        tmp.select_color(Gimp.ChannelOps.REPLACE, mask, Gegl.Color.new("white"))
+        box = selection_box(tmp)
+        Gimp.Selection.none(tmp)
+        tmp.remove_layer(painted)
+        save_png(tmp, path)
+        return box
+    finally:
+        tmp.delete()
+
+
+def composite_into(image, layer, picture_path, mask_path, box, origin=(0, 0)):
+    """The picture over the layer where the mask is white, inside box (image
+    coordinates): a layer of it, masked, merged down into the layer (GIMP
+    operations: a plug-in's GEGL has no operations loaded). The picture and
+    the mask cover the image from origin."""
+    x, y, w, h = grown(box, 2, image.get_width(), image.get_height())
+    ox, oy = origin
+    picture = Gimp.file_load(Gimp.RunMode.NONINTERACTIVE, Gio.File.new_for_path(picture_path))
+    mask_image = Gimp.file_load(Gimp.RunMode.NONINTERACTIVE, Gio.File.new_for_path(mask_path))
+    try:
+        picture.crop(w, h, x - ox, y - oy)
+        mask_image.crop(w, h, x - ox, y - oy)
+        patch = Gimp.Layer.new_from_drawable(picture.get_layers()[0], image)
+        # right above the layer, to be merged down into it
+        image.insert_layer(patch, layer.get_parent(), image.get_item_position(layer))
+        patch.set_offsets(x, y)
+        if not patch.has_alpha():
+            patch.add_alpha()
+        mask = patch.create_mask(Gimp.AddMaskType.WHITE)
+        rect = Gegl.Rectangle.new(0, 0, w, h)
+        target = mask.get_buffer()
+        mask_image.get_layers()[0].get_buffer().copy(rect, Gegl.AbyssPolicy.NONE, target, rect)
+        target.flush()
+        patch.add_mask(mask)
+    finally:
+        picture.delete()
+        mask_image.delete()
+    # keeps the layer's name, position and size
+    try:
+        return image.merge_down(patch, Gimp.MergeType.CLIP_TO_BOTTOM_LAYER)
+    except Exception:
+        image.remove_layer(patch)  # not left behind as a stray layer
+        raise
+
+
+def remove(image, layer, strokes, model):
+    """What the Remove tool's strokes cover is removed from the layer, the
+    background filled in by the local AI from the visible image."""
+    state, url = backend()
+    tmp = tempfile.mkdtemp(prefix="gimphoto-remove-")
+    Gimp.progress_init("Remove")
+    try:
+        image_path = os.path.join(tmp, "image.png")
+        visible_png(image, image_path)
+        ready(state, url, "The Remove tool")
+        with open(image_path, "rb") as f:
+            image_png = f.read()
+        Gimp.progress_set_text("Finding the objects under the strokes…")
+        mask_path = os.path.join(tmp, "mask.png")
+        box = remove_mask(image, strokes, mask_path, url, image_png)
+        if box is None:
+            return
+        with open(mask_path, "rb") as f:
+            mask_png = f.read()
+
+        def working(elapsed):
+            Gimp.progress_set_text("Removing… %d s" % elapsed)
+            Gimp.progress_pulse()
+
+        origin = (0, 0)
+        if model == "lama":
+            # made for this: fills from around the area, adds nothing. It
+            # works at the size it is given: only the area and some picture
+            # around it (a whole 24 MP photo would not fit a 6 GB GPU)
+            x, y, w, h = grown(box, max(LAMA_CONTEXT, max(box[2:]) // 2), image.get_width(), image.get_height())
+            origin = (x, y)
+            crop_png(image_path, (x, y, w, h), os.path.join(tmp, "image-crop.png"))
+            crop_png(mask_path, (x, y, w, h), os.path.join(tmp, "mask-crop.png"))
+            with open(os.path.join(tmp, "image-crop.png"), "rb") as f:
+                crop_image = f.read()
+            with open(os.path.join(tmp, "mask-crop.png"), "rb") as f:
+                crop_mask = f.read()
+            result = api.remove(url, crop_image, crop_mask, progress=working)
+        else:
+            # no prompt: the client's removal (the area hidden from the
+            # model, filled from around it; again the other way when it
+            # comes back flat)
+            result = client.inpaint(model, image_png, mask_png, None, url=url, progress=working)
+        result_path = os.path.join(tmp, "result.png")
+        with open(result_path, "wb") as f:
+            f.write(result)
+        selected = image.get_selected_layers()
+        image.undo_group_start()
+        try:
+            if model == "lama":
+                mask_path = os.path.join(tmp, "mask-crop.png")
+            merged = composite_into(image, layer, result_path, mask_path, box, origin)
+            image.set_selected_layers([merged if s == layer else s for s in selected] or [merged])
+        finally:
+            image.undo_group_end()
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+        Gimp.progress_end()
+    Gimp.displays_flush()
+
+
+def run_remove(procedure, config, data):
+    image = config.get_property("image")
+    drawable = config.get_property("drawable")
+    layer = drawable.get_parent() if isinstance(drawable, Gimp.LayerMask) else drawable
+    try:
+        if not isinstance(layer, Gimp.Layer) or layer.is_group():
+            raise api.ComfyUIError("The Remove tool works on a pixel layer: select one (not a layer group).")
+        if layer.get_lock_content():
+            raise api.ComfyUIError("The layer's pixels are locked: unlock them to remove from it.")
+        strokes = json.loads(config.get_property("strokes") or "[]")
+        model = config.get_property("model") or "lama"
+        remove(image, layer, strokes, model if model in ("lama", "klein", "qwen") else "lama")
+    except Exception as e:
+        return procedure.new_return_values(Gimp.PDBStatusType.EXECUTION_ERROR, GLib.Error(str(e)))
+    return procedure.new_return_values(Gimp.PDBStatusType.SUCCESS, GLib.Error())
+
+
 class GenerativeFill(Gimp.PlugIn):
     def do_set_i18n(self, procname):
         return False
 
     def do_query_procedures(self):
-        return [FILL_PROC, IMAGE_PROC, EDIT_PROC]
+        return [FILL_PROC, IMAGE_PROC, EDIT_PROC, REMOVE_PROC]
 
     def do_create_procedure(self, name):
+        if name == REMOVE_PROC:
+            return self.remove_procedure(name)
         if name == EDIT_PROC:
             return self.edit_procedure(name)
         fill = name == FILL_PROC
@@ -865,6 +1104,34 @@ class GenerativeFill(Gimp.PlugIn):
             procedure.add_string_argument(
                 "model", "Model", "qwen (Qwen-Image-Edit) or klein (FLUX.2 klein)", "qwen", flags
             )
+        return procedure
+
+    def remove_procedure(self, name):
+        """Run by GIMPhoto's Remove tool (a core patch) with its strokes; no
+        menu entry."""
+        procedure = Gimp.Procedure.new(self, name, Gimp.PDBProcType.PLUGIN, run_remove, None)
+        procedure.set_documentation(
+            "Remove what the strokes cover (AI)",
+            "Like Photoshop's Remove tool: what the strokes cover is removed from the layer and "
+            "the background filled in, by the local AI (FLUX.2 klein or Qwen-Image-Edit) from the "
+            "visible image. Run by GIMPhoto's Remove tool.",
+            name,
+        )
+        procedure.set_attribution("GIMPhoto", "GIMPhoto contributors", "2026")
+        flags = GObject.ParamFlags.READWRITE
+        procedure.add_enum_argument("run-mode", "Run mode", "", Gimp.RunMode, Gimp.RunMode.NONINTERACTIVE, flags)
+        procedure.add_image_argument("image", "Image", "", False, flags)
+        procedure.add_drawable_argument("drawable", "Drawable", "The layer to remove from", False, flags)
+        procedure.add_string_argument(
+            "strokes",
+            "Strokes",
+            'JSON: [{"size": brush px, "points": [x0, y0, x1, y1, ...]}, ...] in image pixels',
+            "[]",
+            flags,
+        )
+        procedure.add_string_argument(
+            "model", "Model", "lama (Big-LaMa, default), klein (FLUX.2 klein) or qwen (Qwen-Image-Edit)", "lama", flags
+        )
         return procedure
 
     def edit_procedure(self, name):
