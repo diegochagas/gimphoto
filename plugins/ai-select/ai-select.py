@@ -33,7 +33,6 @@
 # the Free Software Foundation; either version 3 of the License, or
 # (at your option) any later version.
 
-import json
 import os
 import shutil
 import sys
@@ -46,7 +45,7 @@ from gi.repository import Gegl, Gimp, Gio, GLib, GObject
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "comfyui-service"))
 import comfyui_api as api
-import comfyui_service as service
+import gimphoto_ai as ai
 
 SUBJECT_PROC = "gimphoto-select-subject"
 OBJECT_PROC = "gimphoto-object-select"
@@ -58,20 +57,6 @@ MARGIN_MIN = 32
 # Longest side sent: the model works at 1024 px, and the mask comes back at
 # the size sent, scaled to the image
 MAX_SIDE = 2048
-DEFAULT_URL = service.url_for(service.DEFAULT_PORT)
-
-
-def backend():
-    """(state, url) as comfyui-service found them at startup."""
-    try:
-        parasite = Gimp.get_parasite(service.PARASITE)
-    except Exception:
-        parasite = None
-    if parasite is None:
-        # a run without a user interface (scripts): try the usual address
-        return "unknown", DEFAULT_URL
-    info = json.loads(bytes(parasite.get_data()).decode())
-    return info.get("state", "unknown"), info.get("url", DEFAULT_URL)
 
 
 def shift_held():
@@ -145,29 +130,8 @@ def select_from_mask(image, mask_path, operation, region=None):
             image.set_selected_layers(selected)
 
 
-def ready_backend(what):
-    """The URL of a local ComfyUI that answers, waiting while GIMPhoto's is
-    still starting; a ComfyUIError saying what is missing otherwise."""
-    state, url = backend()
-    # "missing": GIMPhoto found no comfyui service; a ComfyUI started some
-    # other way may still be answering
-    if state == "missing" and not api.is_up(url):
-        raise api.ComfyUIError(api.missing_message(what))
-
-    def waiting(elapsed):
-        Gimp.progress_set_text("Starting the local AI... %d s" % elapsed)
-        Gimp.progress_pulse()
-
-    if not api.wait_until_up(url, progress=waiting):
-        raise api.ComfyUIError(
-            f"The local AI (ComfyUI at {url}) is not answering. It starts with GIMPhoto; "
-            "if it does not, see: systemctl --user status comfyui"
-        )
-    return url
-
-
 def select_subject(image, operation):
-    url = ready_backend("Select Subject")
+    url = ai.ready_url("Select Subject")
 
     def working(elapsed):
         Gimp.progress_set_text("Finding the subject (BiRefNet)... %d s, the first run loads the model" % elapsed)
@@ -249,7 +213,7 @@ def set_layer_mask(image, layer, mask_path):
 def remove_background(image, layer):
     """The subject of the layer becomes its layer mask (not applied); an
     existing mask is replaced. One undo step."""
-    url = ready_backend("Remove Background")
+    url = ai.ready_url("Remove Background")
 
     def working(elapsed):
         Gimp.progress_set_text("Finding the subject (BiRefNet)... %d s, the first run loads the model" % elapsed)
@@ -301,7 +265,7 @@ def object_region(image, box):
 
 def select_object(image, box, operation):
     """box: x, y, width, height in image pixels."""
-    url = ready_backend("Object Selection")
+    url = ai.ready_url("Object Selection")
 
     def working(elapsed):
         Gimp.progress_set_text("Finding the object (SAM 2.1)... %d s, the first run loads the model" % elapsed)

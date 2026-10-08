@@ -19,6 +19,8 @@ What changes against Flathub's recipe, and nothing else:
   - GIMPhoto's patches are applied to GIMP's source after Flathub's;
   - one module after GIMP installs GIMPhoto's own plug-ins (plugins/<name>/)
     as system plug-ins, so the features that need them work out of the box;
+  - one per plug-in with a python-wheels.tsv installs the Python packages
+    it needs (PyPI wheels, SHA-256 checked) into the app, offline;
   - one builds GIMPhoto's own GEGL operations (gegl/<name>.c, e.g.
     gimphoto:gradient-overlay, and GEGL's own paint-select.cc, which
     Flathub's GEGL leaves out with the rest of its workshop) against the
@@ -287,6 +289,36 @@ def npm_module(plugin, lock):
     return {"name": f"gimphoto-{plugin}-npm", "buildsystem": "simple", "sources": sources, "build-commands": commands}
 
 
+def read_wheels(path):
+    """(url, sha256) per line of a plug-in's python-wheels.tsv (# comments,
+    whole-line or after the two fields, and blank lines skipped)."""
+    wheels = []
+    for line in path.read_text().splitlines():
+        line = line.split("#", 1)[0].strip()
+        if line:
+            url, sha = line.split()
+            wheels.append((url, sha))
+    return wheels
+
+
+def python_wheels_module(plugin, wheels):
+    """flatpak-builder module installing a plug-in's Python packages (its
+    python-wheels.tsv: PyPI wheels for the runtime's Python, x86_64) into
+    /app/lib/python3.x/site-packages, offline, each wheel checked against
+    its SHA-256."""
+    sources = [{"type": "file", "url": url, "sha256": sha, "only-arches": ["x86_64"]} for url, sha in wheels]
+    return {
+        "name": f"gimphoto-{plugin}-python",
+        # the wheels are x86_64 builds: elsewhere pip would have none
+        "only-arches": ["x86_64"],
+        "buildsystem": "simple",
+        "sources": sources,
+        "build-commands": [
+            "python3 -m pip install --no-index --no-deps --no-build-isolation --prefix=${FLATPAK_DEST} *.whl"
+        ],
+    }
+
+
 def transform(manifest, series, plugins=(), defaults=False, gegl_ops=(), branding=False, icons=False, themes=()):
     m = copy.deepcopy(manifest)
     m["app-id"] = APP_ID
@@ -320,6 +352,10 @@ def transform(manifest, series, plugins=(), defaults=False, gegl_ops=(), brandin
         for name in node:
             lock = json.loads((PLUGINS / name / "package-lock.json").read_text())
             m["modules"].append(npm_module(name, lock))
+    for name in plugins:
+        wheels_file = PLUGINS / name / "python-wheels.tsv"
+        if wheels_file.is_file():
+            m["modules"].append(python_wheels_module(name, read_wheels(wheels_file)))
     if gegl_ops:
         m["modules"].append(gegl_ops_module(gegl_ops))
     if defaults:

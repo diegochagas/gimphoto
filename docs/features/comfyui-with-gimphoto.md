@@ -78,7 +78,7 @@ comes from the service (`--port` of its command, 8188 by default).
   [Object Selection](object-selection.md),
   [Remove Background](remove-background.md) and
   [Generative Fill and Generate Image](generative-fill.md) and the
-  [Remove tool](remove-tool.md) so far; #34 follows.
+  [Remove tool](remove-tool.md) and [Photo Restoration](photo-restoration.md).
 - The service name is fixed (`comfyui`), as linux-mint-setup installs it.
 - `GIMPHOTO_COMFYUI=off` in GIMPhoto's environment (`flatpak run
   --env=GIMPHOTO_COMFYUI=off …`) leaves ComfyUI alone even with a user
