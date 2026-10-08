@@ -6,7 +6,9 @@
 # on the left than on the right; a Pattern fill paints something other than
 # white. The parasite names the kind and Layer Content Options' reading of
 # the settings matches what was set (a mid tone and the foreground colour
-# too, in sRGB); saved to XCF and reopened, the fills are still there.
+# too, in sRGB; a pattern named with a space); names count layers inside
+# groups; a failure leaves no layer behind; saved to XCF and reopened, the
+# fills are still there; a grayscale image gets a grayscale fill layer.
 # Writes "ok" or a reason to the file in GIMPHOTO_SMOKE_OUT.
 import importlib.util
 import os
@@ -103,6 +105,46 @@ def check(F):
     if F.read_settings(F.fill_filter(pattern, "pattern"), "pattern")["pattern"] != patterns.get_name():
         return "pattern: name read back differs"
 
+    # a pattern whose name has a space reads back by its own name (the
+    # cache file's name has it replaced)
+    named = [p for p in Gimp.patterns_get_list("") if not p.get_name().startswith("Clipboard")]
+    spaced = next((p for p in named if F.pattern_cache_name(p.get_name()) != p.get_name()), None)
+    if spaced is not None:
+        F.apply(pattern, "pattern", {"pattern": spaced.get_name(), "scale": 100.0})
+        got = F.read_settings(F.fill_filter(pattern, "pattern"), "pattern")["pattern"]
+        if got != spaced.get_name():
+            return f"pattern: {spaced.get_name()!r} read back as {got!r}"
+
+    # names count the layers inside groups too
+    group = Gimp.GroupLayer.new(img, "group")
+    img.insert_layer(group, None, 0)
+    inner = Gimp.Layer.new(img, "Pattern Fill 2", 8, 8, Gimp.ImageType.RGBA_IMAGE, 100, Gimp.LayerMode.NORMAL)
+    img.insert_layer(inner, group, 0)
+    if F._next_name(img, "Pattern Fill") != "Pattern Fill 3":
+        return f"names: next pattern fill would be {F._next_name(img, 'Pattern Fill')!r}"
+    img.remove_layer(group)
+
+    # a failure while making the layer leaves no layer and keeps the selection
+    before = len(img.get_layers())
+    img.select_rectangle(Gimp.ChannelOps.REPLACE, 0, 0, 8, 8)
+    configure = F.configure
+
+    def broken(*_args):
+        raise RuntimeError("test")
+
+    F.configure = broken
+    try:
+        F.create(img, "solid", {"color": "#00ff00"})
+        return "failure: create() did not raise"
+    except RuntimeError:
+        pass
+    finally:
+        F.configure = configure
+    if len(img.get_layers()) != before or Gimp.Selection.is_empty(img):
+        left = len(img.get_layers()) - before
+        return f"failure: {left} layer(s) left, selection kept: {not Gimp.Selection.is_empty(img)}"
+    Gimp.Selection.none(img)
+
     # through an XCF
     pattern.set_visible(False)
     solid.set_visible(True)
@@ -117,6 +159,15 @@ def check(F):
     if flat_rgb(img, 48, 32) != (1.0, 0.0, 0.0) or flat_rgb(img, 16, 32) != (1.0, 1.0, 1.0):
         return f"reopened solid: right {flat_rgb(img, 48, 32)}, left {flat_rgb(img, 16, 32)}"
     img.delete()
+
+    # a grayscale image gets a grayscale fill layer
+    gray = Gimp.Image.new(16, 16, Gimp.ImageBaseType.GRAY)
+    base = Gimp.Layer.new(gray, "white", 16, 16, Gimp.ImageType.GRAY_IMAGE, 100, Gimp.LayerMode.NORMAL)
+    gray.insert_layer(base, None, 0)
+    fill = F.create(gray, "solid", {"color": "#000000"})
+    if fill.is_rgb() or F.kind_of(fill) != "solid" or flat_rgb(gray, 8, 8) != (0.0, 0.0, 0.0):
+        return f"grayscale: rgb {fill.is_rgb()}, kind {F.kind_of(fill)!r}, pixel {flat_rgb(gray, 8, 8)}"
+    gray.delete()
     return "ok"
 
 

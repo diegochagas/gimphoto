@@ -182,16 +182,24 @@ def edit_fill_layer(image, layer):
     if kind is None:
         raise ValueError("Select a fill layer (Layer > New Fill Layer).")
     f = F.fill_filter(layer, kind)
-    original = F.read_settings(f, kind) if f is not None else F.defaults(kind)
+    had_filter = f is not None
+    original = F.read_settings(f, kind) if had_filter else F.defaults(kind)
     image.undo_freeze()
     try:
         dialog = FillDialog(image, layer, kind, original, f"{F.KINDS[kind][0]} Options")
         ok = dialog.run()
         final = dialog.settings
-        F.apply(layer, kind, original)
+        # back to how the layer was: the preview is not history
+        if had_filter:
+            F.apply(layer, kind, original)
+        else:
+            previewed = F.fill_filter(layer, kind)
+            if previewed is not None:
+                previewed.delete()
     finally:
         image.undo_thaw()
-    if ok and final != original:
+    # a fill whose filter was removed gets it back on OK, as one undo step
+    if ok and (final != original or not had_filter):
         image.undo_group_start()
         try:
             F.apply(layer, kind, final)
@@ -231,7 +239,8 @@ class FillLayers(Gimp.PlugIn):
 
     def do_create_procedure(self, name):
         procedure = Gimp.ImageProcedure.new(self, name, Gimp.PDBProcType.PLUGIN, run, None)
-        procedure.set_image_types("*")
+        # filters need RGB or grayscale pixels (not indexed colours)
+        procedure.set_image_types("RGB*, GRAY*")
         procedure.set_attribution("GIMPhoto", "GIMPhoto contributors", "2026")
         if name == EDIT_PROC:
             procedure.set_sensitivity_mask(Gimp.ProcedureSensitivityMask.DRAWABLE)

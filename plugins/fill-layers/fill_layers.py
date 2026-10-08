@@ -25,7 +25,7 @@ from gi.repository import Babl, Gegl, Gimp
 
 # the pattern cache of the layer-style plug-in, next door
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "layer-style"))
-from layer_style_engine import pattern_file
+from layer_style_engine import pattern_cache_name, pattern_file
 
 PARASITE = "gimphoto-fill"
 
@@ -106,8 +106,19 @@ def read_settings(filter_, kind):
             "reverse": bool(cfg.get_property("reverse")),
         }
     path = cfg.get_property("path") or ""
-    name = os.path.splitext(os.path.basename(path))[0]
-    return {"pattern": name, "scale": float(cfg.get_property("scale"))}
+    return {"pattern": pattern_name(path), "scale": float(cfg.get_property("scale"))}
+
+
+def pattern_name(path):
+    """The GIMP pattern whose cache file is ``path`` (the file name is the
+    pattern's name with spaces and punctuation replaced), or ""."""
+    cached = os.path.splitext(os.path.basename(path))[0]
+    if not cached:
+        return ""
+    for pattern in Gimp.patterns_get_list(""):
+        if pattern_cache_name(pattern.get_name()) == cached:
+            return pattern.get_name()
+    return ""
 
 
 def kind_of(layer):
@@ -128,8 +139,15 @@ def fill_filter(layer, kind):
     return None
 
 
+def _all_names(layers):
+    for layer in layers:
+        yield layer.get_name()
+        if layer.is_group():
+            yield from _all_names(layer.get_children())
+
+
 def _next_name(image, label):
-    names = {layer.get_name() for layer in image.get_layers()}
+    names = set(_all_names(image.get_layers()))
     n = 1
     while f"{label} {n}" in names:
         n += 1
@@ -145,36 +163,38 @@ def create(image, kind, settings=None, drop_selection=True):
     if settings is None:
         settings = defaults(kind)
     width, height = image.get_width(), image.get_height()
-    layer = Gimp.Layer.new(
-        image, _next_name(image, label), width, height, Gimp.ImageType.RGBA_IMAGE, 100.0, Gimp.LayerMode.NORMAL
-    )
+    # the image's own type (GIMP refuses an RGB layer in a grayscale image)
+    gray = image.get_base_type() == Gimp.ImageBaseType.GRAY
+    layer_type = Gimp.ImageType.GRAYA_IMAGE if gray else Gimp.ImageType.RGBA_IMAGE
+    layer = Gimp.Layer.new(image, _next_name(image, label), width, height, layer_type, 100.0, Gimp.LayerMode.NORMAL)
     selected = image.get_selected_layers()
     parent, position = None, 0
     if selected:
         parent, position = selected[0].get_parent(), image.get_item_position(selected[0])
     image.insert_layer(layer, parent, position)
-    # opaque, so the overlay operations (which keep the layer's alpha) paint
-    # everywhere; the mask is what limits the fill
-    layer.fill(Gimp.FillType.WHITE)
+    selection = not Gimp.Selection.is_empty(image)
+    try:
+        # opaque, so the overlay operations (which keep the layer's alpha) paint
+        # everywhere; the mask is what limits the fill
+        layer.fill(Gimp.FillType.WHITE)
+        mask_type = Gimp.AddMaskType.SELECTION if selection else Gimp.AddMaskType.WHITE
+        layer.add_mask(layer.create_mask(mask_type))
 
-    if Gimp.Selection.is_empty(image):
-        mask = layer.create_mask(Gimp.AddMaskType.WHITE)
-    else:
-        mask = layer.create_mask(Gimp.AddMaskType.SELECTION)
-        if drop_selection:
-            Gimp.Selection.none(image)
-    layer.add_mask(mask)
+        # saved in the XCF and undone with the layer (without UNDOABLE, GIMP
+        # records "Can't undo Attach Parasite to Item" on an attached layer)
+        flags = Gimp.PARASITE_PERSISTENT | Gimp.PARASITE_UNDOABLE
+        layer.attach_parasite(Gimp.Parasite.new(PARASITE, flags, list(kind.encode("utf-8"))))
 
-    # saved in the XCF and undone with the layer (without UNDOABLE, GIMP
-    # records "Can't undo Attach Parasite to Item" on an attached layer)
-    flags = Gimp.PARASITE_PERSISTENT | Gimp.PARASITE_UNDOABLE
-    layer.attach_parasite(Gimp.Parasite.new(PARASITE, flags, list(kind.encode("utf-8"))))
-
-    f = Gimp.DrawableFilter.new(layer, op, label)
-    configure(f, kind, settings)
-    f.update()
-    layer.append_filter(f)
-
+        # raises when GIMP has no such operation (GIMPhoto's own ones missing)
+        f = Gimp.DrawableFilter.new(layer, op, label)
+        configure(f, kind, settings)
+        f.update()
+        layer.append_filter(f)
+    except Exception:
+        image.remove_layer(layer)  # no half-made layer left behind
+        raise
+    if selection and drop_selection:
+        Gimp.Selection.none(image)
     image.set_selected_layers([layer])
     layer.set_edit_mask(True)
     return layer

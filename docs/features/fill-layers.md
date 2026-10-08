@@ -88,8 +88,10 @@ selection (red on the right, white on the left; the dialog's preview
 keeps the selection; the parasite is undoable), a mid tone and the
 foreground colour read back as the same sRGB colour, a black-to-white
 Gradient (darker left than right) and a Pattern fill (not white) on a
-white image; the settings read back; saved and reopened, the fills and
-their kinds are still there.
+white image; the settings read back, a pattern named with a space too;
+new names count the layers inside groups; a failure while making the
+layer leaves nothing behind; saved and reopened, the fills and their
+kinds are still there; a grayscale image gets a grayscale fill.
 
 ## Limits
 
@@ -99,6 +101,9 @@ their kinds are still there.
   paint where the layer has pixels): deleting the fill's filter leaves a
   white layer, and painting on the layer itself (not its mask) is hidden
   under the fill.
+- RGB and grayscale images (a grayscale image gets a grayscale fill);
+  indexed images have no filters in GIMP, so the entries are greyed out
+  there.
 - PSD: fill layers export as pixel layers; Photoshop's `SoCo` / `GdFl` /
   `PtFl` both ways are part of
   [#89](https://github.com/diegochagas/gimphoto/issues/89).
