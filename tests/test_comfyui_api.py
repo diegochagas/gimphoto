@@ -121,6 +121,24 @@ class ClientTest(unittest.TestCase):
             api.segment(URL, b"PNG", [[0, 0, 10, 10]])
         self.assertIn("CUDA OOM", str(caught.exception))
 
+    def test_remove_runs_lama_on_the_image_and_its_mask(self):
+        fake = api.urlopen = FakeComfyUI(nodes=("INPAINT_LoadInpaintModel", "INPAINT_InpaintWithModel"))
+        self.assertEqual(api.remove(URL, b"IMAGE", b"MASK"), b"MASKPNG")
+        uploads = [data for path, data in fake.requests if path == "/upload/image"]
+        self.assertEqual(len(uploads), 2)  # the image, then the mask
+        prompt = json.loads(dict(fake.requests)["/prompt"])["prompt"]
+        self.assertEqual(prompt["lama"]["inputs"]["model_name"], "big-lama.pt")
+        self.assertEqual(prompt["mask"]["class_type"], "ImageToMask")
+        self.assertEqual(prompt["fill"]["inputs"]["image"], ["img", 0])
+        self.assertEqual(prompt["fill"]["inputs"]["mask"], ["mask", 0])
+
+    def test_remove_without_lama_says_how_to_install_it(self):
+        api.urlopen = FakeComfyUI(nodes=("Sam2Segmentation", "BBoxFromJSON"))
+        with self.assertRaises(api.ComfyUIError) as caught:
+            api.remove(URL, b"IMAGE", b"MASK")
+        self.assertIn("INPAINT_LoadInpaintModel", str(caught.exception))
+        self.assertIn("linux-mint-setup", str(caught.exception))
+
     def test_missing_message_points_to_linux_mint_setup(self):
         self.assertIn("linux-mint-setup", api.missing_message("Select Subject"))
 

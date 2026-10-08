@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- GIMPhoto's Remove tool icon: a healing bandage and an AI sparkle (GPL-3.0, github.com/diegochagas/gimphoto) -->
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- filled shapes only: GTK fills every shape of a symbolic icon -->
+  <g fill="#eeeeec" fill-rule="evenodd">
+    <path d="M1.2 11.6 7.6 5.2a2 2 0 0 1 2.8 0l0.4 0.4a2 2 0 0 1 0 2.8L4.4 14.8a2 2 0 0 1-2.8 0l-0.4-0.4a2 2 0 0 1 0-2.8zM5.3 9.8a0.7 0.7 0 1 0 0.01 0zM7.3 9.4a0.7 0.7 0 1 0 0.01 0z"/>
+    <path d="M12.5 0.5l0.8 1.9 1.9 0.8-1.9 0.8-0.8 1.9-0.8-1.9-1.9-0.8 1.9-0.8z"/>
+  </g>
+</svg>

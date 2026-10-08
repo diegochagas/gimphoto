@@ -143,6 +143,9 @@
     (children
         (GimpToolInfo "gimp-heal-tool"
             (icon-name "gimp-tool-heal")
+            (visible yes))
+        (GimpToolInfo "gimp-remove-tool"
+            (icon-name "gimphoto-remove")
             (visible yes))))
 (GimpToolGroup "tool group"
     (visible yes)
