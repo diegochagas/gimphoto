@@ -936,6 +936,9 @@
                 "install -d ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/layer-via",
                 "find layer-via -maxdepth 1 -type f -exec install -m 644 -t ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/layer-via {} +",
                 "chmod 755 ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/layer-via/layer-via.py",
+                "install -d ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/photo-restoration",
+                "find photo-restoration -maxdepth 1 -type f -exec install -m 644 -t ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/photo-restoration {} +",
+                "chmod 755 ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/photo-restoration/photo-restoration.py",
                 "install -d ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/psd-text",
                 "find psd-text -maxdepth 1 -type f -exec install -m 644 -t ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/psd-text {} +",
                 "chmod 755 ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/psd-text/psd-text.py",
@@ -982,6 +985,42 @@
                 "tar -xzf base64-js-1.5.1.tgz -C ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/psd-text/node_modules/base64-js --strip-components=1",
                 "mkdir -p ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/psd-text/node_modules/pako",
                 "tar -xzf pako-2.1.0.tgz -C ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/psd-text/node_modules/pako --strip-components=1"
+            ]
+        },
+        {
+            "name": "gimphoto-photo-restoration-python",
+            "only-arches": [
+                "x86_64"
+            ],
+            "buildsystem": "simple",
+            "sources": [
+                {
+                    "type": "file",
+                    "url": "https://files.pythonhosted.org/packages/45/8f/9beacf79ca7c650688ad0baa80931adb988fe6e6e5d5903c23cc3dbd70eb/numpy-2.5.3-cp314-cp314-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+                    "sha256": "b0521d0f4aebb6e06189451025fa17a913287b13c03d5fe05c017333b654ea5b",
+                    "only-arches": [
+                        "x86_64"
+                    ]
+                },
+                {
+                    "type": "file",
+                    "url": "https://files.pythonhosted.org/packages/6b/89/2a844506d49651e9aa1af6ef95b6bd8031cb1d5a4375edec6155037e04cf/scipy-1.18.1-cp314-cp314-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+                    "sha256": "ac0333bdf38309aa3dcbe7e3fa7ea29e7a2c37c6ea306a757b700ded8e4596ad",
+                    "only-arches": [
+                        "x86_64"
+                    ]
+                },
+                {
+                    "type": "file",
+                    "url": "https://files.pythonhosted.org/packages/5c/44/c85361f65dbe00eea8576ee467c768d25129989efb76e94f205e9ca9bb46/pillow-12.3.0-cp314-cp314-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+                    "sha256": "251bf95b67017e27b13d82f5b326234ca62d70f9cf4c2b9032de2358a3b12c7b",
+                    "only-arches": [
+                        "x86_64"
+                    ]
+                }
+            ],
+            "build-commands": [
+                "python3 -m pip install --no-index --no-deps --no-build-isolation --prefix=${FLATPAK_DEST} *.whl"
             ]
         },
         {

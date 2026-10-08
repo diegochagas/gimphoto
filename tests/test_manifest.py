@@ -216,6 +216,32 @@ class TransformTest(unittest.TestCase):
             module["build-commands"], [f"mkdir -p {dest}", f"tar -xzf pako-2.1.0.tgz -C {dest} --strip-components=1"]
         )
 
+    def test_python_wheels_install_offline_into_the_app(self):
+        wheels = [("https://files.example/numpy-2-cp314-x86_64.whl", "ab" * 32)]
+        module = make_manifest.python_wheels_module("photo-restoration", wheels)
+        self.assertEqual(module["name"], "gimphoto-photo-restoration-python")
+        (source,) = module["sources"]
+        self.assertEqual(source["sha256"], "ab" * 32)
+        self.assertEqual(source["only-arches"], ["x86_64"])  # the wheels are x86_64 builds
+        # and the module too: elsewhere there is no wheel for pip to install
+        self.assertEqual(module["only-arches"], ["x86_64"])
+        (command,) = module["build-commands"]
+        self.assertIn("--no-index", command)  # nothing fetched at build time
+        self.assertIn("--prefix=${FLATPAK_DEST}", command)
+
+    def test_python_wheels_file_allows_comments(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "python-wheels.tsv"
+            path.write_text("# packages\n\nhttps://x/a.whl " + "cd" * 32 + "  # BSD-3\n")
+            self.assertEqual(make_manifest.read_wheels(path), [("https://x/a.whl", "cd" * 32)])
+
+    def test_python_wheels_file_is_pinned(self):
+        for path in make_manifest.PLUGINS.glob("*/python-wheels.tsv"):
+            for url, sha in make_manifest.read_wheels(path):
+                self.assertTrue(url.startswith("https://files.pythonhosted.org/"), url)
+                self.assertRegex(sha, r"^[0-9a-f]{64}$")
+                self.assertIn("cp314-cp314-", url)  # the runtime's Python
+
     def test_psd_text_lockfile_is_fully_pinned(self):
         lock = json.loads((ROOT / "plugins" / "psd-text" / "package-lock.json").read_text())
         packages = [k for k in lock["packages"] if k.startswith("node_modules/")]

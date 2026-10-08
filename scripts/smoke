@@ -25,11 +25,12 @@
 #     it) is left alone by runs without a user interface, and the sandbox
 #     may talk to the user's systemd to start and stop it with GIMPhoto;
 #   - Select Subject, Object Selection, Remove Background, Generative Fill,
-#     Generate Image and the Remove tool (AI), without the local AI, say
-#     where to install it and leave the selection and the layers alone (no
-#     ComfyUI is called); the Object Selection and Remove tools are
-#     compiled in; a Generative Fill layer
-#     keeps its variations through an XCF save and can be changed again;
+#     Generate Image, the Remove tool and Photo Restoration (AI), without
+#     the local AI, say where to install it and leave the selection and the
+#     layers alone (no ComfyUI is called); the Object Selection and Remove
+#     tools are compiled in; a Generative Fill layer keeps its variations
+#     through an XCF save and can be changed again; Photo Restoration's
+#     damage mask runs on the numpy, scipy and Pillow shipped in the app;
 #   - Quick Selection: GEGL's paint-select, built by GIMPhoto, grows a
 #     stroke to the edges of what it is painted on, and GIMP's Paint Select
 #     is compiled in as Quick Selection (painting with it needs the GUI);
@@ -48,7 +49,7 @@ cd "$(dirname "$0")/.."
 
 app="io.github.diegochagas.GIMPhoto"
 # one procedure per shipped plug-in that a feature depends on
-procedures=(layer-style-dialog layer-style-drop-shadow gimphoto-layer-via-copy gimphoto-layer-via-cut file-psd-text-load file-psd-text-export smart-object-convert smart-object-edit smart-object-replace gimphoto-comfyui-service gimphoto-select-subject gimphoto-object-select gimphoto-remove-background gimphoto-generative-fill gimphoto-generate-image gimphoto-generative-edit gimphoto-remove)
+procedures=(layer-style-dialog layer-style-drop-shadow gimphoto-layer-via-copy gimphoto-layer-via-cut file-psd-text-load file-psd-text-export smart-object-convert smart-object-edit smart-object-replace gimphoto-comfyui-service gimphoto-select-subject gimphoto-object-select gimphoto-remove-background gimphoto-generative-fill gimphoto-generate-image gimphoto-generative-edit gimphoto-remove gimphoto-photo-restoration)
 want="$(python3 tools/upstream_info.py gimp-version)"
 report="$(mktemp /tmp/gimphoto-smoke.XXXXXX)"
 trap 'rm -f "$report"' EXIT
@@ -194,9 +195,17 @@ flatpak run --env=GIMPHOTO_SMOKE_OUT="$subject_report" "$app" -i --batch-interpr
 subject_result="$(cat "$subject_report")"
 rm -f "$subject_report"
 if [[ "$subject_result" == ok ]]; then
-    echo "ok   AI commands (Select Subject, Object Selection, Remove Background, Generative Fill, Generate Image, Remove tool) without the local AI say where to install it, nothing changed"
+    echo "ok   AI commands (Select Subject, Object Selection, Remove Background, Generative Fill, Generate Image, Remove tool, Photo Restoration) without the local AI say where to install it, nothing changed"
 else
     echo "FAIL AI selections without the local AI: ${subject_result:-did not run}" >&2
+    status=1
+fi
+# Photo Restoration's damage mask: numpy, scipy and Pillow in the app
+restore_result=$(flatpak run --filesystem="$PWD/tests:ro" --command=python3 "$app" "$PWD/tests/smoke_restore_mask.py" 2>&1 | tail -n 1)
+if [[ "$restore_result" == ok ]]; then
+    echo "ok   Photo Restoration's damage mask runs on the app's numpy, scipy and Pillow"
+else
+    echo "FAIL Photo Restoration's damage mask: ${restore_result:-did not run}" >&2
     status=1
 fi
 # Generative Fill's layer keeps its variations through an XCF (no AI called)

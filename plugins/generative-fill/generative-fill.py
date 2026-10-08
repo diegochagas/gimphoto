@@ -55,7 +55,7 @@ from gi.repository import GdkPixbuf, Gegl, Gimp, GimpUi, Gio, GLib, GObject, Gtk
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "comfyui-service"))
 import comfyui_api as api
 import comfyui_client as client
-import comfyui_service as service
+import gimphoto_ai as ai
 
 FILL_PROC = "gimphoto-generative-fill"
 IMAGE_PROC = "gimphoto-generate-image"
@@ -113,30 +113,6 @@ NAME_CHARS = 40
 
 
 # ------------------------------------------------------------- backend
-
-
-def backend():
-    """(state, url) as comfyui-service found them at startup."""
-    try:
-        parasite = Gimp.get_parasite(service.PARASITE)
-    except Exception:
-        parasite = None
-    if parasite is None:
-        return "unknown", service.url_for(service.DEFAULT_PORT)
-    info = json.loads(bytes(parasite.get_data()).decode())
-    return info.get("state", "unknown"), info.get("url", service.url_for(service.DEFAULT_PORT))
-
-
-def ready(state, url, what, waiting=None):
-    """Raise a ComfyUIError saying what is missing, or wait while GIMPhoto's
-    ComfyUI is still starting. Plain HTTP: safe in the worker thread."""
-    if state == "missing" and not api.is_up(url):
-        raise api.ComfyUIError(api.missing_message(what))
-    if not api.wait_until_up(url, progress=waiting):
-        raise api.ComfyUIError(
-            f"The local AI (ComfyUI at {url}) is not answering. It starts with GIMPhoto; "
-            "if it does not, see: systemctl --user status comfyui"
-        )
 
 
 # ------------------------------------------------------------- pixels
@@ -538,7 +514,7 @@ class GenerateDialog:
 
     def __init__(self, job):
         self.job = job
-        self.state, self.url = backend()
+        self.state, self.url = ai.backend()
         self.stop = threading.Event()
         self.running = False
         self.preview = None
@@ -644,7 +620,7 @@ class GenerateDialog:
         """Worker thread: HTTP and PNG files only; the window is updated
         with idle_add."""
         try:
-            ready(
+            ai.wait_ready(
                 self.state,
                 self.url,
                 self.job.title,
@@ -794,9 +770,9 @@ def run_job(kind, procedure, run_mode, image, config):
         else:
             if kind == "image" and not prompt.strip():
                 raise api.ComfyUIError("Generate Image needs a prompt.")
-            state, url = backend()
+            state, url = ai.backend()
             Gimp.progress_init(job.title)
-            ready(state, url, job.title)
+            ai.wait_ready(state, url, job.title)
             job.add(job.make(url, prompt, model, progress=lambda _s: Gimp.progress_pulse()), prompt, model)
             job.chosen = 0
         job.commit()
@@ -982,13 +958,13 @@ def composite_into(image, layer, picture_path, mask_path, box, origin=(0, 0)):
 def remove(image, layer, strokes, model):
     """What the Remove tool's strokes cover is removed from the layer, the
     background filled in by the local AI from the visible image."""
-    state, url = backend()
+    state, url = ai.backend()
     tmp = tempfile.mkdtemp(prefix="gimphoto-remove-")
     Gimp.progress_init("Remove")
     try:
         image_path = os.path.join(tmp, "image.png")
         visible_png(image, image_path)
-        ready(state, url, "The Remove tool")
+        ai.wait_ready(state, url, "The Remove tool")
         with open(image_path, "rb") as f:
             image_png = f.read()
         Gimp.progress_set_text("Finding the objects under the strokes…")

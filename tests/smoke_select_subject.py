@@ -1,7 +1,7 @@
 # Run by scripts/smoke inside the installed GIMPhoto (python-fu-eval):
 # GIMPhoto's AI commands without the local AI: Select Subject, Object
-# Selection, Remove Background, Generative Fill, Generate Image and the
-# Remove tool. GIMPhoto recorded ComfyUI as missing
+# Selection, Remove Background, Generative Fill, Generate Image, the
+# Remove tool and Photo Restoration. GIMPhoto recorded ComfyUI as missing
 # (the gimphoto-comfyui parasite comfyui-service.py writes), so the command
 # fails at once with a message saying where to install it, and leaves the
 # selection and the layers (no mask, no new layer) alone. No ComfyUI is called: tests never use outside services.
@@ -28,6 +28,7 @@ def check():
         ("gimphoto-remove-background", {"drawables": [layer]}),
         ("gimphoto-generative-fill", {"drawables": [layer], "prompt": "a red ball", "model": "klein"}),
         ("gimphoto-generate-image", {"drawables": [layer], "prompt": "a lighthouse"}),
+        ("gimphoto-photo-restoration", {"drawables": [layer]}),
         # what the Remove tool sends: one stroke
         ("gimphoto-remove", {"drawable": layer, "strokes": '[{"size": 10, "points": [40, 40, 50, 50]}]'}),
     ):
