@@ -44,6 +44,7 @@ screenshots of each feature are on its page.
 | **Generative Fill and Generate Image** (AI): a prompt fills the selection (empty prompt: from its surroundings) as a new masked layer, three variations to pick from; an empty part of the image is completed; Generate Image makes a canvas-size layer; Qwen-Image-Edit / FLUX.2 klein on the local ComfyUI | Edit › Generative Fill, Edit › Generate Image | plug-in + local AI | [generative-fill.md](docs/features/generative-fill.md) |
 | **Remove tool** (AI, J group): brush over an object and it disappears, the background filled in; brushing most of an object removes all of it (SAM 2.1 finds it); LaMa on the local ComfyUI, about a second | Remove tool | core patch + plug-in + local AI | [remove-tool.md](docs/features/remove-tool.md) |
 | **Photo Restoration** (AI): repairs a scanned print's blotches, stains, scratches and specks with a local model, as a new layer masked to the repaired damage; *Filters › Neural Filters* | Filters › Neural Filters › Photo Restoration | plug-in + local AI + bundled numpy/scipy/Pillow | [photo-restoration.md](docs/features/photo-restoration.md) |
+| **Modern Photo** (AI): an old photo redrawn by a local model as if taken today with a modern phone camera (sharp, clean, true colours; black and white comes back in colour), as a new layer above it | Filters › Neural Filters › Modern Photo | plug-in + local AI | [modern-photo.md](docs/features/modern-photo.md) |
 
 Apart from these, GIMPhoto is plain GIMP, with its own user profile.
 
