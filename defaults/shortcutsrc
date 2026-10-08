@@ -11,6 +11,7 @@
 # Moved shortcuts, applied once to profiles that have their own shortcutsrc:
 # gimphoto-shortcut-moved 1 "<Primary>e" "layers-merge-down" "gimphoto-merge-layers"
 # gimphoto-shortcut-moved 1 "<Primary><Shift>e" "image-merge-layers" "layers-merge-layers-last-values"
+# gimphoto-shortcut-moved 2 "<Primary><Alt>g" "-" "layers-clipping-mask"
 
 (action "context-colors-default" "d")
 (action "context-colors-swap" "x")
@@ -50,6 +51,7 @@
 (action "image-resize" "<Primary><Alt>c")
 (action "image-scale" "<Primary><Alt>i")
 (action "layers-anchor")
+(action "layers-clipping-mask" "<Primary><Alt>g")
 (action "layers-lower" "<Primary>bracketleft")
 (action "layers-lower-to-bottom" "<Primary><Shift>bracketleft")
 (action "layers-merge-layers-last-values" "<Primary><Shift>e")

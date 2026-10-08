@@ -40,6 +40,8 @@
 #   - GIMPhoto's Properties panel is compiled in and in the default layout;
 #   - adjustment layers are compiled in and an XCF with one applies its
 #     adjustment to the layer below, through its mask, also after a save;
+#   - clipping masks are compiled in and an XCF with a clipped layer shows
+#     it only where its base has pixels, also after a save and through a PSD;
 #   - a profile saved before a default shortcut moved (Ctrl+E to Merge
 #     Layers) gets the move once, keeping its own shortcuts;
 #   - a profile with a layout saved before GIMPhoto's current default gets
@@ -264,6 +266,21 @@ if [[ "$adjustment_result" == ok ]] &&
     echo "ok   adjustment layers: compiled in; an Invert adjustment layer applies to the layer below through its mask, also after an XCF save"
 else
     echo "FAIL adjustment layers: ${adjustment_result:-the actions are not in GIMP}" >&2
+    status=1
+fi
+# Clipping masks: compiled in, and an XCF with a clipped layer shows it only
+# where its base has pixels, also after a save and through a PSD
+clipping_report="$(mktemp /tmp/gimphoto-smoke.XXXXXX)"
+flatpak run --filesystem="$PWD/tests:ro" --env=GIMPHOTO_SMOKE_OUT="$clipping_report" \
+    --env=GIMPHOTO_CLIPPING_XCF="$PWD/tests/fixtures/clipping-mask.xcf" "$app" -i --batch-interpreter=python-fu-eval \
+    -b "exec(open('$PWD/tests/smoke_clipping_mask.py').read())" --quit >/dev/null 2>&1 || true
+clipping_result="$(cat "$clipping_report")"
+rm -f "$clipping_report"
+if [[ "$clipping_result" == ok ]] &&
+    flatpak run --command=sh "$app" -c 'grep -q "Create Clipping Mas" /app/bin/gimp-3.*' 2>/dev/null; then
+    echo "ok   clipping masks: compiled in; a clipped layer shows only where its base has pixels, also after an XCF save and through a PSD"
+else
+    echo "FAIL clipping masks: ${clipping_result:-the action is not in GIMP}" >&2
     status=1
 fi
 if flatpak run --command=sh "$app" -c 'grep -q gimp-remove-tool /app/bin/gimp-3.*' 2>/dev/null; then

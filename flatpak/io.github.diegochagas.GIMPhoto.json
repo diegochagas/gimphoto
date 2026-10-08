@@ -895,7 +895,8 @@
                         "../patches/0013-Layers-dock-double-click-opens-a-generated-layer-s-G.patch",
                         "../patches/0014-Remove-tool-paint-over-an-object-to-remove-it-AI.patch",
                         "../patches/0015-Default-shortcut-updates-reach-existing-profiles.patch",
-                        "../patches/0016-Adjustment-layers-Layer-New-Adjustment-Layer-applied.patch"
+                        "../patches/0016-Adjustment-layers-Layer-New-Adjustment-Layer-applied.patch",
+                        "../patches/0017-Clipping-masks-Create-Release-Clipping-Mask-Alt-clic.patch"
                     ]
                 }
             ],

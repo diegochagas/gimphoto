@@ -69,6 +69,7 @@ image-resize	<Primary><Alt>c	Image > Canvas Size (Ctrl+Alt+C)
 
 # --- Layer
 layers-new	<Primary><Shift>n	Layer > New > Layer (Ctrl+Shift+N)
+layers-clipping-mask	<Primary><Alt>g	Layer > Create Clipping Mask (Ctrl+Alt+G)
 gimphoto-layer-via-copy	<Primary>j	Layer > New > Layer via Copy (Ctrl+J; no selection: duplicate the layer)
 gimphoto-layer-via-cut	<Primary><Shift>j	Layer > New > Layer via Cut (Ctrl+Shift+J)
 layers-new-group	<Primary>g	Layer > Group Layers (Ctrl+G)

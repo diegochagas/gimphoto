@@ -1,0 +1,1498 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: GIMPhoto scripts <gimphoto@localhost>
+Date: Thu, 8 Oct 2026 17:42:52 -0300
+Subject: [PATCH] Clipping masks: Create / Release Clipping Mask, Alt+click
+ between layers
+
+Photoshop's clipping masks: a layer clipped to the layer below it (its base)
+shows only where the base has pixels. Several layers can be clipped to one
+base; each keeps its own mode, opacity and mask; the base's mode, opacity and
+mask apply to the whole run; clipped layers are drawn indented with a bent
+arrow in the Layers panel.
+
+- app/core/gimplayer.[ch]: a `clipped` flag (gimp_layer_set_clipped, with
+  undo; gimp_layer_can_be_clipped: not the bottom layer of a group), the
+  "clipped-changed" signal, and the "gimphoto-clipped" parasite mirroring
+  the flag so plug-ins (the PSD loader and exporter) and the XCF carry it
+  without a PDB procedure. A clipped layer's effective composite mode is
+  Clip to backdrop. _gimp_layer_set_clip_base wires a base's node: its own
+  pixels (Normal over nothing, with its mask) leave through a "clip-base"
+  output, and a "clip-result" input takes the place of its pixels at its
+  mode node; the mask signals re-wire it after GIMP's mask code.
+- app/core/gimplayerstack.c: whenever the stack or a clipping changes,
+  the chain is rewired: the base's clip-base feeds the first clipped layer,
+  each clipped layer the next, the last one the base's clip-result, and the
+  unclipped chain skips the clipped layers. A clipped layer with no base
+  (bottom, or its base hidden) shows as an ordinary layer. A layer added
+  with the parasite becomes clipped. gimpfilterstack.[ch]: a graph_built
+  hook so the stack rewires the graph GimpFilterStack builds.
+- app/core/gimpimage-merge.c: merging reads the composite at the base of
+  a clipped top layer. Undo: GIMP_UNDO_LAYER_CLIPPED in GimpLayerPropUndo.
+- app/actions, menus: Layer > Create / Release Clipping Mask (one toggle,
+  the label follows the first selected layer), also in the Layers panel's
+  menu; Ctrl+Alt+G in the keymap, reaching existing profiles through a
+  shortcut move from "-" (app/menus/menus.c: a shortcut new to GIMPhoto).
+- app/widgets/gimpcontainertreeview.[ch]: a gap_clicked class hook for
+  Alt+click within 4 px of the line between two rows;
+  gimplayertreeview.c implements it (clip or release the upper layer) and
+  shows the gimphoto-clipping-mask icon before a clipped layer's
+  thumbnail, which indents it.
+- plug-ins/file-psd: clipped PSD layers load as clipped layers (the
+  parasite) instead of GIMP's "Group added by GIMP" with Clip to backdrop;
+  the exporter writes the clipping byte for them.
+
+Test: two layers, Alt+click the line between them or Ctrl+Alt+G on the
+upper one; it shows only inside the lower one; hide the base and the
+clipped layer vanishes; drag the base to the bottom... ; Flatten and Merge
+Down bake it; a PSD from Photoshop with clipped layers opens clipped and
+exports clipped; the XCF reopens clipped.
+
+diff --git a/app/actions/layers-actions.c b/app/actions/layers-actions.c
+index bbcc65c266..3742afacf0 100644
+--- a/app/actions/layers-actions.c
++++ b/app/actions/layers-actions.c
+@@ -371,6 +371,14 @@ static const GimpActionEntry layers_actions[] =
+ 
+ static const GimpToggleActionEntry layers_toggle_actions[] =
+ {
++  /*  GIMPhoto: Photoshop's Layer > Create Clipping Mask (Ctrl+Alt+G)  */
++  { "layers-clipping-mask", "gimphoto-clipping-mask",
++    NC_("layers-action", "Create Clipping Mas_k"), NULL, { NULL },
++    NC_("layers-action", "Show the layer only where the layer below it has pixels"),
++    layers_clipping_mask_cmd_callback,
++    FALSE,
++    GIMP_HELP_LAYER_EDIT },
++
+   { "layers-mask-edit", GIMP_ICON_EDIT,
+     NC_("layers-action", "_Edit Layer Mask"), NULL, { NULL },
+     NC_("layers-action", "Work on the layer mask"),
+@@ -872,6 +880,8 @@ layers_actions_update (GimpActionGroup *group,
+   gboolean       indexed            = FALSE;    /*  is indexed             */
+   gboolean       lock_alpha         = TRUE;
+   gboolean       can_lock_alpha     = FALSE;
++  gboolean       clipped            = FALSE;   /*  GIMPhoto: first selected layer  */
++  gboolean       can_clip           = FALSE;
+   gboolean       has_rasterizable   = FALSE;
+   gboolean       has_rasterized     = FALSE;
+   gboolean       has_raster         = FALSE;
+@@ -968,6 +978,11 @@ layers_actions_update (GimpActionGroup *group,
+               can_lock_alpha = TRUE;
+             }
+ 
++          if (iter == layers)
++            clipped = gimp_layer_get_clipped (iter->data);
++          if (gimp_layer_can_be_clipped (iter->data))
++            can_clip = TRUE;
++
+           mode = gimp_layer_get_mode (iter->data);
+           modes = gimp_layer_mode_get_context_array (mode,
+                                                      GIMP_LAYER_MODE_CONTEXT_LAYER,
+@@ -1194,6 +1209,13 @@ layers_actions_update (GimpActionGroup *group,
+   SET_SENSITIVE ("layers-lock-alpha", can_lock_alpha);
+   SET_ACTIVE    ("layers-lock-alpha", lock_alpha);
+ 
++  /*  GIMPhoto: one entry, as Photoshop's, that reads Create or Release  */
++  SET_SENSITIVE ("layers-clipping-mask", can_clip || clipped);
++  SET_ACTIVE    ("layers-clipping-mask", clipped);
++  SET_LABEL     ("layers-clipping-mask", clipped ?
++                 C_("layers-action", "Release Clipping Mas_k") :
++                 C_("layers-action", "Create Clipping Mas_k"));
++
+   SET_SENSITIVE ("layers-blend-space-auto",           n_selected_layers && bs_mutable);
+   SET_SENSITIVE ("layers-blend-space-rgb-linear",     n_selected_layers && bs_mutable);
+   SET_SENSITIVE ("layers-blend-space-rgb-non-linear", n_selected_layers && bs_mutable);
+diff --git a/app/actions/layers-commands.c b/app/actions/layers-commands.c
+index 66f9fe6efc..04ccfb25b3 100644
+--- a/app/actions/layers-commands.c
++++ b/app/actions/layers-commands.c
+@@ -2678,6 +2678,53 @@ layers_lock_position_cmd_callback (GimpAction *action,
+   items_lock_position_cmd_callback (action, value, image, layers);
+ }
+ 
++/*  GIMPhoto: Photoshop's Create / Release Clipping Mask on the selected
++ *  layers (the bottom layer of a group cannot be clipped)
++ */
++void
++layers_clipping_mask_cmd_callback (GimpAction *action,
++                                   GVariant   *value,
++                                   gpointer    data)
++{
++  GimpImage *image;
++  GList     *layers;
++  GList     *iter;
++  gboolean   clipped;
++  gboolean   change = FALSE;
++  return_if_no_layers (image, layers, data);
++
++  clipped = g_variant_get_boolean (value);
++
++  for (iter = layers; iter; iter = iter->next)
++    {
++      if (clipped && ! gimp_layer_can_be_clipped (iter->data))
++        continue;
++
++      if (clipped != gimp_layer_get_clipped (iter->data))
++        change = TRUE;
++    }
++
++  if (! change)
++    return;
++
++  gimp_image_undo_group_start (image, GIMP_UNDO_GROUP_ITEM_PROPERTIES,
++                               clipped ?
++                               _("Create Clipping Mask") :
++                               _("Release Clipping Mask"));
++
++  for (iter = layers; iter; iter = iter->next)
++    {
++      if (clipped && ! gimp_layer_can_be_clipped (iter->data))
++        continue;
++
++      if (clipped != gimp_layer_get_clipped (iter->data))
++        gimp_layer_set_clipped (iter->data, clipped, TRUE);
++    }
++
++  gimp_image_undo_group_end (image);
++  gimp_image_flush (image);
++}
++
+ void
+ layers_lock_alpha_cmd_callback (GimpAction *action,
+                                 GVariant   *value,
+diff --git a/app/actions/layers-commands.h b/app/actions/layers-commands.h
+index 719abd4bc2..d8f592a66a 100644
+--- a/app/actions/layers-commands.h
++++ b/app/actions/layers-commands.h
+@@ -171,6 +171,9 @@ void   layers_lock_content_cmd_callback       (GimpAction *action,
+ void   layers_lock_position_cmd_callback      (GimpAction *action,
+                                                GVariant   *value,
+                                                gpointer    data);
++void   layers_clipping_mask_cmd_callback      (GimpAction *action,
++                                                GVariant   *value,
++                                                gpointer    data);
+ void   layers_lock_alpha_cmd_callback         (GimpAction *action,
+                                                GVariant   *value,
+                                                gpointer    data);
+diff --git a/app/core/core-enums.c b/app/core/core-enums.c
+index 150b72a8bd..95553b9c83 100644
+--- a/app/core/core-enums.c
++++ b/app/core/core-enums.c
+@@ -1258,6 +1258,7 @@ gimp_undo_type_get_type (void)
+     { GIMP_UNDO_LAYER_MODE, "GIMP_UNDO_LAYER_MODE", "layer-mode" },
+     { GIMP_UNDO_LAYER_OPACITY, "GIMP_UNDO_LAYER_OPACITY", "layer-opacity" },
+     { GIMP_UNDO_LAYER_LOCK_ALPHA, "GIMP_UNDO_LAYER_LOCK_ALPHA", "layer-lock-alpha" },
++    { GIMP_UNDO_LAYER_CLIPPED, "GIMP_UNDO_LAYER_CLIPPED", "layer-clipped" },
+     { GIMP_UNDO_LINK_LAYER, "GIMP_UNDO_LINK_LAYER", "link-layer" },
+     { GIMP_UNDO_GROUP_LAYER_SUSPEND_RESIZE, "GIMP_UNDO_GROUP_LAYER_SUSPEND_RESIZE", "group-layer-suspend-resize" },
+     { GIMP_UNDO_GROUP_LAYER_RESUME_RESIZE, "GIMP_UNDO_GROUP_LAYER_RESUME_RESIZE", "group-layer-resume-resize" },
+@@ -1374,6 +1375,7 @@ gimp_undo_type_get_type (void)
+     { GIMP_UNDO_LAYER_MODE, NC_("undo-type", "Set layer mode"), NULL },
+     { GIMP_UNDO_LAYER_OPACITY, NC_("undo-type", "Set layer opacity"), NULL },
+     { GIMP_UNDO_LAYER_LOCK_ALPHA, NC_("undo-type", "Lock/Unlock alpha channel"), NULL },
++    { GIMP_UNDO_LAYER_CLIPPED, NC_("undo-type", "Clipping mask"), NULL },
+     { GIMP_UNDO_LINK_LAYER, NC_("undo-type", "Link layer"), NULL },
+     { GIMP_UNDO_GROUP_LAYER_SUSPEND_RESIZE, NC_("undo-type", "Suspend group layer resize"), NULL },
+     { GIMP_UNDO_GROUP_LAYER_RESUME_RESIZE, NC_("undo-type", "Resume group layer resize"), NULL },
+diff --git a/app/core/core-enums.h b/app/core/core-enums.h
+index f7cd45fc5a..911705f0cd 100644
+--- a/app/core/core-enums.h
++++ b/app/core/core-enums.h
+@@ -610,6 +610,7 @@ typedef enum /*< pdb-skip >*/
+   GIMP_UNDO_LAYER_MODE,                  /*< desc="Set layer mode"                 >*/
+   GIMP_UNDO_LAYER_OPACITY,               /*< desc="Set layer opacity"              >*/
+   GIMP_UNDO_LAYER_LOCK_ALPHA,            /*< desc="Lock/Unlock alpha channel"      >*/
++  GIMP_UNDO_LAYER_CLIPPED,               /*< desc="Clipping mask"                  >*/
+   GIMP_UNDO_LINK_LAYER,                  /*< desc="Link layer"                     >*/
+   GIMP_UNDO_GROUP_LAYER_SUSPEND_RESIZE,  /*< desc="Suspend group layer resize"     >*/
+   GIMP_UNDO_GROUP_LAYER_RESUME_RESIZE,   /*< desc="Resume group layer resize"      >*/
+diff --git a/app/core/gimpfilterstack.c b/app/core/gimpfilterstack.c
+index dfbb223405..b951cec717 100644
+--- a/app/core/gimpfilterstack.c
++++ b/app/core/gimpfilterstack.c
+@@ -48,6 +48,7 @@ static void   gimp_filter_stack_add_node         (GimpFilterStack *stack,
+ static void   gimp_filter_stack_remove_node      (GimpFilterStack *stack,
+                                                   GimpFilter      *filter);
+ static void   gimp_filter_stack_update_last_node (GimpFilterStack *stack);
++static void   gimp_filter_stack_graph_changed    (GimpFilterStack *stack);
+ 
+ static void   gimp_filter_stack_filter_active    (GimpFilter      *filter,
+                                                   GimpFilterStack *stack);
+@@ -121,6 +122,8 @@ gimp_filter_stack_add (GimpContainer *container,
+ 
+       gimp_filter_stack_update_last_node (stack);
+     }
++
++  gimp_filter_stack_graph_changed (stack);
+ }
+ 
+ static void
+@@ -143,6 +146,8 @@ gimp_filter_stack_remove (GimpContainer *container,
+       gimp_filter_set_is_last_node (filter, FALSE);
+       gimp_filter_stack_update_last_node (stack);
+     }
++
++  gimp_filter_stack_graph_changed (stack);
+ }
+ 
+ static void
+@@ -167,6 +172,8 @@ gimp_filter_stack_reorder (GimpContainer *container,
+       if (stack->graph)
+         gimp_filter_stack_add_node (stack, filter);
+     }
++
++  gimp_filter_stack_graph_changed (stack);
+ }
+ 
+ 
+@@ -223,6 +230,8 @@ gimp_filter_stack_get_graph (GimpFilterStack *stack)
+ 
+   gegl_node_link (previous, output);
+ 
++  gimp_filter_stack_graph_changed (stack);
++
+   return stack->graph;
+ }
+ 
+@@ -345,4 +354,13 @@ gimp_filter_stack_filter_active (GimpFilter      *filter,
+ 
+   if (! gimp_filter_get_active (filter))
+     gimp_filter_set_is_last_node (filter, FALSE);
++
++  gimp_filter_stack_graph_changed (stack);
++}
++
++static void
++gimp_filter_stack_graph_changed (GimpFilterStack *stack)
++{
++  if (GIMP_FILTER_STACK_GET_CLASS (stack)->graph_changed)
++    GIMP_FILTER_STACK_GET_CLASS (stack)->graph_changed (stack);
+ }
+diff --git a/app/core/gimpfilterstack.h b/app/core/gimpfilterstack.h
+index 64bb6572af..6a9223f548 100644
+--- a/app/core/gimpfilterstack.h
++++ b/app/core/gimpfilterstack.h
+@@ -28,6 +28,7 @@
+ #define GIMP_FILTER_STACK_CLASS(klass)    (G_TYPE_CHECK_CLASS_CAST ((klass), GIMP_TYPE_FILTER_STACK, GimpFilterStackClass))
+ #define GIMP_IS_FILTER_STACK(obj)         (G_TYPE_CHECK_INSTANCE_TYPE ((obj), GIMP_TYPE_FILTER_STACK))
+ #define GIMP_IS_FILTER_STACK_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((klass), GIMP_TYPE_FILTER_STACK))
++#define GIMP_FILTER_STACK_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS ((obj), GIMP_TYPE_FILTER_STACK, GimpFilterStackClass))
+ 
+ 
+ typedef struct _GimpFilterStackClass GimpFilterStackClass;
+@@ -42,6 +43,12 @@ struct _GimpFilterStack
+ struct _GimpFilterStackClass
+ {
+   GimpListClass  parent_class;
++
++  /*  GIMPhoto: called once the graph is built and after every change the
++   *  stack makes to it, for a subclass that wires it differently
++   *  (GimpLayerStack: clipping masks)
++   */
++  void (* graph_changed) (GimpFilterStack *stack);
+ };
+ 
+ 
+diff --git a/app/core/gimpimage-merge.c b/app/core/gimpimage-merge.c
+index 8679900fb0..86f9a0d8b3 100644
+--- a/app/core/gimpimage-merge.c
++++ b/app/core/gimpimage-merge.c
+@@ -735,8 +735,30 @@ gimp_image_merge_layers (GimpImage     *image,
+   if (parent)
+     (void) gimp_filter_get_node (GIMP_FILTER (parent));
+ 
+-  /*  Build our graph inside the top-layer's parent node  */
+-  source_node = gimp_filter_get_node (GIMP_FILTER (top_layer));
++  /*  Build our graph inside the top-layer's parent node.
++   *  GIMPhoto: a clipped layer's node outputs only what was composited
++   *  onto its base; the whole composite comes out of the base's node.
++   */
++  {
++    GimpLayer *source_layer = top_layer;
++
++    while (gimp_layer_get_clipped (source_layer))
++      {
++        GimpContainer *container = gimp_item_get_container (GIMP_ITEM (source_layer));
++        gint           index     = gimp_item_get_index (GIMP_ITEM (source_layer));
++        GimpLayer     *below     = NULL;
++
++        if (container)
++          below = GIMP_LAYER (gimp_container_get_child_by_index (container, index + 1));
++
++        if (! below)
++          break;
++
++        source_layer = below;
++      }
++
++    source_node = gimp_filter_get_node (GIMP_FILTER (source_layer));
++  }
+   node = gegl_node_get_parent (source_node);
+ 
+   g_return_val_if_fail (node, NULL);
+diff --git a/app/core/gimpimage-undo-push.c b/app/core/gimpimage-undo-push.c
+index fa0f4bdc8f..fb2a69b44f 100644
+--- a/app/core/gimpimage-undo-push.c
++++ b/app/core/gimpimage-undo-push.c
+@@ -710,6 +710,22 @@ gimp_image_undo_push_layer_lock_alpha (GimpImage   *image,
+                                NULL);
+ }
+ 
++GimpUndo *
++gimp_image_undo_push_layer_clipped (GimpImage   *image,
++                                    const gchar *undo_desc,
++                                    GimpLayer   *layer)
++{
++  g_return_val_if_fail (GIMP_IS_IMAGE (image), NULL);
++  g_return_val_if_fail (GIMP_IS_LAYER (layer), NULL);
++  g_return_val_if_fail (gimp_item_is_attached (GIMP_ITEM (layer)), NULL);
++
++  return gimp_image_undo_push (image, GIMP_TYPE_LAYER_PROP_UNDO,
++                               GIMP_UNDO_LAYER_CLIPPED, undo_desc,
++                               GIMP_DIRTY_ITEM_META,
++                               "item", layer,
++                               NULL);
++}
++
+ 
+ /***********************/
+ /*  Group Layer Undos  */
+diff --git a/app/core/gimpimage-undo-push.h b/app/core/gimpimage-undo-push.h
+index c7f904cef2..c8d513f1a6 100644
+--- a/app/core/gimpimage-undo-push.h
++++ b/app/core/gimpimage-undo-push.h
+@@ -168,6 +168,9 @@ GimpUndo * gimp_image_undo_push_layer_opacity       (GimpImage     *image,
+ GimpUndo * gimp_image_undo_push_layer_lock_alpha    (GimpImage     *image,
+                                                      const gchar   *undo_desc,
+                                                      GimpLayer     *layer);
++GimpUndo * gimp_image_undo_push_layer_clipped       (GimpImage     *image,
++                                                     const gchar   *undo_desc,
++                                                     GimpLayer     *layer);
+ 
+ 
+ /*  group layer undos  */
+diff --git a/app/core/gimpitem.c b/app/core/gimpitem.c
+index eee56defd9..558acfcd43 100644
+--- a/app/core/gimpitem.c
++++ b/app/core/gimpitem.c
+@@ -43,6 +43,7 @@
+ #include "gimpitem.h"
+ #include "gimpitem-preview.h"
+ #include "gimpitemtree.h"
++#include "gimplayer.h"
+ #include "gimplinklayer.h"
+ #include "gimplist.h"
+ #include "gimpparasitelist.h"
+@@ -2250,6 +2251,13 @@ gimp_item_parasite_attach (GimpItem           *item,
+ 
+   gimp_parasite_list_add (private->parasites, &copy);
+ 
++  /*  GIMPhoto: the "gimphoto-clipped" parasite is a clipping mask, for
++   *  plug-ins and files (gimp_layer_set_clipped keeps the two in step)
++   */
++  if (GIMP_IS_LAYER (item) &&
++      g_strcmp0 (gimp_parasite_get_name (&copy), "gimphoto-clipped") == 0)
++    gimp_layer_set_clipped (GIMP_LAYER (item), TRUE, FALSE);
++
+   if (gimp_parasite_has_flag (&copy, GIMP_PARASITE_ATTACH_PARENT))
+     {
+       gimp_parasite_shift_parent (&copy);
+@@ -2307,6 +2315,10 @@ gimp_item_parasite_detach (GimpItem    *item,
+     }
+ 
+   gimp_parasite_list_remove (private->parasites, name);
++
++  /*  GIMPhoto: see gimp_item_parasite_attach()  */
++  if (GIMP_IS_LAYER (item) && g_strcmp0 (name, "gimphoto-clipped") == 0)
++    gimp_layer_set_clipped (GIMP_LAYER (item), FALSE, FALSE);
+ }
+ 
+ const GimpParasite *
+diff --git a/app/core/gimplayer.c b/app/core/gimplayer.c
+index 5b08c1ab9a..e8c94f8039 100644
+--- a/app/core/gimplayer.c
++++ b/app/core/gimplayer.c
+@@ -69,6 +69,7 @@ enum
+   EFFECTIVE_MODE_CHANGED,
+   EXCLUDES_BACKDROP_CHANGED,
+   LOCK_ALPHA_CHANGED,
++  CLIPPED_CHANGED,
+   MASK_CHANGED,
+   APPLY_MASK_CHANGED,
+   EDIT_MASK_CHANGED,
+@@ -108,6 +109,10 @@ static void       gimp_layer_notify             (GObject            *object,
+                                                  GParamSpec         *pspec);
+ 
+ static void       gimp_layer_name_changed       (GimpObject         *object);
++static void       gimp_layer_clip_base_mask_changed
++                                                (GimpLayer          *layer);
++static void       gimp_layer_update_clip_base_node
++                                                (GimpLayer          *layer);
+ static gint64     gimp_layer_get_memsize        (GimpObject         *object,
+                                                  gint64             *gui_size);
+ 
+@@ -361,6 +366,14 @@ gimp_layer_class_init (GimpLayerClass *klass)
+                   NULL, NULL, NULL,
+                   G_TYPE_NONE, 0);
+ 
++  layer_signals[CLIPPED_CHANGED] =
++    g_signal_new ("clipped-changed",
++                  G_TYPE_FROM_CLASS (klass),
++                  G_SIGNAL_RUN_FIRST,
++                  G_STRUCT_OFFSET (GimpLayerClass, clipped_changed),
++                  NULL, NULL, NULL,
++                  G_TYPE_NONE, 0);
++
+   layer_signals[MASK_CHANGED] =
+     g_signal_new ("mask-changed",
+                   G_TYPE_FROM_CLASS (klass),
+@@ -457,10 +470,12 @@ gimp_layer_class_init (GimpLayerClass *klass)
+   klass->composite_mode_changed       = NULL;
+   klass->excludes_backdrop_changed    = NULL;
+   klass->lock_alpha_changed           = NULL;
+-  klass->mask_changed                 = NULL;
+-  klass->apply_mask_changed           = NULL;
++  klass->clipped_changed              = NULL;
++  /* GIMPhoto: a clip base's node is wired after every mask change */
++  klass->mask_changed                 = gimp_layer_clip_base_mask_changed;
++  klass->apply_mask_changed           = gimp_layer_clip_base_mask_changed;
+   klass->edit_mask_changed            = NULL;
+-  klass->show_mask_changed            = NULL;
++  klass->show_mask_changed            = gimp_layer_clip_base_mask_changed;
+   klass->is_alpha_locked              = gimp_layer_real_is_alpha_locked;
+   klass->translate                    = gimp_layer_real_translate;
+   klass->scale                        = gimp_layer_real_scale;
+@@ -546,6 +561,9 @@ gimp_layer_init (GimpLayer *layer)
+   layer->effective_composite_mode  = gimp_layer_get_real_composite_mode (layer);
+   layer->excludes_backdrop         = FALSE;
+   layer->lock_alpha                = FALSE;
++  layer->clipped                   = FALSE;
++  layer->clip_base                 = FALSE;
++  layer->clip_mode_node            = NULL;
+ 
+   layer->mask       = NULL;
+   layer->apply_mask = TRUE;
+@@ -873,6 +891,9 @@ gimp_layer_get_node (GimpFilter *filter)
+         }
+     }
+ 
++  if (layer->clip_base)
++    gimp_layer_update_clip_base_node (layer);
++
+   return node;
+ }
+ 
+@@ -938,6 +959,12 @@ gimp_layer_duplicate (GimpItem *item,
+       GimpLayer *layer     = GIMP_LAYER (item);
+       GimpLayer *new_layer = GIMP_LAYER (new_item);
+ 
++      /* GIMPhoto: a copy of a clipped layer is clipped (the parasite was
++       * copied with the others, the flag follows)
++       */
++      if (gimp_layer_get_clipped (layer))
++        gimp_layer_set_clipped (new_layer, TRUE, FALSE);
++
+       /* PASS_THROUGH mode is invalid for regular layers.
+        * We used to change the mode to NORMAL *before* duplicating (see
+        * #793714 on bugzilla) but it would change the image's render.
+@@ -2926,6 +2953,208 @@ gimp_layer_get_lock_alpha (GimpLayer *layer)
+   return layer->lock_alpha;
+ }
+ 
++
++/*  GIMPhoto: Photoshop's clipping masks  */
++
++#define GIMPHOTO_CLIPPED_PARASITE "gimphoto-clipped"
++
++void
++gimp_layer_set_clipped (GimpLayer *layer,
++                        gboolean   clipped,
++                        gboolean   push_undo)
++{
++  g_return_if_fail (GIMP_IS_LAYER (layer));
++
++  clipped = clipped ? TRUE : FALSE;
++
++  if (layer->clipped != clipped)
++    {
++      if (push_undo && gimp_item_is_attached (GIMP_ITEM (layer)))
++        {
++          GimpImage *image = gimp_item_get_image (GIMP_ITEM (layer));
++
++          gimp_image_undo_push_layer_clipped (image,
++                                              clipped ?
++                                              C_("undo-type", "Create Clipping Mask") :
++                                              C_("undo-type", "Release Clipping Mask"),
++                                              layer);
++        }
++
++      layer->clipped = clipped;
++
++      /*  the parasite mirrors the flag: it is what plug-ins (the PSD
++       *  loader and exporter) and the XCF carry
++       */
++      if (clipped)
++        {
++          if (! gimp_item_parasite_find (GIMP_ITEM (layer),
++                                         GIMPHOTO_CLIPPED_PARASITE))
++            {
++              GimpParasite *parasite;
++
++              parasite = gimp_parasite_new (GIMPHOTO_CLIPPED_PARASITE,
++                                            GIMP_PARASITE_PERSISTENT,
++                                            1, "1");
++              gimp_item_parasite_attach (GIMP_ITEM (layer), parasite, FALSE);
++              gimp_parasite_free (parasite);
++            }
++        }
++      else if (gimp_item_parasite_find (GIMP_ITEM (layer),
++                                        GIMPHOTO_CLIPPED_PARASITE))
++        {
++          gimp_item_parasite_detach (GIMP_ITEM (layer),
++                                     GIMPHOTO_CLIPPED_PARASITE, FALSE);
++        }
++
++      g_signal_emit (layer, layer_signals[CLIPPED_CHANGED], 0);
++
++      gimp_layer_update_effective_mode (layer);
++      gimp_layer_update_excludes_backdrop (layer);
++
++      gimp_drawable_update (GIMP_DRAWABLE (layer), 0, 0, -1, -1);
++    }
++}
++
++gboolean
++gimp_layer_get_clipped (GimpLayer *layer)
++{
++  g_return_val_if_fail (GIMP_IS_LAYER (layer), FALSE);
++
++  return layer->clipped;
++}
++
++/*  a layer can be clipped when there is a layer below it in its group
++ *  (Photoshop greys Create Clipping Mask out for the bottom layer)
++ */
++gboolean
++gimp_layer_can_be_clipped (GimpLayer *layer)
++{
++  GimpContainer *container;
++  gint           index;
++
++  g_return_val_if_fail (GIMP_IS_LAYER (layer), FALSE);
++
++  if (gimp_layer_is_floating_sel (layer) ||
++      ! gimp_item_is_attached (GIMP_ITEM (layer)))
++    return FALSE;
++
++  container = gimp_item_get_container (GIMP_ITEM (layer));
++  index     = gimp_item_get_index (GIMP_ITEM (layer));
++
++  return (container != NULL &&
++          index >= 0 &&
++          index < gimp_container_get_n_children (container) - 1);
++}
++
++/*  The base of a clipping run composites the clipped layers onto its own
++ *  pixels before blending the result with the backdrop, with its mode,
++ *  opacity and mask: its node gets an extra "clip-base" output (its own
++ *  pixels, Normal over nothing, masked) and a "clip-result" input (what
++ *  the stack composited onto them), which takes the place of the layer's
++ *  pixels at its mode node. GimpLayerStack wires the two.
++ */
++void
++_gimp_layer_set_clip_base (GimpLayer *layer,
++                           gboolean   clip_base)
++{
++  g_return_if_fail (GIMP_IS_LAYER (layer));
++
++  clip_base = clip_base ? TRUE : FALSE;
++
++  if (layer->clip_base != clip_base)
++    {
++      layer->clip_base = clip_base;
++
++      if (gimp_filter_peek_node (GIMP_FILTER (layer)))
++        gimp_layer_update_clip_base_node (layer);
++    }
++}
++
++static void
++gimp_layer_clip_base_mask_changed (GimpLayer *layer)
++{
++  /*  the mask code wires the mode node's aux pads afresh  */
++  if (layer->clip_base && gimp_filter_peek_node (GIMP_FILTER (layer)))
++    gimp_layer_update_clip_base_node (layer);
++}
++
++static void
++gimp_layer_update_clip_base_node (GimpLayer *layer)
++{
++  GeglNode *node      = gimp_filter_get_node (GIMP_FILTER (layer));
++  GeglNode *mode_node = gimp_drawable_get_mode_node (GIMP_DRAWABLE (layer));
++  gboolean  show_mask = (layer->mask && gimp_layer_get_show_mask (layer));
++  gboolean  use_mask  = (layer->mask && ! show_mask &&
++                         gimp_layer_get_apply_mask (layer));
++
++  /*  a floating selection's source node belongs to its drawable  */
++  if (! layer->layer_offset_node)
++    return;
++
++  if (layer->clip_base && ! show_mask)
++    {
++      GeglNode *clip_base;
++      GeglNode *clip_result;
++
++      if (! layer->clip_mode_node)
++        {
++          layer->clip_mode_node = gegl_node_new_child (node,
++                                                       "operation", "gimp:normal",
++                                                       NULL);
++          gimp_gegl_mode_node_set_mode (layer->clip_mode_node,
++                                        GIMP_LAYER_MODE_NORMAL,
++                                        GIMP_LAYER_COLOR_SPACE_AUTO,
++                                        GIMP_LAYER_COLOR_SPACE_AUTO,
++                                        GIMP_LAYER_COMPOSITE_UNION);
++          gimp_gegl_mode_node_set_opacity (layer->clip_mode_node, 1.0);
++        }
++
++      /*  the layer's own pixels, over nothing, with its mask  */
++      gegl_node_disconnect (layer->clip_mode_node, "input");
++      gegl_node_connect (show_mask ?
++                         layer->mask_offset_node : layer->layer_offset_node,
++                         "output",
++                         layer->clip_mode_node, "aux");
++      if (use_mask)
++        gegl_node_connect (layer->mask_offset_node, "output",
++                           layer->clip_mode_node, "aux2");
++      else
++        gegl_node_disconnect (layer->clip_mode_node, "aux2");
++
++      clip_base = gegl_node_get_output_proxy (node, "clip-base");
++      gegl_node_connect (layer->clip_mode_node, "output",
++                         clip_base,             "input");
++
++      /*  what was composited onto them stands in for the layer  */
++      clip_result = gegl_node_get_input_proxy (node, "clip-result");
++      gegl_node_connect (clip_result, "output",
++                         mode_node,   "aux");
++      if (use_mask)
++        gegl_node_disconnect (mode_node, "aux2");
++    }
++  else
++    {
++      if (layer->clip_mode_node)
++        {
++          gegl_node_disconnect (layer->clip_mode_node, "aux");
++          gegl_node_disconnect (layer->clip_mode_node, "aux2");
++        }
++
++      /*  back to GIMP's wiring (also while the mask is shown: the mask
++       *  alone, as Photoshop)
++       */
++      gegl_node_connect (show_mask ?
++                         layer->mask_offset_node : layer->layer_offset_node,
++                         "output",
++                         mode_node, "aux");
++      if (use_mask)
++        gegl_node_connect (layer->mask_offset_node, "output",
++                           mode_node,               "aux2");
++      else
++        gegl_node_disconnect (mode_node, "aux2");
++    }
++}
++
+ gboolean
+ gimp_layer_can_lock_alpha (GimpLayer *layer)
+ {
+@@ -2978,6 +3207,12 @@ gimp_layer_update_effective_mode (GimpLayer *layer)
+                                                         &composite_mode);
+     }
+ 
++  /* GIMPhoto: a clipped layer shows only where its base has pixels; the
++   * stack feeds it the base (and the clipped layers below it) as backdrop
++   */
++  if (layer->clipped && mode != GIMP_LAYER_MODE_PASS_THROUGH)
++    composite_mode = GIMP_LAYER_COMPOSITE_CLIP_TO_BACKDROP;
++
+   if (mode            != layer->effective_mode            ||
+       blend_space     != layer->effective_blend_space     ||
+       composite_space != layer->effective_composite_space ||
+diff --git a/app/core/gimplayer.h b/app/core/gimplayer.h
+index fbb1cd4fd4..37af258602 100644
+--- a/app/core/gimplayer.h
++++ b/app/core/gimplayer.h
+@@ -46,6 +46,11 @@ struct _GimpLayer
+   gboolean                excludes_backdrop;          /*  layer clips backdrop              */
+   gboolean                lock_alpha;                 /*  lock the alpha channel            */
+ 
++  /*  GIMPhoto: Photoshop's clipping masks  */
++  gboolean                clipped;                    /*  clipped to the layer below        */
++  gboolean                clip_base;                  /*  has clipped layers above (stack)  */
++  GeglNode               *clip_mode_node;             /*  own pixels for the clipped layers */
++
+   GimpLayerMask          *mask;                       /*  possible layer mask               */
+   gboolean                apply_mask;                 /*  controls mask application         */
+   gboolean                edit_mask;                  /*  edit mask or layer?               */
+@@ -79,6 +84,7 @@ struct _GimpLayerClass
+   void          (* effective_mode_changed)    (GimpLayer              *layer);
+   void          (* excludes_backdrop_changed) (GimpLayer              *layer);
+   void          (* lock_alpha_changed)        (GimpLayer              *layer);
++  void          (* clipped_changed)           (GimpLayer              *layer);
+   void          (* mask_changed)              (GimpLayer              *layer);
+   void          (* apply_mask_changed)        (GimpLayer              *layer);
+   void          (* edit_mask_changed)         (GimpLayer              *layer);
+@@ -239,6 +245,21 @@ void            gimp_layer_set_lock_alpha      (GimpLayer            *layer,
+                                                 gboolean              lock_alpha,
+                                                 gboolean              push_undo);
+ gboolean        gimp_layer_get_lock_alpha      (GimpLayer            *layer);
++
++/*  GIMPhoto: Photoshop's clipping masks. A clipped layer shows only where
++ *  the nearest unclipped layer below it (its base) has pixels, composited
++ *  onto that base before the base is blended with the backdrop. The flag
++ *  is mirrored by the "gimphoto-clipped" parasite, for plug-ins and files.
++ */
++void            gimp_layer_set_clipped         (GimpLayer            *layer,
++                                                gboolean              clipped,
++                                                gboolean              push_undo);
++gboolean        gimp_layer_get_clipped         (GimpLayer            *layer);
++gboolean        gimp_layer_can_be_clipped      (GimpLayer            *layer);
++
++/*  for GimpLayerStack: wire the layer's node as the base of clipped layers  */
++void            _gimp_layer_set_clip_base      (GimpLayer            *layer,
++                                                gboolean              clip_base);
+ gboolean        gimp_layer_can_lock_alpha      (GimpLayer            *layer);
+ gboolean        gimp_layer_is_alpha_locked     (GimpLayer            *layer,
+                                                 GimpLayer           **locked_layer);
+diff --git a/app/core/gimplayerpropundo.c b/app/core/gimplayerpropundo.c
+index 73e3e02f15..244c12c468 100644
+--- a/app/core/gimplayerpropundo.c
++++ b/app/core/gimplayerpropundo.c
+@@ -86,6 +86,10 @@ gimp_layer_prop_undo_constructed (GObject *object)
+       layer_prop_undo->lock_alpha = gimp_layer_get_lock_alpha (layer);
+       break;
+ 
++    case GIMP_UNDO_LAYER_CLIPPED:
++      layer_prop_undo->clipped = gimp_layer_get_clipped (layer);
++      break;
++
+     default:
+       g_return_if_reached ();
+     }
+@@ -151,6 +155,16 @@ gimp_layer_prop_undo_pop (GimpUndo            *undo,
+       }
+       break;
+ 
++    case GIMP_UNDO_LAYER_CLIPPED:
++      {
++        gboolean clipped;
++
++        clipped = gimp_layer_get_clipped (layer);
++        gimp_layer_set_clipped (layer, layer_prop_undo->clipped, FALSE);
++        layer_prop_undo->clipped = clipped;
++      }
++      break;
++
+     default:
+       g_return_if_reached ();
+     }
+diff --git a/app/core/gimplayerpropundo.h b/app/core/gimplayerpropundo.h
+index ff234d3e2f..c9b3512f2b 100644
+--- a/app/core/gimplayerpropundo.h
++++ b/app/core/gimplayerpropundo.h
+@@ -41,6 +41,7 @@ struct _GimpLayerPropUndo
+   GimpLayerCompositeMode  composite_mode;
+   gdouble                 opacity;
+   gboolean                lock_alpha;
++  gboolean                clipped;
+ };
+ 
+ struct _GimpLayerPropUndoClass
+diff --git a/app/core/gimplayerstack.c b/app/core/gimplayerstack.c
+index 18b3e16460..cebe27039c 100644
+--- a/app/core/gimplayerstack.c
++++ b/app/core/gimplayerstack.c
+@@ -25,6 +25,9 @@
+ 
+ #include "core-types.h"
+ 
++#include "gimpcontainer.h"
++#include "gimpfilterstack.h"
++#include "gimpitem.h"
+ #include "gimplayer.h"
+ #include "gimplayerstack.h"
+ 
+@@ -55,6 +58,12 @@ static void   gimp_layer_stack_update_range            (GimpLayerStack *stack,
+                                                         gint            first,
+                                                         gint            last);
+ 
++/*  GIMPhoto: Photoshop's clipping masks  */
++static void   gimp_layer_stack_graph_changed           (GimpFilterStack *stack);
++static void   gimp_layer_stack_layer_clipped           (GimpLayer       *layer,
++                                                        GimpLayerStack  *stack);
++static void   gimp_layer_stack_update_clipping         (GimpLayerStack  *stack);
++
+ 
+ G_DEFINE_TYPE (GimpLayerStack, gimp_layer_stack, GIMP_TYPE_DRAWABLE_STACK)
+ 
+@@ -64,14 +73,17 @@ G_DEFINE_TYPE (GimpLayerStack, gimp_layer_stack, GIMP_TYPE_DRAWABLE_STACK)
+ static void
+ gimp_layer_stack_class_init (GimpLayerStackClass *klass)
+ {
+-  GObjectClass       *object_class    = G_OBJECT_CLASS (klass);
+-  GimpContainerClass *container_class = GIMP_CONTAINER_CLASS (klass);
++  GObjectClass         *object_class       = G_OBJECT_CLASS (klass);
++  GimpContainerClass   *container_class    = GIMP_CONTAINER_CLASS (klass);
++  GimpFilterStackClass *filter_stack_class = GIMP_FILTER_STACK_CLASS (klass);
+ 
+   object_class->constructed = gimp_layer_stack_constructed;
+ 
+   container_class->add      = gimp_layer_stack_add;
+   container_class->remove   = gimp_layer_stack_remove;
+   container_class->reorder  = gimp_layer_stack_reorder;
++
++  filter_stack_class->graph_changed = gimp_layer_stack_graph_changed;
+ }
+ 
+ static void
+@@ -95,6 +107,9 @@ gimp_layer_stack_constructed (GObject *object)
+   gimp_container_add_handler (container, "excludes-backdrop-changed",
+                               G_CALLBACK (gimp_layer_stack_layer_excludes_backdrop),
+                               container);
++  gimp_container_add_handler (container, "clipped-changed",
++                              G_CALLBACK (gimp_layer_stack_layer_clipped),
++                              container);
+ }
+ 
+ static void
+@@ -103,6 +118,14 @@ gimp_layer_stack_add (GimpContainer *container,
+ {
+   GimpLayerStack *stack = GIMP_LAYER_STACK (container);
+ 
++  /*  GIMPhoto: a layer whose parasites were copied as a whole (a
++   *  duplicate image, gimp_layer_from_layer) carries its clipping as the
++   *  parasite; the flag follows
++   */
++  if (! gimp_layer_get_clipped (GIMP_LAYER (object)) &&
++      gimp_item_parasite_find (GIMP_ITEM (object), "gimphoto-clipped"))
++    gimp_layer_set_clipped (GIMP_LAYER (object), TRUE, FALSE);
++
+   GIMP_CONTAINER_CLASS (parent_class)->add (container, object);
+ 
+   gimp_layer_stack_update_backdrop (stack, GIMP_LAYER (object), FALSE, FALSE);
+@@ -126,6 +149,8 @@ gimp_layer_stack_remove (GimpContainer *container,
+ 
+   if (update_backdrop)
+     gimp_layer_stack_update_range (stack, index, -1);
++
++  _gimp_layer_set_clip_base (GIMP_LAYER (object), FALSE);
+ }
+ 
+ static void
+@@ -240,3 +265,201 @@ gimp_layer_stack_update_range (GimpLayerStack *stack,
+         }
+     }
+ }
++
++
++/*  GIMPhoto: Photoshop's clipping masks.
++ *
++ *  A run of clipped layers above an unclipped layer (their base) is
++ *  composited onto the base's own pixels, each clipped layer with its own
++ *  mode, opacity and mask but confined to where the pixels below it in the
++ *  run are (Clip to backdrop), and the result stands in for the base's
++ *  pixels when the base is blended with the backdrop. In the stack's graph
++ *  that is: the base's "clip-base" output feeds the first clipped layer,
++ *  each clipped layer feeds the next, the last one feeds the base's
++ *  "clip-result" input, and the chain of unclipped layers skips the
++ *  clipped ones. GimpFilterStack builds the plain chain; this rewires it
++ *  whenever the stack or a clipping changes.
++ */
++
++static void
++gimp_layer_stack_graph_changed (GimpFilterStack *stack)
++{
++  gimp_layer_stack_update_clipping (GIMP_LAYER_STACK (stack));
++}
++
++static void
++gimp_layer_stack_layer_clipped (GimpLayer      *layer,
++                                GimpLayerStack *stack)
++{
++  gimp_layer_stack_update_clipping (stack);
++}
++
++static void
++gimp_layer_stack_update_clipping (GimpLayerStack *stack)
++{
++  GimpFilterStack *filter_stack = GIMP_FILTER_STACK (stack);
++  GList           *layers;
++  GList           *iter;
++  GList           *bases        = NULL;
++  GList           *redraw       = NULL;
++  GimpLayer       *base         = NULL;
++  gboolean         any_clipping = FALSE;
++  gboolean         changed      = FALSE;
++
++  layers = gimp_item_stack_get_item_iter (GIMP_ITEM_STACK (stack));
++
++  /*  the bases: the nearest active unclipped layer below an active clipped
++   *  one; walked bottom to top. A clipped layer with nothing below it to
++   *  clip to shows as an ordinary layer, as in Photoshop.
++   */
++  for (iter = g_list_last (layers); iter; iter = g_list_previous (iter))
++    {
++      GimpLayer *layer = iter->data;
++
++      if (! gimp_layer_get_clipped (layer))
++        {
++          /*  hidden or not: a hidden base hides its clipped layers  */
++          base = layer;
++        }
++      else if (base && gimp_filter_get_active (GIMP_FILTER (layer)))
++        {
++          if (! g_list_find (redraw, layer))
++            redraw = g_list_prepend (redraw, layer);
++
++          if (gimp_filter_get_active (GIMP_FILTER (base)))
++            {
++              any_clipping = TRUE;
++
++              if (! g_list_find (bases, base))
++                bases = g_list_prepend (bases, base);
++            }
++        }
++    }
++
++  for (iter = layers; iter; iter = g_list_next (iter))
++    {
++      GimpLayer *layer = iter->data;
++
++      if (layer->clip_base != (g_list_find (bases, layer) != NULL))
++        {
++          changed = TRUE;
++
++          if (! g_list_find (redraw, layer))
++            redraw = g_list_prepend (redraw, layer);
++        }
++    }
++
++  if (filter_stack->graph && (any_clipping || changed))
++    {
++      GeglNode *output = gegl_node_get_output_proxy (filter_stack->graph,
++                                                     "output");
++      GeglNode *previous;
++      GeglNode *clip_previous = NULL;
++      GimpLayer *last_clipped = NULL;
++
++      /*  every link of the chain goes, so no stale one can close a loop
++       *  when a base's node is wired
++       */
++      gegl_node_disconnect (output, "input");
++
++      for (iter = layers; iter; iter = g_list_next (iter))
++        {
++          GeglNode *node = gimp_filter_peek_node (iter->data);
++
++          if (! node)
++            continue;
++
++          gegl_node_disconnect (node, "input");
++
++          if (gegl_node_has_pad (node, "clip-result"))
++            gegl_node_disconnect (node, "clip-result");
++        }
++
++      for (iter = layers; iter; iter = g_list_next (iter))
++        _gimp_layer_set_clip_base (iter->data,
++                                   g_list_find (bases, iter->data) != NULL);
++
++      previous = gegl_node_get_input_proxy (filter_stack->graph, "input");
++      base     = NULL;
++
++      for (iter = g_list_last (layers); iter; iter = g_list_previous (iter))
++        {
++          GimpLayer *layer   = iter->data;
++          gboolean   clipped = gimp_layer_get_clipped (layer);
++          GeglNode  *node;
++
++          if (! gimp_filter_get_active (GIMP_FILTER (layer)))
++            {
++              if (! clipped)
++                base = layer;
++
++              continue;
++            }
++
++          node = gimp_filter_get_node (GIMP_FILTER (layer));
++
++          if (clipped && base && base->clip_base)
++            {
++              /*  onto the base, or the clipped layer below  */
++              gegl_node_link (clip_previous, node);
++              clip_previous = node;
++              last_clipped  = layer;
++            }
++          else if (clipped && base)
++            {
++              /*  a hidden base: hidden with it  */
++              continue;
++            }
++          else
++            {
++              if (last_clipped)
++                {
++                  gegl_node_connect (clip_previous, "output",
++                                     gimp_filter_get_node (GIMP_FILTER (base)),
++                                     "clip-result");
++                  last_clipped = NULL;
++                }
++
++              gegl_node_link (previous, node);
++              previous = node;
++              base     = layer;
++
++              if (layer->clip_base)
++                clip_previous = gegl_node_get_output_proxy (node, "clip-base");
++            }
++        }
++
++      if (last_clipped)
++        gegl_node_connect (clip_previous, "output",
++                           gimp_filter_get_node (GIMP_FILTER (base)),
++                           "clip-result");
++
++      gegl_node_link (previous, output);
++    }
++  else
++    {
++      for (iter = layers; iter; iter = g_list_next (iter))
++        _gimp_layer_set_clip_base (iter->data,
++                                   g_list_find (bases, iter->data) != NULL);
++    }
++
++  /*  redraw what the clipping covers  */
++  if (changed)
++    {
++      for (iter = redraw; iter; iter = g_list_next (iter))
++        {
++          GimpItem      *item = iter->data;
++          GeglRectangle  bounding_box;
++
++          bounding_box = gimp_drawable_get_bounding_box (GIMP_DRAWABLE (item));
++          bounding_box.x += gimp_item_get_offset_x (item);
++          bounding_box.y += gimp_item_get_offset_y (item);
++          gimp_drawable_stack_update (GIMP_DRAWABLE_STACK (stack),
++                                      bounding_box.x,     bounding_box.y,
++                                      bounding_box.width, bounding_box.height);
++        }
++    }
++
++  g_list_free (bases);
++  g_list_free (redraw);
++}
+diff --git a/app/menus/menus.c b/app/menus/menus.c
+index d061334047..c4ac975a45 100644
+--- a/app/menus/menus.c
++++ b/app/menus/menus.c
+@@ -474,7 +474,9 @@ menus_restore (Gimp *gimp)
+  *  A profile remembers the highest N it received (its
+  *  "gimphoto-shortcuts-version" file); a newer move is applied once, and
+  *  only if the old action still has that shortcut (the person did not
+- *  change it). All other shortcuts of the profile are kept.
++ *  change it). All other shortcuts of the profile are kept. An old action
++ *  of "-" is a shortcut new to GIMPhoto: it is added when the new action
++ *  has none.
+  */
+ #define GIMPHOTO_SHORTCUTS_VERSION_KEY "gimphoto-shortcuts-version"
+ #define GIMPHOTO_SHORTCUT_MOVED        "# gimphoto-shortcut-moved "
+@@ -513,7 +515,31 @@ menus_move_shortcut (Gimp        *gimp,
+   old_action = (GimpAction *) g_action_map_lookup_action (map, old_name);
+   new_action = (GimpAction *) g_action_map_lookup_action (map, new_name);
+ 
+-  if (! GIMP_IS_ACTION (old_action) || ! GIMP_IS_ACTION (new_action))
++  if (! GIMP_IS_ACTION (new_action))
++    return;
++
++  /*  "-" as the old action: a shortcut new to GIMPhoto, given to an
++   *  action that has none yet (a command added after the profile's
++   *  shortcutsrc was saved)
++   */
++  if (g_strcmp0 (old_name, "-") == 0)
++    {
++      new_accels = gimp_action_get_accels (new_action);
++
++      if (! new_accels || ! new_accels[0])
++        {
++          const gchar *accels[2] = { accel, NULL };
++
++          if (gimp->be_verbose)
++            g_print ("GIMPhoto: shortcut %s added to %s\n", accel, new_name);
++
++          gimp_action_set_accels (new_action, accels);
++        }
++
++      return;
++    }
++
++  if (! GIMP_IS_ACTION (old_action))
+     return;
+ 
+   old_accels = gimp_action_get_accels (old_action);
+diff --git a/app/widgets/gimpcontainertreeview.c b/app/widgets/gimpcontainertreeview.c
+index 7a3f160d8b..8320e4d7e8 100644
+--- a/app/widgets/gimpcontainertreeview.c
++++ b/app/widgets/gimpcontainertreeview.c
+@@ -1327,6 +1327,75 @@ gimp_container_tree_view_button (GtkWidget             *widget,
+   is_button_press   = gdk_event_get_event_type ((GdkEvent *) bevent) == GDK_BUTTON_PRESS;
+   is_button_release = gdk_event_get_event_type ((GdkEvent *) bevent) == GDK_BUTTON_RELEASE;
+ 
++  /*  GIMPhoto: Alt+click within a few pixels of the line between two rows  */
++  if (is_button_press && bevent->button == 1 &&
++      (bevent->state & GDK_MOD1_MASK) &&
++      GIMP_CONTAINER_TREE_VIEW_GET_CLASS (tree_view)->gap_clicked &&
++      gtk_tree_view_get_path_at_pos (GTK_TREE_VIEW (widget),
++                                     bevent->x, bevent->y,
++                                     &path, NULL, NULL, NULL))
++    {
++      GdkRectangle  area;
++      GtkTreePath  *upper_path = NULL;
++      GtkTreePath  *lower_path = NULL;
++      GtkTreeIter   iter;
++      gboolean      handled_gap = FALSE;
++
++      gtk_tree_view_get_background_area (GTK_TREE_VIEW (widget), path, NULL,
++                                         &area);
++
++      if (bevent->y >= area.y + area.height - 4)
++        {
++          upper_path = gtk_tree_path_copy (path);
++          lower_path = gtk_tree_path_copy (path);
++
++          /*  the row drawn below an expanded group is its first child  */
++          if (gtk_tree_view_row_expanded (GTK_TREE_VIEW (widget), lower_path))
++            gtk_tree_path_down (lower_path);
++          else
++            gtk_tree_path_next (lower_path);
++        }
++      else if (bevent->y < area.y + 4 && gtk_tree_path_prev (path))
++        {
++          upper_path = gtk_tree_path_copy (path);
++          lower_path = gtk_tree_path_copy (path);
++          gtk_tree_path_next (lower_path);
++        }
++
++      if (upper_path && lower_path &&
++          gtk_tree_model_get_iter (tree_view->model, &iter, upper_path))
++        {
++          GimpViewRenderer *upper_renderer;
++          GimpViewRenderer *lower_renderer = NULL;
++
++          upper_renderer = gimp_container_tree_store_get_renderer
++            (GIMP_CONTAINER_TREE_STORE (tree_view->model), &iter);
++
++          if (gtk_tree_model_get_iter (tree_view->model, &iter, lower_path))
++            lower_renderer = gimp_container_tree_store_get_renderer
++              (GIMP_CONTAINER_TREE_STORE (tree_view->model), &iter);
++
++          if (upper_renderer && lower_renderer)
++            handled_gap =
++              GIMP_CONTAINER_TREE_VIEW_GET_CLASS (tree_view)->gap_clicked
++                (tree_view, upper_renderer->viewable, lower_renderer->viewable);
++
++          if (upper_renderer)
++            g_object_unref (upper_renderer);
++          if (lower_renderer)
++            g_object_unref (lower_renderer);
++        }
++
++      if (upper_path)
++        gtk_tree_path_free (upper_path);
++      if (lower_path)
++        gtk_tree_path_free (lower_path);
++      gtk_tree_path_free (path);
++
++      if (handled_gap)
++        return TRUE;
++    }
++
+   if (gtk_tree_view_get_path_at_pos (GTK_TREE_VIEW (widget),
+                                      bevent->x, bevent->y,
+                                      &path, &column, NULL, NULL))
+diff --git a/app/widgets/gimpcontainertreeview.h b/app/widgets/gimpcontainertreeview.h
+index 0111fe0a03..b434b976f9 100644
+--- a/app/widgets/gimpcontainertreeview.h
++++ b/app/widgets/gimpcontainertreeview.h
+@@ -102,6 +102,13 @@ struct _GimpContainerTreeViewClass
+                                GdkPixbuf               *pixbuf,
+                                GimpViewable            *dest_viewable,
+                                GtkTreeViewDropPosition  drop_pos);
++
++  /*  GIMPhoto: Alt+click on the line between two rows (Photoshop clips
++   *  the upper layer to the lower one); TRUE when handled
++   */
++  gboolean (* gap_clicked)    (GimpContainerTreeView   *tree_view,
++                               GimpViewable            *upper,
++                               GimpViewable            *lower);
+ };
+ 
+ 
+diff --git a/app/widgets/gimplayertreeview.c b/app/widgets/gimplayertreeview.c
+index 8ffcb9c2a3..262d32de65 100644
+--- a/app/widgets/gimplayertreeview.c
++++ b/app/widgets/gimplayertreeview.c
+@@ -86,8 +86,10 @@ struct _GimpLayerTreeViewPrivate
+ 
+   gint             model_column_mask;
+   gint             model_column_mask_visible;
++  gint             model_column_clipped;        /*  GIMPhoto  */
+ 
+   GtkCellRenderer *mask_cell;
++  GtkCellRenderer *clipped_cell;               /*  GIMPhoto  */
+ 
+   PangoAttrList   *italic_attrs;
+   PangoAttrList   *bold_attrs;
+@@ -96,6 +98,7 @@ struct _GimpLayerTreeViewPrivate
+   GimpTreeHandler *opacity_changed_handler;
+   GimpTreeHandler *mask_changed_handler;
+   GimpTreeHandler *alpha_changed_handler;
++  GimpTreeHandler *clipped_changed_handler;    /*  GIMPhoto  */
+ };
+ 
+ 
+@@ -159,6 +162,11 @@ static void       gimp_layer_tree_view_layer_mode_box_callback    (GtkWidget
+                                                                    GimpLayerTreeView          *view);
+ static void       gimp_layer_tree_view_opacity_scale_changed      (GtkAdjustment              *adj,
+                                                                    GimpLayerTreeView          *view);
++static gboolean   gimp_layer_tree_view_gap_clicked                (GimpContainerTreeView      *tree_view,
++                                                                   GimpViewable               *upper,
++                                                                   GimpViewable               *lower);
++static void       gimp_layer_tree_view_clipped_changed            (GimpLayer                  *layer,
++                                                                   GimpLayerTreeView          *view);
+ static void       gimp_layer_tree_view_layer_signal_handler       (GimpLayer                  *layer,
+                                                                    GimpLayerTreeView          *view);
+ static void       gimp_layer_tree_view_update_options             (GimpLayerTreeView          *view,
+@@ -214,6 +222,7 @@ gimp_layer_tree_view_class_init (GimpLayerTreeViewClass *klass)
+   object_class->constructed           = gimp_layer_tree_view_constructed;
+   object_class->finalize              = gimp_layer_tree_view_finalize;
+ 
++  tree_view_class->gap_clicked        = gimp_layer_tree_view_gap_clicked;
+   tree_view_class->drop_possible      = gimp_layer_tree_view_drop_possible;
+   tree_view_class->drop_viewables     = gimp_layer_tree_view_drop_viewables;
+   tree_view_class->drop_color         = gimp_layer_tree_view_drop_color;
+@@ -280,6 +289,12 @@ gimp_layer_tree_view_init (GimpLayerTreeView *view)
+                                            &tree_view->n_model_columns,
+                                            GIMP_TYPE_VIEW_RENDERER);
+ 
++  /*  GIMPhoto: a clipped layer's row shows Photoshop's bent arrow  */
++  view->priv->model_column_clipped =
++    gimp_container_tree_store_columns_add (tree_view->model_columns,
++                                           &tree_view->n_model_columns,
++                                           G_TYPE_BOOLEAN);
++
+   view->priv->model_column_mask_visible =
+     gimp_container_tree_store_columns_add (tree_view->model_columns,
+                                            &tree_view->n_model_columns,
+@@ -352,6 +367,25 @@ gimp_layer_tree_view_constructed (GObject *object)
+                                               layer_view->priv->mask_cell,
+                                               layer_view->priv->model_column_mask);
+ 
++  /*  GIMPhoto: the bent arrow before a clipped layer's thumbnail, which
++   *  also indents it, as in Photoshop's Layers panel
++   */
++  layer_view->priv->clipped_cell = gtk_cell_renderer_pixbuf_new ();
++  g_object_set (layer_view->priv->clipped_cell,
++                "icon-name", "gimphoto-clipping-mask",
++                "xpad",      2,
++                NULL);
++  gtk_tree_view_column_pack_start (tree_view->main_column,
++                                   layer_view->priv->clipped_cell,
++                                   FALSE);
++  gtk_cell_layout_reorder (GTK_CELL_LAYOUT (tree_view->main_column),
++                           layer_view->priv->clipped_cell, 0);
++  gtk_tree_view_column_set_attributes (tree_view->main_column,
++                                       layer_view->priv->clipped_cell,
++                                       "visible",
++                                       layer_view->priv->model_column_clipped,
++                                       NULL);
++
+   g_signal_connect (tree_view->renderer_cell, "clicked",
+                     G_CALLBACK (gimp_layer_tree_view_layer_clicked),
+                     layer_view);
+@@ -506,6 +540,9 @@ gimp_layer_tree_view_set_container (GimpContainerView *view,
+ 
+       gimp_tree_handler_disconnect (layer_view->priv->alpha_changed_handler);
+       layer_view->priv->alpha_changed_handler = NULL;
++
++      gimp_tree_handler_disconnect (layer_view->priv->clipped_changed_handler);
++      layer_view->priv->clipped_changed_handler = NULL;
+     }
+ 
+   parent_view_iface->set_container (view, container);
+@@ -527,6 +564,11 @@ gimp_layer_tree_view_set_container (GimpContainerView *view,
+                                    G_CALLBACK (gimp_layer_tree_view_mask_changed),
+                                    view);
+ 
++      layer_view->priv->clipped_changed_handler =
++        gimp_tree_handler_connect (container, "clipped-changed",
++                                   G_CALLBACK (gimp_layer_tree_view_clipped_changed),
++                                   view);
++
+       layer_view->priv->alpha_changed_handler =
+         gimp_tree_handler_connect (container, "alpha-changed",
+                                    G_CALLBACK (gimp_layer_tree_view_alpha_changed),
+@@ -1389,6 +1431,8 @@ gimp_layer_tree_view_mask_update (GimpLayerTreeView *layer_view,
+   gtk_tree_store_set (GTK_TREE_STORE (tree_view->model), iter,
+                       layer_view->priv->model_column_mask,         renderer,
+                       layer_view->priv->model_column_mask_visible, mask_visible,
++                      layer_view->priv->model_column_clipped,
++                      gimp_layer_get_clipped (layer),
+                       -1);
+ 
+   gimp_layer_tree_view_update_borders (layer_view, iter);
+@@ -1400,6 +1444,55 @@ gimp_layer_tree_view_mask_update (GimpLayerTreeView *layer_view,
+     }
+ }
+ 
++/*  GIMPhoto: the bent arrow follows the layer's clipping  */
++static void
++gimp_layer_tree_view_clipped_changed (GimpLayer         *layer,
++                                      GimpLayerTreeView *layer_view)
++{
++  GimpContainerView     *view      = GIMP_CONTAINER_VIEW (layer_view);
++  GimpContainerTreeView *tree_view = GIMP_CONTAINER_TREE_VIEW (layer_view);
++  GtkTreeIter           *iter;
++
++  iter = _gimp_container_view_lookup (view, GIMP_VIEWABLE (layer));
++
++  if (iter)
++    gtk_tree_store_set (GTK_TREE_STORE (tree_view->model), iter,
++                        layer_view->priv->model_column_clipped,
++                        gimp_layer_get_clipped (layer),
++                        -1);
++}
++
++/*  GIMPhoto: Alt+click on the line between two layers clips the upper one
++ *  to the lower one, or releases it, as in Photoshop
++ */
++static gboolean
++gimp_layer_tree_view_gap_clicked (GimpContainerTreeView *tree_view,
++                                  GimpViewable          *upper,
++                                  GimpViewable          *lower)
++{
++  GimpLayer *layer;
++  GimpImage *image;
++
++  if (! GIMP_IS_LAYER (upper) || ! GIMP_IS_LAYER (lower))
++    return FALSE;
++
++  layer = GIMP_LAYER (upper);
++
++  if (gimp_item_get_parent (GIMP_ITEM (upper)) !=
++      gimp_item_get_parent (GIMP_ITEM (lower)))
++    return FALSE;
++
++  if (! gimp_layer_get_clipped (layer) && ! gimp_layer_can_be_clipped (layer))
++    return FALSE;
++
++  image = gimp_item_get_image (GIMP_ITEM (layer));
++
++  gimp_layer_set_clipped (layer, ! gimp_layer_get_clipped (layer), TRUE);
++  gimp_image_flush (image);
++
++  return TRUE;
++}
++
+ static void
+ gimp_layer_tree_view_mask_changed (GimpLayer         *layer,
+                                    GimpLayerTreeView *layer_view)
+diff --git a/menus/image-menu.ui.in.in b/menus/image-menu.ui.in.in
+index 61cf3ed007..1743ade457 100644
+--- a/menus/image-menu.ui.in.in
++++ b/menus/image-menu.ui.in.in
+@@ -498,6 +498,7 @@
+             <item><attribute name="action">app.layers-mask-show</attribute></item>
+             <item><attribute name="action">app.layers-mask-edit</attribute></item>
+             <item><attribute name="action">app.layers-mask-disable</attribute></item>
++            <!-- GIMPhoto: Photoshop's Create / Release Clipping Mask (also in the Layer menu below) -->
+           </section>
+           <section>
+             <attribute name="section-name" translatable="no">Selection</attribute>
+@@ -507,6 +508,7 @@
+             <item><attribute name="action">app.layers-mask-selection-intersect</attribute></item>
+           </section>
+         </submenu>
++        <item><attribute name="action">app.layers-clipping-mask</attribute></item>
+         <submenu>
+           <attribute name="label" translatable="yes" context="layers-action">Tr_ansparency</attribute>
+           <section>
+diff --git a/menus/layers-menu.ui b/menus/layers-menu.ui
+index 67f1a4d946..c8045d29f1 100644
+--- a/menus/layers-menu.ui
++++ b/menus/layers-menu.ui
+@@ -98,6 +98,10 @@
+         <item><attribute name="action">app.smart-object-edit</attribute></item>
+         <item><attribute name="action">app.smart-object-replace</attribute></item>
+       </section>
++      <!-- GIMPhoto: Photoshop's Create / Release Clipping Mask -->
++      <section>
++        <item><attribute name="action">app.layers-clipping-mask</attribute></item>
++      </section>
+       <section>
+         <item><attribute name="action">app.layers-resize</attribute></item>
+         <item><attribute name="action">app.layers-resize-to-image</attribute></item>
+diff --git a/plug-ins/file-psd/psd-export.c b/plug-ins/file-psd/psd-export.c
+index 2198a85444..a348f68536 100644
+--- a/plug-ins/file-psd/psd-export.c
++++ b/plug-ins/file-psd/psd-export.c
+@@ -1631,7 +1631,9 @@ save_layer_and_mask (GOutputStream       *output,
+       IFDBG(1) g_debug ("\t\tOpacity: %u", layerOpacity);
+       WRITE_RETURN (gchar, output, layerOpacity, "Opacity", ;);
+ 
+-      if (gimp_layer_get_composite_mode (psd_layer->layer) == GIMP_LAYER_COMPOSITE_CLIP_TO_BACKDROP)
++      /* GIMPhoto: a clipped layer carries the "gimphoto-clipped" parasite */
++      if (gimp_layer_get_composite_mode (psd_layer->layer) == GIMP_LAYER_COMPOSITE_CLIP_TO_BACKDROP ||
++          gimp_item_get_parasite (GIMP_ITEM (psd_layer->layer), "gimphoto-clipped") != NULL)
+         WRITE_RETURN (gchar, output, 1, "Clipping", ;);
+       else
+         WRITE_RETURN (gchar, output, 0, "Clipping", ;);
+diff --git a/plug-ins/file-psd/psd-load.c b/plug-ins/file-psd/psd-load.c
+index 7aecf7a2f9..f3236e2b1e 100644
+--- a/plug-ins/file-psd/psd-load.c
++++ b/plug-ins/file-psd/psd-load.c
+@@ -2024,6 +2024,18 @@ mark_clipping_groups (PSDimage  *img_a,
+ 
+   use_clipping_group = FALSE;
+ 
++  /* GIMPhoto has Photoshop's clipping masks: a clipped layer is loaded as
++   * one (the "gimphoto-clipped" parasite, see below), not as a layer group
++   * with Clip to backdrop.
++   */
++  for (lidx = img_a->num_layers-1; lidx >= 0; --lidx)
++    {
++      lyr_a[lidx]->unsupported_features = img_a->unsupported_features;
++      lyr_a[lidx]->clipping_group_type  = 0;
++    }
++  g_array_free (clipping_group_stack, TRUE);
++  return;
++
+   for (lidx = img_a->num_layers-1; lidx >= 0; --lidx)
+     {
+       lyr_a[lidx]->unsupported_features = img_a->unsupported_features;
+@@ -2661,6 +2673,18 @@ add_layers (GimpImage     *image,
+               /* Flags */
+               gimp_layer_set_lock_alpha  (layer, lyr_a[lidx]->layer_flags.trans_prot);
+               gimp_item_set_visible (GIMP_ITEM (layer), lyr_a[lidx]->layer_flags.visible);
++
++              /* GIMPhoto: Photoshop's clipping mask */
++              if (lyr_a[lidx]->clipping == PSD_CLIPPING_NON_BASE)
++                {
++                  GimpParasite *parasite;
++
++                  parasite = gimp_parasite_new ("gimphoto-clipped",
++                                                GIMP_PARASITE_PERSISTENT,
++                                                1, "1");
++                  gimp_item_attach_parasite (GIMP_ITEM (layer), parasite);
++                  gimp_parasite_free (parasite);
++                }
+ #if 0
+               /* according to the spec, the 'irrelevant' flag indicates
+                * that the layer's "pixel data is irrelevant to the

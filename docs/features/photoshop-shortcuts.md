@@ -105,6 +105,7 @@ own GIMP shortcut too, unless Photoshop uses that key for something else.
 | Image > Image Size (Ctrl+Alt+I) | Ctrl+Alt+I | `image-scale` | – |
 | Image > Canvas Size (Ctrl+Alt+C) | Ctrl+Alt+C | `image-resize` | – |
 | Layer > New > Layer (Ctrl+Shift+N) | Ctrl+Shift+N | `layers-new` | Ctrl+Shift+N |
+| Layer > Create Clipping Mask (Ctrl+Alt+G) | Ctrl+Alt+G | `layers-clipping-mask` | – |
 | Layer > New > Layer via Copy (Ctrl+J; no selection: duplicate the layer) | Ctrl+J | `gimphoto-layer-via-copy` | – |
 | Layer > New > Layer via Cut (Ctrl+Shift+J) | Ctrl+Shift+J | `gimphoto-layer-via-cut` | – |
 | Layer > Group Layers (Ctrl+G) | Ctrl+G | `layers-new-group` | – |
