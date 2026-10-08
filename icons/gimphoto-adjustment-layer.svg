@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- GIMPhoto's adjustment layer icon: Photoshop's half-filled circle (GPL-3.0, github.com/diegochagas/gimphoto) -->
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- filled shapes only: GTK fills every shape of a symbolic icon -->
+  <g fill="#eeeeec" fill-rule="evenodd">
+    <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 1.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11z"/>
+    <path d="M8 2.5v11a5.5 5.5 0 0 0 0-11z"/>
+  </g>
+</svg>

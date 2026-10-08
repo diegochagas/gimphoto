@@ -1,0 +1,1088 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: GIMPhoto scripts <gimphoto@localhost>
+Date: Thu, 8 Oct 2026 12:03:46 -0300
+Subject: [PATCH] Adjustment layers: Layer > New Adjustment Layer, applied to
+ everything below
+
+Photoshop's adjustment layers: a layer with no pixels of its own whose
+adjustment (Curves, Levels, Hue-Saturation...) applies to everything
+composited below it in its group, limited by its mask, opacity and blend
+mode, editable again at any time, movable in the stack.
+
+A new layer class, GimpAdjustmentLayer (app/core/gimpadjustmentlayer.[ch]),
+is a GimpLayer whose source node is a pass-through with an "input" pad
+instead of GIMP's buffer source: GimpDrawable links the layer's input (the
+backdrop) to any source node that has one, so the layer's filter stack,
+GIMP's own non-destructive filters, is applied to the backdrop and the
+result is blended over it by the layer's mode node. The filter dialogs,
+the effects rows under the layer, masks, opacity, modes, Merge Down (which
+uses the real graph) and undo all work unchanged. The layer is created the
+size of the canvas and stays so (gimpimage-resize.c resizes it whatever
+the layer set says); its position is locked.
+
+- app/actions/layers-actions.c, layers-commands.[ch]: Layer > New
+  Adjustment Layer > one entry per GIMP colour filter, in Photoshop's
+  order, then GIMP's own (Colorize, Color Temperature, Saturation,
+  Shadows-Highlights). The layer goes above the selected layer (or at the
+  top of a selected group), with a mask from the selection (which is then
+  dropped, as in Photoshop) or a white one, and the filter's dialog opens on
+  it. When the dialog is cancelled the layer is removed; when it is
+  confirmed the mask becomes what is edited, so painting restricts the
+  adjustment. A double click on an adjustment layer opens its adjustment
+  again, like Photoshop's Properties panel.
+- menus/image-menu.ui.in.in, menus/layers-menu.ui: the submenu, in the
+  Layer menu and the Layers panel's right-click menu.
+- app/xcf: PROP_GIMPHOTO_ADJUSTMENT_LAYER (1000, clear of GIMP's own
+  properties) marks the layer in the XCF; GIMP without this patch opens the
+  file with an empty layer carrying the filters (no visible adjustment).
+- app/widgets/gimpviewrendererdrawable.c: the Layers panel shows the
+  adjustment icon (gimphoto-adjustment-layer, from GIMPhoto's icons/) as
+  the layer's thumbnail, as Photoshop does, instead of empty pixels.
+- app/widgets/gimppropertieseditor.c: the Properties panel calls it an
+  Adjustment Layer.
+
+Test: Layer > New Adjustment Layer > Curves on a photo, bend the curve, OK:
+the photo changes, the layer below does not; paint black on the mask to
+limit it; drag the adjustment layer below the photo and it no longer
+applies; Cancel in the dialog leaves no layer; save and reopen the XCF; Merge
+Down bakes the curve into the photo.
+
+diff --git a/app/actions/layers-actions.c b/app/actions/layers-actions.c
+index 4b03def969..bbcc65c266 100644
+--- a/app/actions/layers-actions.c
++++ b/app/actions/layers-actions.c
+@@ -49,6 +49,102 @@
+ #include "gimp-intl.h"
+ 
+ 
++/*  GIMPhoto: Photoshop's Layer > New Adjustment Layer. The value is the
++ *  Colors filter whose dialog opens on the new layer.
++ */
++static const GimpStringActionEntry layers_new_adjustment_actions[] =
++{
++  { "layers-new-adjustment-brightness-contrast", GIMP_ICON_TOOL_BRIGHTNESS_CONTRAST,
++    NC_("layers-action", "_Brightness-Contrast..."), NULL, { NULL },
++    NC_("layers-action", "Add an adjustment layer: Brightness-Contrast on everything below it"),
++    "filters-brightness-contrast",
++    GIMP_HELP_LAYER_NEW },
++
++  { "layers-new-adjustment-levels", GIMP_ICON_TOOL_LEVELS,
++    NC_("layers-action", "_Levels..."), NULL, { NULL },
++    NC_("layers-action", "Add an adjustment layer: Levels on everything below it"),
++    "filters-levels",
++    GIMP_HELP_LAYER_NEW },
++
++  { "layers-new-adjustment-curves", GIMP_ICON_TOOL_CURVES,
++    NC_("layers-action", "_Curves..."), NULL, { NULL },
++    NC_("layers-action", "Add an adjustment layer: Curves on everything below it"),
++    "filters-curves",
++    GIMP_HELP_LAYER_NEW },
++
++  { "layers-new-adjustment-exposure", GIMP_ICON_TOOL_EXPOSURE,
++    NC_("layers-action", "_Exposure..."), NULL, { NULL },
++    NC_("layers-action", "Add an adjustment layer: Exposure on everything below it"),
++    "filters-exposure",
++    GIMP_HELP_LAYER_NEW },
++
++  { "layers-new-adjustment-hue-saturation", GIMP_ICON_TOOL_HUE_SATURATION,
++    NC_("layers-action", "_Hue-Saturation..."), NULL, { NULL },
++    NC_("layers-action", "Add an adjustment layer: Hue-Saturation on everything below it"),
++    "filters-hue-saturation",
++    GIMP_HELP_LAYER_NEW },
++
++  { "layers-new-adjustment-color-balance", GIMP_ICON_TOOL_COLOR_BALANCE,
++    NC_("layers-action", "Color _Balance..."), NULL, { NULL },
++    NC_("layers-action", "Add an adjustment layer: Color Balance on everything below it"),
++    "filters-color-balance",
++    GIMP_HELP_LAYER_NEW },
++
++  { "layers-new-adjustment-mono-mixer", GIMP_ICON_TOOL_DESATURATE,
++    NC_("layers-action", "Black & _White (Mono Mixer)..."), NULL, { NULL },
++    NC_("layers-action", "Add an adjustment layer: Mono Mixer on everything below it"),
++    "filters-mono-mixer",
++    GIMP_HELP_LAYER_NEW },
++
++  { "layers-new-adjustment-channel-mixer", GIMP_ICON_GEGL,
++    NC_("layers-action", "Channel _Mixer..."), NULL, { NULL },
++    NC_("layers-action", "Add an adjustment layer: Channel Mixer on everything below it"),
++    "filters-channel-mixer",
++    GIMP_HELP_LAYER_NEW },
++
++  { "layers-new-adjustment-invert", GIMP_ICON_INVERT,
++    NC_("layers-action", "_Invert..."), NULL, { NULL },
++    NC_("layers-action", "Add an adjustment layer: Invert on everything below it"),
++    "filters-invert-perceptual",
++    GIMP_HELP_LAYER_NEW },
++
++  { "layers-new-adjustment-posterize", GIMP_ICON_TOOL_POSTERIZE,
++    NC_("layers-action", "_Posterize..."), NULL, { NULL },
++    NC_("layers-action", "Add an adjustment layer: Posterize on everything below it"),
++    "filters-posterize",
++    GIMP_HELP_LAYER_NEW },
++
++  { "layers-new-adjustment-threshold", GIMP_ICON_TOOL_THRESHOLD,
++    NC_("layers-action", "_Threshold..."), NULL, { NULL },
++    NC_("layers-action", "Add an adjustment layer: Threshold on everything below it"),
++    "filters-threshold",
++    GIMP_HELP_LAYER_NEW },
++
++  { "layers-new-adjustment-colorize", GIMP_ICON_TOOL_COLORIZE,
++    NC_("layers-action", "Colori_ze..."), NULL, { NULL },
++    NC_("layers-action", "Add an adjustment layer: Colorize on everything below it"),
++    "filters-colorize",
++    GIMP_HELP_LAYER_NEW },
++
++  { "layers-new-adjustment-color-temperature", GIMP_ICON_TOOL_COLOR_TEMPERATURE,
++    NC_("layers-action", "Color T_emperature..."), NULL, { NULL },
++    NC_("layers-action", "Add an adjustment layer: Color Temperature on everything below it"),
++    "filters-color-temperature",
++    GIMP_HELP_LAYER_NEW },
++
++  { "layers-new-adjustment-saturation", GIMP_ICON_GEGL,
++    NC_("layers-action", "_Saturation..."), NULL, { NULL },
++    NC_("layers-action", "Add an adjustment layer: Saturation on everything below it"),
++    "filters-saturation",
++    GIMP_HELP_LAYER_NEW },
++
++  { "layers-new-adjustment-shadows-highlights", GIMP_ICON_TOOL_SHADOWS_HIGHLIGHTS,
++    NC_("layers-action", "Shadows-Hi_ghlights..."), NULL, { NULL },
++    NC_("layers-action", "Add an adjustment layer: Shadows-Highlights on everything below it"),
++    "filters-shadows-highlights",
++    GIMP_HELP_LAYER_NEW },
++};
++
+ static const GimpActionEntry layers_actions[] =
+ {
+   { "layers-edit", GIMP_ICON_EDIT,
+@@ -692,6 +788,11 @@ layers_actions_setup (GimpActionGroup *group)
+                                         layers_toggle_actions,
+                                         G_N_ELEMENTS (layers_toggle_actions));
+ 
++  gimp_action_group_add_string_actions (group, "layers-action",
++                                        layers_new_adjustment_actions,
++                                        G_N_ELEMENTS (layers_new_adjustment_actions),
++                                        layers_new_adjustment_cmd_callback);
++
+   gimp_action_group_add_radio_actions (group, "layers-action",
+                                        layers_blend_space_actions,
+                                        G_N_ELEMENTS (layers_blend_space_actions),
+@@ -1037,6 +1138,15 @@ layers_actions_update (GimpActionGroup *group,
+   SET_SENSITIVE ("layers-new-last-values",  image);
+   SET_SENSITIVE ("layers-new-from-visible", image);
+   SET_SENSITIVE ("layers-new-group",        image && !indexed && !fs);
++
++  /*  GIMPhoto: adjustment layers  */
++  {
++    gint i;
++
++    for (i = 0; i < G_N_ELEMENTS (layers_new_adjustment_actions); i++)
++      SET_SENSITIVE (layers_new_adjustment_actions[i].name,
++                     image && !indexed && !fs);
++  }
+   SET_SENSITIVE ("layers-duplicate",        n_selected_layers > 0 && !fs && !ac);
+   SET_SENSITIVE ("layers-delete",           n_selected_layers > 0 && !ac);
+ 
+diff --git a/app/actions/layers-commands.c b/app/actions/layers-commands.c
+index 494ffaff10..66f9fe6efc 100644
+--- a/app/actions/layers-commands.c
++++ b/app/actions/layers-commands.c
+@@ -34,11 +34,14 @@
+ #include "operations/layer-modes/gimp-layer-modes.h"
+ 
+ #include "core/gimp.h"
++#include "core/gimpadjustmentlayer.h"
+ #include "core/gimpchannel.h"
+ #include "core/gimpchannel-combine.h"
+ #include "core/gimpcontainer.h"
+ #include "core/gimpcontext.h"
+ #include "core/gimpdrawable-fill.h"
++#include "core/gimpdrawable-filters.h"
++#include "core/gimpdrawablefilter.h"
+ #include "core/gimpgrouplayer.h"
+ #include "core/gimpimage.h"
+ #include "core/gimpimage-merge.h"
+@@ -69,6 +72,7 @@
+ #include "text/gimptextlayer.h"
+ 
+ #include "widgets/gimpaction.h"
++#include "widgets/gimpstringaction.h"
+ #include "widgets/gimpdock.h"
+ #include "widgets/gimphelp-ids.h"
+ #include "widgets/gimpopendialog.h"
+@@ -79,6 +83,7 @@
+ #include "display/gimpdisplayshell.h"
+ #include "display/gimpimagewindow.h"
+ 
++#include "tools/gimpfiltertool.h"
+ #include "tools/gimppathtool.h"
+ #include "tools/gimptexttool.h"
+ #include "tools/gimptools-utils.h"
+@@ -92,6 +97,8 @@
+ 
+ #include "actions.h"
+ #include "items-commands.h"
++#include "filters-commands.h"
++#include "gimpgeglprocedure.h"
+ #include "layers-commands.h"
+ 
+ #include "gimp-intl.h"
+@@ -254,6 +261,67 @@ layers_edit_smart_object (GimpLayer *layer)
+   return TRUE;
+ }
+ 
++/*  GIMPhoto: a double click on an adjustment layer opens its adjustment
++ *  again (the filter it carries), as Photoshop's Properties panel does.
++ *  Returns FALSE when it has none, so the caller opens the attributes as
++ *  GIMP does.
++ */
++static gboolean
++layers_edit_adjustment (GimpLayer *layer)
++{
++  GimpContainer      *filters;
++  GimpDrawableFilter *filter = NULL;
++  GimpProcedure      *procedure;
++  GeglNode           *op;
++  Gimp               *gimp;
++  GList              *list;
++  gchar              *operation = NULL;
++
++  if (! GIMP_IS_ADJUSTMENT_LAYER (layer))
++    return FALSE;
++
++  filters = gimp_drawable_get_filters (GIMP_DRAWABLE (layer));
++
++  for (list = GIMP_LIST (filters)->queue->head; list; list = g_list_next (list))
++    {
++      if (GIMP_IS_DRAWABLE_FILTER (list->data) &&
++          ! gimp_drawable_filter_get_temporary (list->data))
++        {
++          filter = list->data;
++          break;
++        }
++    }
++
++  if (! filter)
++    return FALSE;
++
++  op = gimp_drawable_filter_get_operation (filter);
++
++  if (op)
++    g_object_get (op, "operation", &operation, NULL);
++
++  if (! operation)
++    return FALSE;
++
++  gimp = gimp_item_get_image (GIMP_ITEM (layer))->gimp;
++
++  procedure = gimp_gegl_procedure_new (gimp, filter,
++                                       GIMP_RUN_INTERACTIVE, NULL,
++                                       operation,
++                                       gimp_object_get_name (filter),
++                                       gimp_object_get_name (filter),
++                                       NULL, NULL, NULL);
++
++  filters_run_procedure (gimp,
++                         gimp_context_get_display (gimp_get_user_context (gimp)),
++                         procedure, GIMP_RUN_INTERACTIVE);
++
++  g_object_unref (procedure);
++  g_free (operation);
++
++  return TRUE;
++}
++
+ /*  GIMPhoto: a double click on a layer made by Generative Fill or Generate
+  *  Image (it carries their "gimphoto-generative" parasite) opens their
+  *  window again, through the generative-fill plug-in's Edit Generative
+@@ -304,6 +372,8 @@ layers_edit_cmd_callback (GimpAction *action,
+     return;
+   else if (layers_edit_generative (layers->data))
+     return;
++  else if (layers_edit_adjustment (layers->data))
++    return;
+   else if (gimp_item_is_vector_layer (GIMP_ITEM (layers->data)))
+     layers_edit_vector_cmd_callback (action, value, data);
+   else
+@@ -682,6 +752,220 @@ layers_new_from_visible_cmd_callback (GimpAction *action,
+   gimp_image_flush (image);
+ }
+ 
++/*  GIMPhoto: Photoshop's Layer > New Adjustment Layer. The new layer is
++ *  added above the selected layer with a mask from the selection, and the
++ *  adjustment's dialog opens on it. When the dialog is cancelled the layer
++ *  goes away again; when it is confirmed, the mask becomes what is edited,
++ *  so painting restricts the adjustment, as in Photoshop.
++ */
++
++typedef struct
++{
++  Gimp      *gimp;
++  GimpLayer *layer;
++  guint      idle_id;
++} NewAdjustmentWatch;
++
++static void     layers_new_adjustment_filters_changed (GimpDrawable       *drawable,
++                                                       NewAdjustmentWatch *watch);
++static void     layers_new_adjustment_removed         (GimpItem           *item,
++                                                       NewAdjustmentWatch *watch);
++
++static void
++layers_new_adjustment_watch_free (NewAdjustmentWatch *watch)
++{
++  g_signal_handlers_disconnect_by_func (watch->layer,
++                                        layers_new_adjustment_filters_changed,
++                                        watch);
++  g_signal_handlers_disconnect_by_func (watch->layer,
++                                        layers_new_adjustment_removed,
++                                        watch);
++
++  if (watch->idle_id)
++    g_source_remove (watch->idle_id);
++
++  g_object_unref (watch->layer);
++  g_slice_free (NewAdjustmentWatch, watch);
++}
++
++static gboolean
++layers_new_adjustment_settled (gpointer user_data)
++{
++  NewAdjustmentWatch *watch = user_data;
++  GimpLayer          *layer = watch->layer;
++  GimpTool           *tool  = tool_manager_get_active (watch->gimp);
++
++  watch->idle_id = 0;
++
++  /*  the adjustment's dialog is still open on this layer: wait  */
++  if (GIMP_IS_FILTER_TOOL (tool) && GIMP_FILTER_TOOL (tool)->filter &&
++      g_list_find (tool->drawables, layer))
++    return G_SOURCE_REMOVE;
++
++  g_signal_handlers_disconnect_by_func (layer,
++                                        layers_new_adjustment_filters_changed,
++                                        watch);
++  g_signal_handlers_disconnect_by_func (layer,
++                                        layers_new_adjustment_removed,
++                                        watch);
++
++  if (gimp_item_is_attached (GIMP_ITEM (layer)))
++    {
++      GimpImage *image = gimp_item_get_image (GIMP_ITEM (layer));
++
++      if (gimp_container_is_empty (gimp_drawable_get_filters (GIMP_DRAWABLE (layer))))
++        {
++          /*  cancelled: no adjustment, no layer  */
++          gimp_image_remove_layer (image, layer, TRUE, NULL);
++        }
++      else if (gimp_layer_get_mask (layer))
++        {
++          gimp_layer_set_edit_mask (layer, TRUE);
++        }
++
++      gimp_image_flush (image);
++    }
++
++  layers_new_adjustment_watch_free (watch);
++
++  return G_SOURCE_REMOVE;
++}
++
++static void
++layers_new_adjustment_filters_changed (GimpDrawable       *drawable,
++                                       NewAdjustmentWatch *watch)
++{
++  /*  after the tool has finished with the layer  */
++  if (! watch->idle_id)
++    watch->idle_id = g_idle_add (layers_new_adjustment_settled, watch);
++}
++
++static void
++layers_new_adjustment_removed (GimpItem           *item,
++                               NewAdjustmentWatch *watch)
++{
++  /*  gone from the image (deleted, or the image closed): nothing to settle  */
++  layers_new_adjustment_watch_free (watch);
++}
++
++/*  the filter's menu label, as the layer's name: "_Curves..." -> "Curves"  */
++static gchar *
++layers_new_adjustment_name (GimpAction *filter_action)
++{
++  const gchar *label = gimp_action_get_label (filter_action);
++  GString     *name  = g_string_new (NULL);
++
++  for (; label && *label; label++)
++    if (*label != '_')
++      g_string_append_c (name, *label);
++
++  if (g_str_has_suffix (name->str, "..."))
++    g_string_truncate (name, name->len - 3);
++  else if (g_str_has_suffix (name->str, "\342\200\246"))
++    g_string_truncate (name, name->len - 3);
++
++  return g_string_free (name, FALSE);
++}
++
++void
++layers_new_adjustment_cmd_callback (GimpAction *action,
++                                    GVariant   *value,
++                                    gpointer    data)
++{
++  GimpImage          *image;
++  GimpLayer          *layer;
++  GimpLayer          *parent   = NULL;
++  gint                position = 0;
++  GList              *layers;
++  GList              *list;
++  GList              *managers;
++  GimpAction         *filter_action = NULL;
++  GVariant           *filter_value;
++  GimpChannel        *selection;
++  GimpLayerMask      *mask;
++  NewAdjustmentWatch *watch;
++  gchar              *name;
++  return_if_no_image (image, data);
++
++  managers = gimp_ui_managers_from_name ("<Image>");
++
++  if (managers)
++    filter_action = gimp_ui_manager_find_action (managers->data, "filters",
++                                                 g_variant_get_string (value,
++                                                                       NULL));
++
++  if (! GIMP_IS_STRING_ACTION (filter_action))
++    return;
++
++  /*  above the selected layer, or at the top of a selected group  */
++  layers = gimp_image_get_selected_layers (image);
++
++  if (layers)
++    {
++      if (gimp_viewable_get_children (GIMP_VIEWABLE (layers->data)))
++        {
++          parent   = layers->data;
++          position = 0;
++        }
++      else
++        {
++          parent   = GIMP_LAYER (gimp_item_get_parent (layers->data));
++          position = gimp_item_get_index (layers->data);
++        }
++    }
++
++  name  = layers_new_adjustment_name (filter_action);
++  layer = gimp_adjustment_layer_new (image, name);
++  g_free (name);
++
++  gimp_image_undo_group_start (image, GIMP_UNDO_GROUP_LAYER_ADD,
++                               _("New Adjustment Layer"));
++
++  gimp_image_add_layer (image, layer, parent, position, TRUE);
++
++  /*  its mask comes from the selection, which is then dropped  */
++  selection = gimp_image_get_mask (image);
++
++  if (gimp_channel_is_empty (selection))
++    {
++      mask = gimp_layer_create_mask (layer, GIMP_ADD_MASK_WHITE, NULL);
++    }
++  else
++    {
++      mask = gimp_layer_create_mask (layer, GIMP_ADD_MASK_SELECTION, NULL);
++      gimp_channel_clear (selection, NULL, TRUE);
++    }
++
++  gimp_layer_add_mask (layer, mask, FALSE, TRUE, NULL);
++
++  list = g_list_prepend (NULL, layer);
++  gimp_image_set_selected_layers (image, list);
++  g_list_free (list);
++
++  gimp_image_undo_group_end (image);
++  gimp_image_flush (image);
++
++  watch          = g_slice_new0 (NewAdjustmentWatch);
++  watch->gimp    = image->gimp;
++  watch->layer   = g_object_ref (layer);
++
++  g_signal_connect (layer, "filters-changed",
++                    G_CALLBACK (layers_new_adjustment_filters_changed),
++                    watch);
++  g_signal_connect (layer, "removed",
++                    G_CALLBACK (layers_new_adjustment_removed),
++                    watch);
++
++  /*  the adjustment's dialog, on the new layer (the selected drawable)  */
++  filter_value = g_variant_ref_sink (g_variant_new_string (GIMP_STRING_ACTION (filter_action)->value));
++  filters_apply_interactive_cmd_callback (filter_action, filter_value, data);
++  g_variant_unref (filter_value);
++
++  /*  settles right away when the dialog did not open (the layer goes)  */
++  if (! watch->idle_id)
++    watch->idle_id = g_idle_add (layers_new_adjustment_settled, watch);
++}
++
+ void
+ layers_new_group_cmd_callback (GimpAction *action,
+                                GVariant   *value,
+diff --git a/app/actions/layers-commands.h b/app/actions/layers-commands.h
+index 4a105b435c..719abd4bc2 100644
+--- a/app/actions/layers-commands.h
++++ b/app/actions/layers-commands.h
+@@ -41,6 +41,9 @@ void   layers_new_from_visible_cmd_callback   (GimpAction *action,
+                                                GVariant   *value,
+                                                gpointer    data);
+ 
++void   layers_new_adjustment_cmd_callback     (GimpAction *action,
++                                                GVariant   *value,
++                                                gpointer    data);
+ void   layers_new_group_cmd_callback          (GimpAction *action,
+                                                GVariant   *value,
+                                                gpointer    data);
+diff --git a/app/core/core-types.h b/app/core/core-types.h
+index 75a8526f0b..325deb04a2 100644
+--- a/app/core/core-types.h
++++ b/app/core/core-types.h
+@@ -170,6 +170,7 @@ typedef struct _GimpSelection                   GimpSelection;
+ typedef struct _GimpLayer                       GimpLayer;
+ typedef struct _GimpGroupLayer                  GimpGroupLayer;
+ typedef struct _GimpLinkLayer                   GimpLinkLayer;
++typedef struct _GimpAdjustmentLayer             GimpAdjustmentLayer;
+ 
+ 
+ /*  auxiliary image items  */
+diff --git a/app/core/gimpadjustmentlayer.c b/app/core/gimpadjustmentlayer.c
+new file mode 100644
+index 0000000000..706d71b278
+--- /dev/null
++++ b/app/core/gimpadjustmentlayer.c
+@@ -0,0 +1,148 @@
++/* GIMP - The GNU Image Manipulation Program
++ * Copyright (C) 1995 Spencer Kimball and Peter Mattis
++ *
++ * gimpadjustmentlayer.c
++ * Copyright (C) 2026 GIMPhoto contributors
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 3 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
++ */
++
++#include "config.h"
++
++#include <gdk-pixbuf/gdk-pixbuf.h>
++#include <gegl.h>
++
++#include "libgimpbase/gimpbase.h"
++
++#include "core-types.h"
++
++#include "gimpadjustmentlayer.h"
++#include "gimpdrawable.h"
++#include "gimpimage.h"
++#include "gimpitem.h"
++
++#include "gimp-intl.h"
++
++
++/* An adjustment layer is a GimpLayer whose source node, instead of GIMP's
++ * "gimp:buffer-source-validate" on the layer's own pixels, is a pass-through
++ * with an "input" pad. GimpDrawable links the layer's input (the backdrop:
++ * what is composited below it in its group) to any source node that has
++ * one, so the layer's filter stack is applied to the backdrop, and the
++ * result is blended over the backdrop by the layer's mode node with the
++ * layer's mode, opacity and mask, as Photoshop composites an adjustment
++ * layer. The layer's own buffer stays transparent and is never shown.
++ */
++
++static GeglNode      * gimp_adjustment_layer_get_source_node   (GimpDrawable  *drawable);
++static GeglRectangle   gimp_adjustment_layer_get_bounding_box  (GimpLayer     *layer);
++static gboolean        gimp_adjustment_layer_is_position_locked
++                                                               (GimpItem      *item,
++                                                                GimpItem     **locked_item,
++                                                                gboolean       checking_children);
++
++
++G_DEFINE_TYPE (GimpAdjustmentLayer, gimp_adjustment_layer, GIMP_TYPE_LAYER)
++
++#define parent_class gimp_adjustment_layer_parent_class
++
++
++static void
++gimp_adjustment_layer_class_init (GimpAdjustmentLayerClass *klass)
++{
++  GimpViewableClass *viewable_class = GIMP_VIEWABLE_CLASS (klass);
++  GimpItemClass     *item_class     = GIMP_ITEM_CLASS (klass);
++  GimpDrawableClass *drawable_class = GIMP_DRAWABLE_CLASS (klass);
++  GimpLayerClass    *layer_class    = GIMP_LAYER_CLASS (klass);
++
++  viewable_class->default_icon_name = "gimphoto-adjustment-layer";
++  viewable_class->default_name      = _("Adjustment Layer");
++
++  item_class->is_position_locked    = gimp_adjustment_layer_is_position_locked;
++  item_class->rename_desc           = _("Rename Adjustment Layer");
++  item_class->resize_desc           = _("Resize Adjustment Layer");
++
++  drawable_class->get_source_node   = gimp_adjustment_layer_get_source_node;
++
++  layer_class->get_bounding_box     = gimp_adjustment_layer_get_bounding_box;
++}
++
++static void
++gimp_adjustment_layer_init (GimpAdjustmentLayer *layer)
++{
++}
++
++static GeglNode *
++gimp_adjustment_layer_get_source_node (GimpDrawable *drawable)
++{
++  /* a pass-through: its "input" pad receives the backdrop, see above */
++  return gegl_node_new_child (NULL,
++                              "operation", "gegl:nop",
++                              NULL);
++}
++
++static GeglRectangle
++gimp_adjustment_layer_get_bounding_box (GimpLayer *layer)
++{
++  GeglRectangle bounding_box;
++
++  /* GimpDrawable asks the source node, which here depends on what is
++   * connected below the layer; the adjustment covers the layer's own
++   * area, kept the size of the canvas.
++   */
++  bounding_box.x      = 0;
++  bounding_box.y      = 0;
++  bounding_box.width  = gimp_item_get_width  (GIMP_ITEM (layer));
++  bounding_box.height = gimp_item_get_height (GIMP_ITEM (layer));
++
++  return bounding_box;
++}
++
++static gboolean
++gimp_adjustment_layer_is_position_locked (GimpItem  *item,
++                                          GimpItem **locked_item,
++                                          gboolean   checking_children)
++{
++  /* always the size and position of the canvas, as in Photoshop */
++  if (locked_item)
++    *locked_item = item;
++
++  return TRUE;
++}
++
++
++/*  public functions  */
++
++GimpLayer *
++gimp_adjustment_layer_new (GimpImage   *image,
++                           const gchar *name)
++{
++  GimpLayer *layer;
++
++  g_return_val_if_fail (GIMP_IS_IMAGE (image), NULL);
++
++  layer = GIMP_LAYER (gimp_drawable_new (GIMP_TYPE_ADJUSTMENT_LAYER,
++                                         image, name,
++                                         0, 0,
++                                         gimp_image_get_width  (image),
++                                         gimp_image_get_height (image),
++                                         gimp_image_get_layer_format (image,
++                                                                      TRUE)));
++
++  gimp_layer_set_mode (layer,
++                       gimp_image_get_default_new_layer_mode (image),
++                       FALSE);
++
++  return layer;
++}
+diff --git a/app/core/gimpadjustmentlayer.h b/app/core/gimpadjustmentlayer.h
+new file mode 100644
+index 0000000000..4d09578158
+--- /dev/null
++++ b/app/core/gimpadjustmentlayer.h
+@@ -0,0 +1,56 @@
++/* GIMP - The GNU Image Manipulation Program
++ * Copyright (C) 1995 Spencer Kimball and Peter Mattis
++ *
++ * gimpadjustmentlayer.h
++ * Copyright (C) 2026 GIMPhoto contributors
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 3 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
++ */
++
++#pragma once
++
++#include "gimplayer.h"
++
++
++#define GIMP_TYPE_ADJUSTMENT_LAYER            (gimp_adjustment_layer_get_type ())
++#define GIMP_ADJUSTMENT_LAYER(obj)            (G_TYPE_CHECK_INSTANCE_CAST ((obj), GIMP_TYPE_ADJUSTMENT_LAYER, GimpAdjustmentLayer))
++#define GIMP_ADJUSTMENT_LAYER_CLASS(klass)    (G_TYPE_CHECK_CLASS_CAST ((klass), GIMP_TYPE_ADJUSTMENT_LAYER, GimpAdjustmentLayerClass))
++#define GIMP_IS_ADJUSTMENT_LAYER(obj)         (G_TYPE_CHECK_INSTANCE_TYPE ((obj), GIMP_TYPE_ADJUSTMENT_LAYER))
++#define GIMP_IS_ADJUSTMENT_LAYER_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((klass), GIMP_TYPE_ADJUSTMENT_LAYER))
++#define GIMP_ADJUSTMENT_LAYER_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS ((obj), GIMP_TYPE_ADJUSTMENT_LAYER, GimpAdjustmentLayerClass))
++
++
++typedef struct _GimpAdjustmentLayerClass GimpAdjustmentLayerClass;
++
++/* A Photoshop-style adjustment layer: a layer with no pixels of its own
++ * whose filters (GIMP's non-destructive filters, e.g. Curves or Levels)
++ * apply to everything composited below it in its group. It is kept the
++ * size of the canvas, and its mask, opacity and mode limit the adjustment
++ * like Photoshop's.
++ */
++struct _GimpAdjustmentLayer
++{
++  GimpLayer  parent_instance;
++};
++
++struct _GimpAdjustmentLayerClass
++{
++  GimpLayerClass  parent_class;
++};
++
++
++GType       gimp_adjustment_layer_get_type (void) G_GNUC_CONST;
++
++GimpLayer * gimp_adjustment_layer_new      (GimpImage   *image,
++                                            const gchar *name);
+diff --git a/app/core/gimpimage-merge.c b/app/core/gimpimage-merge.c
+index cbe24a84f6..8679900fb0 100644
+--- a/app/core/gimpimage-merge.c
++++ b/app/core/gimpimage-merge.c
+@@ -35,6 +35,7 @@
+ #include "path/gimppath.h"
+ 
+ #include "gimp.h"
++#include "gimpadjustmentlayer.h"
+ #include "gimpcontext.h"
+ #include "gimpdrawable-filters.h"
+ #include "gimperror.h"
+@@ -750,9 +751,15 @@ gimp_image_merge_layers (GimpImage     *image,
+ 
+       layer = layers->data;
+ 
+-      /* Merge down filter effects so they can be restored on undo */
+-      gimp_drawable_merge_filters (GIMP_DRAWABLE (layer));
+-      gimp_drawable_clear_filters (GIMP_DRAWABLE (layer));
++      /* Merge down filter effects so they can be restored on undo.
++       * GIMPhoto: not an adjustment layer's, which apply to what is below
++       * it: they stay in the graph and the merge composites through them.
++       */
++      if (! GIMP_IS_ADJUSTMENT_LAYER (layer))
++        {
++          gimp_drawable_merge_filters (GIMP_DRAWABLE (layer));
++          gimp_drawable_clear_filters (GIMP_DRAWABLE (layer));
++        }
+ 
+       if (gimp_layer_get_mode (layer) == GIMP_LAYER_MODE_PASS_THROUGH)
+         {
+diff --git a/app/core/gimpimage-resize.c b/app/core/gimpimage-resize.c
+index f79d0d55e8..9a4942252c 100644
+--- a/app/core/gimpimage-resize.c
++++ b/app/core/gimpimage-resize.c
+@@ -25,6 +25,7 @@
+ #include "core-types.h"
+ 
+ #include "gimp.h"
++#include "gimpadjustmentlayer.h"
+ #include "gimpcontainer.h"
+ #include "gimpcontext.h"
+ #include "gimpguide.h"
+@@ -76,6 +77,7 @@ gimp_image_resize_with_layers (GimpImage    *image,
+ {
+   GimpObjectQueue *queue;
+   GList           *resize_layers;
++  GList           *all_layers;
+   GList           *list;
+   GimpItem        *item;
+   gint             old_width, old_height;
+@@ -96,6 +98,19 @@ gimp_image_resize_with_layers (GimpImage    *image,
+                                                  GIMP_ITEM_TYPE_LAYERS,
+                                                  layer_set);
+ 
++  /* GIMPhoto: adjustment layers always cover the canvas, whatever the
++   * layer set says
++   */
++  all_layers = gimp_image_item_list_get_list (image, GIMP_ITEM_TYPE_LAYERS,
++                                              GIMP_ITEM_SET_ALL);
++  for (list = all_layers; list; list = g_list_next (list))
++    {
++      if (GIMP_IS_ADJUSTMENT_LAYER (list->data) &&
++          ! g_list_find (resize_layers, list->data))
++        resize_layers = g_list_prepend (resize_layers, list->data);
++    }
++  g_list_free (all_layers);
++
+   old_width  = gimp_image_get_width  (image);
+   old_height = gimp_image_get_height (image);
+ 
+diff --git a/app/core/meson.build b/app/core/meson.build
+index 2c8db3b56a..6d3cd1981c 100644
+--- a/app/core/meson.build
++++ b/app/core/meson.build
+@@ -57,6 +57,7 @@ libappcore_sources = [
+   'gimpbacktrace-none.c',
+   'gimpbacktrace-windows.c',
+   'gimpbezierdesc.c',
++  'gimpadjustmentlayer.c',
+   'gimpboundary.c',
+   'gimpbrush-boundary.c',
+   'gimpbrush-load.c',
+diff --git a/app/widgets/gimppropertieseditor.c b/app/widgets/gimppropertieseditor.c
+index 486a2d08c3..7457929f0b 100644
+--- a/app/widgets/gimppropertieseditor.c
++++ b/app/widgets/gimppropertieseditor.c
+@@ -37,6 +37,7 @@
+ #include "core/gimpimage-arrange.h"
+ #include "core/gimpimage-undo.h"
+ #include "core/gimplayer.h"
++#include "core/gimpadjustmentlayer.h"
+ #include "core/gimplinklayer.h"
+ #include "core/gimppickable.h"
+ #include "core/gimppickable-auto-shrink.h"
+@@ -450,6 +451,11 @@ gimp_properties_editor_kind (GimpLayer    *layer,
+       *icon_name = GIMP_ICON_LAYER;
+       return _("Smart Object");
+     }
++  else if (GIMP_IS_ADJUSTMENT_LAYER (layer))
++    {
++      *icon_name = "gimphoto-adjustment-layer";
++      return _("Adjustment Layer");
++    }
+   else if (gimp_item_is_vector_layer (item))
+     {
+       *icon_name = GIMP_ICON_LAYER;
+diff --git a/app/widgets/gimpviewrendererdrawable.c b/app/widgets/gimpviewrendererdrawable.c
+index b4738e8eb6..231f0a1d78 100644
+--- a/app/widgets/gimpviewrendererdrawable.c
++++ b/app/widgets/gimpviewrendererdrawable.c
+@@ -31,6 +31,7 @@
+ #include "config/gimpcoreconfig.h"
+ 
+ #include "core/gimp.h"
++#include "core/gimpadjustmentlayer.h"
+ #include "core/gimpasync.h"
+ #include "core/gimpcancelable.h"
+ #include "core/gimpdrawable.h"
+@@ -187,7 +188,9 @@ gimp_view_renderer_drawable_render (GimpViewRenderer *renderer,
+   image     = gimp_item_get_image (item);
+   icon_name = gimp_viewable_get_icon_name (renderer->viewable);
+ 
+-  if (image && ! image->gimp->config->layer_previews)
++  /* GIMPhoto: an adjustment layer has no pixels to show: its icon */
++  if (GIMP_IS_ADJUSTMENT_LAYER (drawable) ||
++      (image && ! image->gimp->config->layer_previews))
+     {
+       renderdrawable->priv->prev_width  = 0;
+       renderdrawable->priv->prev_height = 0;
+diff --git a/app/xcf/xcf-load.c b/app/xcf/xcf-load.c
+index 97dc2973dc..44a63d8881 100644
+--- a/app/xcf/xcf-load.c
++++ b/app/xcf/xcf-load.c
+@@ -38,6 +38,7 @@
+ #include "gegl/gimp-gegl-utils.h"
+ 
+ #include "core/gimp.h"
++#include "core/gimpadjustmentlayer.h"
+ #include "core/gimpcontainer.h"
+ #include "core/gimpdashpattern.h"
+ #include "core/gimpdatafactory.h"
+@@ -2556,6 +2557,42 @@ xcf_load_layer_props (XcfInfo    *info,
+           xcf_read_int32 (info, text_layer_flags, 1);
+           break;
+ 
++        case PROP_GIMPHOTO_ADJUSTMENT_LAYER:
++          {
++            guint32  adjustment;
++            GList   *selected;
++            GList   *linked;
++            gboolean floating;
++
++            xcf_read_int32 (info, &adjustment, 1);
++
++            if (adjustment && ! GIMP_IS_ADJUSTMENT_LAYER (*layer))
++              {
++                floating = (info->floating_sel == *layer);
++                selected = g_list_find (info->selected_layers, *layer);
++                linked   = g_list_find (info->linked_layers, *layer);
++
++                *layer = gimp_layer_from_layer (*layer,
++                                                GIMP_TYPE_ADJUSTMENT_LAYER,
++                                                "image", image,
++                                                NULL);
++
++                if (selected)
++                  {
++                    info->selected_layers = g_list_delete_link (info->selected_layers, selected);
++                    info->selected_layers = g_list_prepend (info->selected_layers, *layer);
++                  }
++                if (linked)
++                  {
++                    info->linked_layers = g_list_delete_link (info->linked_layers, linked);
++                    info->linked_layers = g_list_prepend (info->linked_layers, *layer);
++                  }
++                if (floating)
++                  info->floating_sel = *layer;
++              }
++          }
++          break;
++
+         case PROP_VECTOR_LAYER:
+           {
+             VectorLayerData *data;
+diff --git a/app/xcf/xcf-private.h b/app/xcf/xcf-private.h
+index 8f21f7e6db..48401b2d0f 100644
+--- a/app/xcf/xcf-private.h
++++ b/app/xcf/xcf-private.h
+@@ -75,6 +75,11 @@ typedef enum
+   PROP_VECTOR_LAYER       = 47,
+   PROP_LINK_LAYER         = 48,
+   PROP_TRANSFORM          = 49,
++
++  /* GIMPhoto's properties start at 1000, clear of GIMP's: GIMP skips the
++   * ones it does not know when it opens the file.
++   */
++  PROP_GIMPHOTO_ADJUSTMENT_LAYER = 1000,
+ } PropType;
+ 
+ typedef enum
+diff --git a/app/xcf/xcf-save.c b/app/xcf/xcf-save.c
+index 73d6acb6a3..06f18a267d 100644
+--- a/app/xcf/xcf-save.c
++++ b/app/xcf/xcf-save.c
+@@ -36,6 +36,7 @@
+ #include "gegl/gimp-gegl-tile-compat.h"
+ 
+ #include "core/gimp.h"
++#include "core/gimpadjustmentlayer.h"
+ #include "core/gimpcontainer.h"
+ #include "core/gimpchannel.h"
+ #include "core/gimpdashpattern.h"
+@@ -756,6 +757,14 @@ xcf_save_layer_props (XcfInfo    *info,
+         xcf_check_error (xcf_save_prop (info, image, PROP_TRANSFORM, error, layer), ;);
+     }
+ 
++  /* GIMPhoto: an adjustment layer, its filters apply to what is below it */
++  if (GIMP_IS_ADJUSTMENT_LAYER (layer))
++    {
++      xcf_check_error (xcf_save_prop (info, image,
++                                      PROP_GIMPHOTO_ADJUSTMENT_LAYER, error,
++                                      (guint32) 1), ;);
++    }
++
+   if (gimp_viewable_get_children (GIMP_VIEWABLE (layer)))
+     {
+       gint32 flags = 0;
+@@ -1281,6 +1290,19 @@ xcf_save_prop (XcfInfo    *info,
+       }
+       break;
+ 
++    case PROP_GIMPHOTO_ADJUSTMENT_LAYER:
++      {
++        guint32 adjustment = va_arg (args, guint32);
++
++        size = 4;
++
++        xcf_write_prop_type_check_error (info, prop_type, va_end (args));
++        xcf_write_int32_check_error (info, &size, 1, va_end (args));
++
++        xcf_write_int32_check_error (info, &adjustment, 1, va_end (args));
++      }
++      break;
++
+     case PROP_LOCK_VISIBILITY:
+       {
+         guint32 lock_visibility = va_arg (args, guint32);
+diff --git a/menus/image-menu.ui.in.in b/menus/image-menu.ui.in.in
+index 27b81850c2..61cf3ed007 100644
+--- a/menus/image-menu.ui.in.in
++++ b/menus/image-menu.ui.in.in
+@@ -424,6 +424,31 @@
+         <attribute name="section-name" translatable="no">Structure</attribute>
+         <item><attribute name="action">app.layers-new</attribute></item>
+         <item><attribute name="action">app.layers-new-from-visible</attribute></item>
++        <!-- GIMPhoto: Photoshop's Layer > New Adjustment Layer -->
++        <submenu>
++          <attribute name="label" translatable="yes" context="layers-action">New _Adjustment Layer</attribute>
++          <section>
++            <item><attribute name="action">app.layers-new-adjustment-brightness-contrast</attribute></item>
++            <item><attribute name="action">app.layers-new-adjustment-levels</attribute></item>
++            <item><attribute name="action">app.layers-new-adjustment-curves</attribute></item>
++            <item><attribute name="action">app.layers-new-adjustment-exposure</attribute></item>
++            <item><attribute name="action">app.layers-new-adjustment-hue-saturation</attribute></item>
++            <item><attribute name="action">app.layers-new-adjustment-color-balance</attribute></item>
++            <item><attribute name="action">app.layers-new-adjustment-mono-mixer</attribute></item>
++            <item><attribute name="action">app.layers-new-adjustment-channel-mixer</attribute></item>
++          </section>
++          <section>
++            <item><attribute name="action">app.layers-new-adjustment-invert</attribute></item>
++            <item><attribute name="action">app.layers-new-adjustment-posterize</attribute></item>
++            <item><attribute name="action">app.layers-new-adjustment-threshold</attribute></item>
++          </section>
++          <section>
++            <item><attribute name="action">app.layers-new-adjustment-colorize</attribute></item>
++            <item><attribute name="action">app.layers-new-adjustment-color-temperature</attribute></item>
++            <item><attribute name="action">app.layers-new-adjustment-saturation</attribute></item>
++            <item><attribute name="action">app.layers-new-adjustment-shadows-highlights</attribute></item>
++          </section>
++        </submenu>
+         <item><attribute name="action">app.layers-new-group</attribute></item>
+         <item><attribute name="action">app.layers-duplicate</attribute></item>
+         <item><attribute name="action">app.layers-anchor</attribute></item>
+diff --git a/menus/layers-menu.ui b/menus/layers-menu.ui
+index fb24da797a..67f1a4d946 100644
+--- a/menus/layers-menu.ui
++++ b/menus/layers-menu.ui
+@@ -46,6 +46,31 @@
+       <section>
+         <item><attribute name="action">app.layers-new</attribute></item>
+         <item><attribute name="action">app.layers-new-from-visible</attribute></item>
++        <!-- GIMPhoto: Photoshop's Layer > New Adjustment Layer -->
++        <submenu>
++          <attribute name="label" translatable="yes" context="layers-action">New _Adjustment Layer</attribute>
++          <section>
++            <item><attribute name="action">app.layers-new-adjustment-brightness-contrast</attribute></item>
++            <item><attribute name="action">app.layers-new-adjustment-levels</attribute></item>
++            <item><attribute name="action">app.layers-new-adjustment-curves</attribute></item>
++            <item><attribute name="action">app.layers-new-adjustment-exposure</attribute></item>
++            <item><attribute name="action">app.layers-new-adjustment-hue-saturation</attribute></item>
++            <item><attribute name="action">app.layers-new-adjustment-color-balance</attribute></item>
++            <item><attribute name="action">app.layers-new-adjustment-mono-mixer</attribute></item>
++            <item><attribute name="action">app.layers-new-adjustment-channel-mixer</attribute></item>
++          </section>
++          <section>
++            <item><attribute name="action">app.layers-new-adjustment-invert</attribute></item>
++            <item><attribute name="action">app.layers-new-adjustment-posterize</attribute></item>
++            <item><attribute name="action">app.layers-new-adjustment-threshold</attribute></item>
++          </section>
++          <section>
++            <item><attribute name="action">app.layers-new-adjustment-colorize</attribute></item>
++            <item><attribute name="action">app.layers-new-adjustment-color-temperature</attribute></item>
++            <item><attribute name="action">app.layers-new-adjustment-saturation</attribute></item>
++            <item><attribute name="action">app.layers-new-adjustment-shadows-highlights</attribute></item>
++          </section>
++        </submenu>
+         <item><attribute name="action">app.layers-new-group</attribute></item>
+     <!--
+         <item><attribute name="action">app.layers-raise</attribute></item>
