@@ -1,0 +1,11 @@
+# Shortcuts GIMPhoto has moved from one command to another. A profile with
+# its own shortcutsrc (anyone who has run GIMPhoto) keeps its saved
+# shortcuts over GIMPhoto's defaults, so each move here is applied to it
+# once, when it still has the old shortcut on the old command (patch
+# "Default shortcut updates reach existing profiles"). tools/make_keymap.py
+# writes them into defaults/shortcutsrc; add a line, with a higher version,
+# whenever photoshop-keymap.tsv moves a shortcut that was there before.
+#
+# version <TAB> shortcut <TAB> old action <TAB> new action
+1	<Primary>e	layers-merge-down	gimphoto-merge-layers
+1	<Primary><Shift>e	image-merge-layers	layers-merge-layers-last-values

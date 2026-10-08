@@ -2,7 +2,8 @@
 
 **Issue:** [#58](https://github.com/diegochagas/gimphoto/issues/58) ·
 **Plug-in:** [`plugins/merge-layers/`](../../plugins/merge-layers/) ·
-**Keymap:** [`defaults/photoshop-keymap.tsv`](../../defaults/photoshop-keymap.tsv)
+**Keymap:** [`defaults/photoshop-keymap.tsv`](../../defaults/photoshop-keymap.tsv) ·
+**Patch:** [`patches/0015-…`](../../patches/0015-Default-shortcut-updates-reach-existing-profiles.patch)
 
 In Photoshop, **Ctrl+E** (*Layer › Merge Layers*) turns the selected layers
 into one layer. GIMP has no command for that: its *Merge Down*, which Ctrl+E
@@ -65,6 +66,12 @@ for its options (clipping, hidden layers, only the group).
 - **Keymap:** Ctrl+E is `gimphoto-merge-layers`, Ctrl+Shift+E is GIMP's
   `layers-merge-layers-last-values` (it was `layers-merge-down` and
   `image-merge-layers`).
+- **Profiles that already ran GIMPhoto** keep their saved shortcuts over
+  the defaults, so they would have kept Ctrl+E on Merge Down. Both moves
+  are in `defaults/shortcut-moves.tsv`, and patch
+  [`0015-…`](../../patches/0015-Default-shortcut-updates-reach-existing-profiles.patch)
+  applies them once at the next start, only where the old shortcut is
+  still in place (see [Photoshop shortcuts](photoshop-shortcuts.md#use)).
 - **`defaults/gimprc`:** `layer-merge-active-group-only` is off, so Merge
   Visible merges the whole image, as Photoshop's, and not only the selected
   layer's group (GIMP's default).
@@ -76,7 +83,10 @@ for its options (clipping, hidden layers, only the group).
 - layers inside a group;
 - several with a group and a hidden layer among them.
 
-`tests/test_keymap.py` checks the keymap as for every shortcut. On the built
+`tests/test_keymap.py` checks the keymap as for every shortcut, and the
+moves table. `scripts/smoke` also starts GIMPhoto on a profile saved with
+Ctrl+E on Merge Down (it moves, the profile's other shortcuts stay) and on
+one where Ctrl+E was put elsewhere (left alone). On the built
 app: the screenshots above, one Ctrl+Z undoing Ctrl+E, and Ctrl+Shift+E
 merging with no dialog.
 

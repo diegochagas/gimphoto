@@ -31,6 +31,18 @@ Values** brings back GIMPhoto's (Photoshop's) shortcuts on the next start.
 The *Reset* button in the Keyboard Shortcuts dialog resets one action to
 **GIMP's** shortcut instead, since that is GIMP's own built-in default.
 
+**When GIMPhoto moves a shortcut** to another command (Ctrl+E from Merge
+Down to [Merge Layers](merge-layers.md), for instance), a profile that has
+already run GIMPhoto gets the move too, once, at the next start. GIMP
+reads the profile's own saved shortcuts instead of GIMPhoto's defaults, so
+without this they would never arrive. The move is made only if the old
+command still has that shortcut: one you changed yourself is left alone,
+and all your other shortcuts are kept. The moves are listed in
+`defaults/shortcut-moves.tsv`, and patch
+[`0015-…`](../../patches/0015-Default-shortcut-updates-reach-existing-profiles.patch)
+applies them (the profile remembers the last one in its
+`gimphoto-shortcuts-version` file).
+
 Photoshop shortcuts that have no GIMP action doing the same job (Hand tool
 H, Rotate View R, Shape tool U until [#2](https://github.com/diegochagas/gimphoto/issues/2),
 Black & White, Camera Raw…) are left free.

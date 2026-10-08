@@ -8,6 +8,10 @@
 
 (file-version 1)
 
+# Moved shortcuts, applied once to profiles that have their own shortcutsrc:
+# gimphoto-shortcut-moved 1 "<Primary>e" "layers-merge-down" "gimphoto-merge-layers"
+# gimphoto-shortcut-moved 1 "<Primary><Shift>e" "image-merge-layers" "layers-merge-layers-last-values"
+
 (action "context-colors-default" "d")
 (action "context-colors-swap" "x")
 (action "dialogs-gradients")

@@ -893,7 +893,8 @@
                         "../patches/0011-Object-Selection-tool-drag-a-box-around-an-object-to.patch",
                         "../patches/0012-Quick-Selection-GIMP-s-Paint-Select-in-the-toolbox-a.patch",
                         "../patches/0013-Layers-dock-double-click-opens-a-generated-layer-s-G.patch",
-                        "../patches/0014-Remove-tool-paint-over-an-object-to-remove-it-AI.patch"
+                        "../patches/0014-Remove-tool-paint-over-an-object-to-remove-it-AI.patch",
+                        "../patches/0015-Default-shortcut-updates-reach-existing-profiles.patch"
                     ]
                 }
             ],
