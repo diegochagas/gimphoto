@@ -17,6 +17,8 @@
 #     Style exported to PSD is a Photoshop Type layer with its effects, and
 #     opens again as an editable text layer with its Layer Style;
 #   - Layer via Copy / Cut (Ctrl+J / Ctrl+Shift+J) work on a selection;
+#   - Merge Layers (Ctrl+E): several selected layers into one, one layer
+#     down, a group, layers inside a group;
 #   - Smart Objects: layers become one link layer showing an XCF next to the
 #     image, scaled down and back up it stays sharp, a PSD keeps it as a
 #     Photoshop smart object (upright and rotated) and opens it as one
@@ -36,6 +38,8 @@
 #     stroke to the edges of what it is painted on, and GIMP's Paint Select
 #     is compiled in as Quick Selection (painting with it needs the GUI);
 #   - GIMPhoto's Properties panel is compiled in and in the default layout;
+#   - a profile saved before a default shortcut moved (Ctrl+E to Merge
+#     Layers) gets the move once, keeping its own shortcuts;
 #   - a profile with a layout saved before GIMPhoto's current default gets
 #     the default at the next start, its own moved aside (needs the GUI);
 #   - GIMPhoto's shape tools are compiled in (drawing with it needs the GUI);
@@ -50,7 +54,7 @@ cd "$(dirname "$0")/.."
 
 app="io.github.diegochagas.GIMPhoto"
 # one procedure per shipped plug-in that a feature depends on
-procedures=(layer-style-dialog layer-style-drop-shadow gimphoto-layer-via-copy gimphoto-layer-via-cut file-psd-text-load file-psd-text-export smart-object-convert smart-object-edit smart-object-replace gimphoto-comfyui-service gimphoto-select-subject gimphoto-object-select gimphoto-remove-background gimphoto-generative-fill gimphoto-generate-image gimphoto-generative-edit gimphoto-remove gimphoto-photo-restoration gimphoto-modern-photo)
+procedures=(layer-style-dialog layer-style-drop-shadow gimphoto-layer-via-copy gimphoto-layer-via-cut gimphoto-merge-layers file-psd-text-load file-psd-text-export smart-object-convert smart-object-edit smart-object-replace gimphoto-comfyui-service gimphoto-select-subject gimphoto-object-select gimphoto-remove-background gimphoto-generative-fill gimphoto-generate-image gimphoto-generative-edit gimphoto-remove gimphoto-photo-restoration gimphoto-modern-photo)
 want="$(python3 tools/upstream_info.py gimp-version)"
 report="$(mktemp /tmp/gimphoto-smoke.XXXXXX)"
 trap 'rm -f "$report"' EXIT
@@ -221,6 +225,18 @@ else
     echo "FAIL Generative Fill layer: ${generative_result:-did not run}" >&2
     status=1
 fi
+# Merge Layers (Ctrl+E): several layers, one layer, a group, inside a group
+merge_report="$(mktemp /tmp/gimphoto-smoke.XXXXXX)"
+flatpak run --env=GIMPHOTO_SMOKE_OUT="$merge_report" "$app" -i --batch-interpreter=python-fu-eval \
+    -b "exec(open('$PWD/tests/smoke_merge_layers.py').read())" --quit >/dev/null 2>&1 || true
+merge_result="$(cat "$merge_report")"
+rm -f "$merge_report"
+if [[ "$merge_result" == ok ]]; then
+    echo "ok   Merge Layers: several layers into one (top's name), one layer down, a group, inside a group"
+else
+    echo "FAIL Merge Layers: ${merge_result:-did not run}" >&2
+    status=1
+fi
 # Modern Photo's black-and-white check on GIMP images (no AI called)
 modern_report="$(mktemp /tmp/gimphoto-smoke.XXXXXX)"
 flatpak run --env=GIMPHOTO_SMOKE_OUT="$modern_report" "$app" -i --batch-interpreter=python-fu-eval \
@@ -289,6 +305,35 @@ else
     status=1
 fi
 rm -rf "$layout_profile"
+# Default shortcut updates: a profile saved before a move (Ctrl+E on Merge
+# Down) gets it once, keeping its own shortcuts...
+shortcuts_profile="$(mktemp -d /tmp/gimphoto-smoke.XXXXXX)"
+printf '(file-version 1)\n(action "layers-merge-down" "<Primary>e")\n(action "select-all" "<Primary><Alt>a")\n' \
+    >"$shortcuts_profile/shortcutsrc"
+flatpak run --env=GIMP3_DIRECTORY="$shortcuts_profile" --env=GIMPHOTO_COMFYUI=off "$app" --batch-interpreter=python-fu-eval \
+    -b "Gimp.displays_flush()" --quit >/dev/null 2>&1 || true
+moved_ok=0
+if grep -q '^(action "gimphoto-merge-layers" "<Primary>e")' "$shortcuts_profile/shortcutsrc" 2>/dev/null &&
+    ! grep -q '^(action "layers-merge-down" "<Primary>e")' "$shortcuts_profile/shortcutsrc" &&
+    grep -q '^(action "select-all" "<Primary><Alt>a")' "$shortcuts_profile/shortcutsrc" &&
+    [[ -s "$shortcuts_profile/gimphoto-shortcuts-version" ]]; then
+    moved_ok=1
+fi
+rm -rf "$shortcuts_profile"
+# ... and one where the person put Ctrl+E elsewhere keeps it there
+shortcuts_profile="$(mktemp -d /tmp/gimphoto-smoke.XXXXXX)"
+printf '(file-version 1)\n(action "layers-merge-down" "<Primary>k")\n(action "select-none" "<Primary>e")\n' \
+    >"$shortcuts_profile/shortcutsrc"
+flatpak run --env=GIMP3_DIRECTORY="$shortcuts_profile" --env=GIMPHOTO_COMFYUI=off "$app" --batch-interpreter=python-fu-eval \
+    -b "Gimp.displays_flush()" --quit >/dev/null 2>&1 || true
+if ((moved_ok)) && grep -q '^(action "select-none" "<Primary>e")' "$shortcuts_profile/shortcutsrc" 2>/dev/null &&
+    ! grep -q '^(action "gimphoto-merge-layers" "<Primary>e")' "$shortcuts_profile/shortcutsrc"; then
+    echo "ok   a moved default shortcut (Ctrl+E) reaches a saved profile once; its own shortcuts are kept"
+else
+    echo "FAIL default shortcut moves: Ctrl+E did not move to Merge Layers, or a person's own shortcuts changed" >&2
+    status=1
+fi
+rm -rf "$shortcuts_profile"
 if flatpak run --command=sh "$app" -c 'grep -q gimp-shape-rectangle-tool /app/bin/gimp-3.*' 2>/dev/null; then
     echo "ok   shape tools compiled in"
 else

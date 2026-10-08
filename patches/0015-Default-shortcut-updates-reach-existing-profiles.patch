@@ -1,0 +1,227 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Diego Chagas <drochachagas@gmail.com>
+Date: Thu, 8 Oct 2026 09:17:28 -0300
+Subject: [PATCH] Default shortcut updates reach existing profiles
+
+GIMP reads a profile's own shortcutsrc instead of GIMPhoto's defaults, so
+a shortcut GIMPhoto moves to another command never reached anyone who had
+run GIMPhoto before. GIMPhoto's default shortcutsrc lists each move as
+"# gimphoto-shortcut-moved N \"<accel>\" \"old-action\" \"new-action\""; after
+reading the profile's shortcuts, the moves newer than the profile's
+gimphoto-shortcuts-version are applied once, each only if the old action
+still has that shortcut. The profile's other shortcuts are kept.
+
+diff --git a/app/menus/menus.c b/app/menus/menus.c
+index 601bfa909d..d061334047 100644
+--- a/app/menus/menus.c
++++ b/app/menus/menus.c
+@@ -60,6 +60,9 @@
+ 
+ static gboolean menurc_deleted = FALSE;
+ 
++static void     menus_move_shortcuts (Gimp     *gimp,
++                                      gboolean  own_file);
++
+ #ifdef PLATFORM_OSX
+ /* position of the "Settings"/"Preferences" item in the macOS app menu
+    used by menus_quartz_app_menu() and menus_quartz_get_settings_label */
+@@ -430,17 +433,19 @@ menus_exit (Gimp *gimp)
+ void
+ menus_restore (Gimp *gimp)
+ {
+-  GFile  *file;
+-  GError *error = NULL;
++  GFile    *file;
++  gboolean  own_file;
++  GError   *error = NULL;
+ 
+   g_return_if_fail (GIMP_IS_GIMP (gimp));
+ 
+-  file = gimp_directory_file ("shortcutsrc", NULL);
++  file     = gimp_directory_file ("shortcutsrc", NULL);
++  own_file = g_file_query_exists (file, NULL);
+ 
+   /*  GIMPhoto: a profile without shortcuts of its own (a new one, or
+    *  after "Reset Keyboard Shortcuts") starts with GIMPhoto's, Photoshop's
+    */
+-  if (! g_file_query_exists (file, NULL))
++  if (! own_file)
+     {
+       g_object_unref (file);
+       file = gimp_data_directory_file ("gimphoto", "shortcutsrc", NULL);
+@@ -454,9 +459,175 @@ menus_restore (Gimp *gimp)
+     g_printerr ("Failed reading '%s': %s\n",
+                 g_file_peek_path (file), error->message);
+ 
++  menus_move_shortcuts (gimp, own_file);
++
+   g_object_unref (file);
+ }
+ 
++/*  GIMPhoto: when a shortcut moves to another command in GIMPhoto's
++ *  defaults, a profile that has its own shortcutsrc keeps the old one, as
++ *  GIMP reads the profile's file instead of the defaults. GIMPhoto's
++ *  default shortcutsrc lists each move on a line
++ *
++ *    # gimphoto-shortcut-moved N "<accel>" "old-action" "new-action"
++ *
++ *  A profile remembers the highest N it received (its
++ *  "gimphoto-shortcuts-version" file); a newer move is applied once, and
++ *  only if the old action still has that shortcut (the person did not
++ *  change it). All other shortcuts of the profile are kept.
++ */
++#define GIMPHOTO_SHORTCUTS_VERSION_KEY "gimphoto-shortcuts-version"
++#define GIMPHOTO_SHORTCUT_MOVED        "# gimphoto-shortcut-moved "
++
++static gboolean
++menus_same_accel (const gchar *a,
++                  const gchar *b)
++{
++  guint           key_a  = 0;
++  guint           key_b  = 0;
++  GdkModifierType mods_a = 0;
++  GdkModifierType mods_b = 0;
++
++  gtk_accelerator_parse (a, &key_a, &mods_a);
++  gtk_accelerator_parse (b, &key_b, &mods_b);
++
++  return key_a != 0 && key_a == key_b && mods_a == mods_b;
++}
++
++static void
++menus_move_shortcut (Gimp        *gimp,
++                     const gchar *accel,
++                     const gchar *old_name,
++                     const gchar *new_name)
++{
++  GActionMap   *map = G_ACTION_MAP (gimp->app);
++  GimpAction   *old_action;
++  GimpAction   *new_action;
++  const gchar **old_accels;
++  const gchar **new_accels;
++  GStrvBuilder *kept;
++  GStrvBuilder *added;
++  gchar       **accels;
++  gboolean      found = FALSE;
++
++  old_action = (GimpAction *) g_action_map_lookup_action (map, old_name);
++  new_action = (GimpAction *) g_action_map_lookup_action (map, new_name);
++
++  if (! GIMP_IS_ACTION (old_action) || ! GIMP_IS_ACTION (new_action))
++    return;
++
++  old_accels = gimp_action_get_accels (old_action);
++  kept       = g_strv_builder_new ();
++
++  for (gint i = 0; old_accels && old_accels[i]; i++)
++    {
++      if (menus_same_accel (old_accels[i], accel))
++        found = TRUE;
++      else
++        g_strv_builder_add (kept, old_accels[i]);
++    }
++
++  if (found)
++    {
++      if (gimp->be_verbose)
++        g_print ("GIMPhoto: shortcut %s moved from %s to %s\n",
++                 accel, old_name, new_name);
++
++      accels = g_strv_builder_end (kept);
++      gimp_action_set_accels (old_action, (const gchar **) accels);
++      g_strfreev (accels);
++
++      new_accels = gimp_action_get_accels (new_action);
++      added      = g_strv_builder_new ();
++      g_strv_builder_add (added, accel);
++      for (gint i = 0; new_accels && new_accels[i]; i++)
++        if (! menus_same_accel (new_accels[i], accel))
++          g_strv_builder_add (added, new_accels[i]);
++
++      accels = g_strv_builder_end (added);
++      gimp_action_set_accels (new_action, (const gchar **) accels);
++      g_strfreev (accels);
++      g_strv_builder_unref (added);
++    }
++
++  g_strv_builder_unref (kept);
++}
++
++static void
++menus_move_shortcuts (Gimp     *gimp,
++                      gboolean  own_file)
++{
++  GFile   *defaults_file;
++  GFile   *stamp_file;
++  gchar   *text     = NULL;
++  gchar  **lines;
++  gint     received = 0;
++  gint     shipped  = 0;
++  GError  *error    = NULL;
++
++  defaults_file = gimp_data_directory_file ("gimphoto", "shortcutsrc", NULL);
++  if (! g_file_load_contents (defaults_file, NULL, &text, NULL, NULL, NULL))
++    {
++      g_object_unref (defaults_file);
++      return;
++    }
++  g_object_unref (defaults_file);
++
++  stamp_file = gimp_directory_file (GIMPHOTO_SHORTCUTS_VERSION_KEY, NULL);
++  {
++    gchar *stamp = NULL;
++
++    if (g_file_load_contents (stamp_file, NULL, &stamp, NULL, NULL, NULL))
++      received = (gint) g_ascii_strtoll (stamp, NULL, 10);
++    g_free (stamp);
++  }
++
++  lines = g_strsplit (text, "\n", -1);
++  g_free (text);
++
++  for (gint i = 0; lines[i]; i++)
++    {
++      gchar **fields;
++      gint    version;
++
++      if (! g_str_has_prefix (lines[i], GIMPHOTO_SHORTCUT_MOVED))
++        continue;
++
++      /*  N "<accel>" "old-action" "new-action": split on the quotes  */
++      fields  = g_strsplit (lines[i] + strlen (GIMPHOTO_SHORTCUT_MOVED), "\"", -1);
++      version = (gint) g_ascii_strtoll (fields[0], NULL, 10);
++
++      if (g_strv_length (fields) >= 6 && version > 0)
++        {
++          shipped = MAX (shipped, version);
++
++          /*  a profile reading GIMPhoto's defaults already has the move  */
++          if (own_file && version > received)
++            menus_move_shortcut (gimp, fields[1], fields[3], fields[5]);
++        }
++
++      g_strfreev (fields);
++    }
++  g_strfreev (lines);
++
++  if (shipped > received)
++    {
++      gchar *version = g_strdup_printf ("%d\n", shipped);
++
++      if (! g_file_replace_contents (stamp_file, version, strlen (version),
++                                     NULL, FALSE, G_FILE_CREATE_NONE,
++                                     NULL, NULL, &error))
++        {
++          g_printerr ("GIMPhoto: could not save the shortcuts version: %s\n",
++                      error->message);
++          g_clear_error (&error);
++        }
++      g_free (version);
++    }
++
++  g_object_unref (stamp_file);
++}
++
+ void
+ menus_save (Gimp     *gimp,
+             gboolean  always_save)

@@ -893,7 +893,8 @@
                         "../patches/0011-Object-Selection-tool-drag-a-box-around-an-object-to.patch",
                         "../patches/0012-Quick-Selection-GIMP-s-Paint-Select-in-the-toolbox-a.patch",
                         "../patches/0013-Layers-dock-double-click-opens-a-generated-layer-s-G.patch",
-                        "../patches/0014-Remove-tool-paint-over-an-object-to-remove-it-AI.patch"
+                        "../patches/0014-Remove-tool-paint-over-an-object-to-remove-it-AI.patch",
+                        "../patches/0015-Default-shortcut-updates-reach-existing-profiles.patch"
                     ]
                 }
             ],
@@ -936,6 +937,9 @@
                 "install -d ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/layer-via",
                 "find layer-via -maxdepth 1 -type f -exec install -m 644 -t ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/layer-via {} +",
                 "chmod 755 ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/layer-via/layer-via.py",
+                "install -d ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/merge-layers",
+                "find merge-layers -maxdepth 1 -type f -exec install -m 644 -t ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/merge-layers {} +",
+                "chmod 755 ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/merge-layers/merge-layers.py",
                 "install -d ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/photo-restoration",
                 "find photo-restoration -maxdepth 1 -type f -exec install -m 644 -t ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/photo-restoration {} +",
                 "chmod 755 ${FLATPAK_DEST}/lib/gimp/3.0/plug-ins/photo-restoration/photo-restoration.py",

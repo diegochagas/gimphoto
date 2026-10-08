@@ -8,6 +8,10 @@
 
 (file-version 1)
 
+# Moved shortcuts, applied once to profiles that have their own shortcutsrc:
+# gimphoto-shortcut-moved 1 "<Primary>e" "layers-merge-down" "gimphoto-merge-layers"
+# gimphoto-shortcut-moved 1 "<Primary><Shift>e" "image-merge-layers" "layers-merge-layers-last-values"
+
 (action "context-colors-default" "d")
 (action "context-colors-swap" "x")
 (action "dialogs-gradients")
@@ -40,14 +44,15 @@
 (action "filters-repeat" "<Primary><Alt>f" "<primary>F")
 (action "gimphoto-layer-via-copy" "<Primary>j")
 (action "gimphoto-layer-via-cut" "<Primary><Shift>j")
+(action "gimphoto-merge-layers" "<Primary>e")
 (action "image-duplicate")
-(action "image-merge-layers" "<Primary><Shift>e")
+(action "image-merge-layers")
 (action "image-resize" "<Primary><Alt>c")
 (action "image-scale" "<Primary><Alt>i")
 (action "layers-anchor")
 (action "layers-lower" "<Primary>bracketleft")
 (action "layers-lower-to-bottom" "<Primary><Shift>bracketleft")
-(action "layers-merge-down" "<Primary>e")
+(action "layers-merge-layers-last-values" "<Primary><Shift>e")
 (action "layers-new" "<Primary><Shift>n")
 (action "layers-new-from-visible" "<Primary><Alt><Shift>e")
 (action "layers-new-group" "<Primary>g")

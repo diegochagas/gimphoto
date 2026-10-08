@@ -106,6 +106,36 @@ class Build(unittest.TestCase):
         self.assertIn('(action "image-duplicate")\n(action "select-none" "<Primary>d")\n', text)
 
 
+class Moves(unittest.TestCase):
+    SHORTCUTS = {"gimphoto-merge-layers": ["<Primary>e"], "layers-merge-down": []}
+
+    def test_a_move_is_read_and_written_as_a_comment_gimp_skips(self):
+        moves = make_keymap.read_moves(
+            "# note\n1\t<Primary>e\tlayers-merge-down\tgimphoto-merge-layers\n", self.SHORTCUTS
+        )
+        self.assertEqual(moves, [(1, "<Primary>e", "layers-merge-down", "gimphoto-merge-layers")])
+        text = make_keymap.render(self.SHORTCUTS, moves)
+        self.assertIn('\n# gimphoto-shortcut-moved 1 "<Primary>e" "layers-merge-down" "gimphoto-merge-layers"\n', text)
+
+    def test_the_new_action_must_have_the_shortcut(self):
+        with self.assertRaises(ValueError):
+            make_keymap.read_moves("1\t<Primary>k\tlayers-merge-down\tgimphoto-merge-layers\n", self.SHORTCUTS)
+
+    def test_the_old_action_must_have_lost_it(self):
+        shortcuts = {**self.SHORTCUTS, "layers-merge-down": ["<Control>E"]}
+        with self.assertRaises(ValueError):
+            make_keymap.read_moves("1\t<Primary>e\tlayers-merge-down\tgimphoto-merge-layers\n", shortcuts)
+
+    def test_a_bad_line_is_an_error(self):
+        for bad in ("0\t<Primary>e\ta\tb\n", "x\t<Primary>e\ta\tb\n", "1\t<Primary>e\ta\n"):
+            with self.assertRaises(ValueError):
+                make_keymap.read_moves(bad, self.SHORTCUTS)
+
+    def test_the_real_moves_are_in_the_generated_file(self):
+        text = make_keymap.OUTPUT.read_text()
+        self.assertIn('# gimphoto-shortcut-moved 1 "<Primary>e" "layers-merge-down" "gimphoto-merge-layers"\n', text)
+
+
 class TheRealKeymap(unittest.TestCase):
     """defaults/photoshop-keymap.tsv itself, without GIMP's source."""
 

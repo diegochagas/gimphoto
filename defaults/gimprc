@@ -10,6 +10,10 @@
 #
 # The Photoshop theme (themes/Photoshop, from gimp-setup) and Photoshop's
 # pasteboard colour #282828 instead of PhotoGIMP's darker one.
+#
+# Merge Visible (Ctrl+Shift+E, merging with the last used options) merges
+# every visible layer of the image, as Photoshop's, not only those of the
+# selected layer's group.
 
 (theme "Photoshop")
 
@@ -19,6 +23,7 @@
 (thumbnail-size large)
 (import-add-alpha yes)
 (toolbox-foo-area yes)
+(layer-merge-active-group-only no)
 (default-view
     (show-layer-boundary no)
     (snap-to-canvas yes)
