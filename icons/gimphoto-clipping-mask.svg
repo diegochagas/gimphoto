@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- GIMPhoto's clipping mask icon: Photoshop's bent arrow pointing at the layer below (GPL-3.0, github.com/diegochagas/gimphoto) -->
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- filled shapes only: GTK fills every shape of a symbolic icon -->
+  <g fill="#eeeeec" fill-rule="evenodd">
+    <path d="M3 2h2v8h4.2L7.6 8.4 9 7l4 4-4 4-1.4-1.4L9.2 12H3z"/>
+  </g>
+</svg>

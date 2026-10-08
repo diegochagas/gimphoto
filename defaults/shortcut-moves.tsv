@@ -7,5 +7,8 @@
 # whenever photoshop-keymap.tsv moves a shortcut that was there before.
 #
 # version <TAB> shortcut <TAB> old action <TAB> new action
+# An old action of "-" is a shortcut new to GIMPhoto, added to the new
+# action when it has none (patch "Clipping masks").
 1	<Primary>e	layers-merge-down	gimphoto-merge-layers
 1	<Primary><Shift>e	image-merge-layers	layers-merge-layers-last-values
+2	<Primary><Alt>g	-	layers-clipping-mask
