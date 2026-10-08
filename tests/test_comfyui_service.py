@@ -19,7 +19,7 @@ def exec_start(*argv):
 
 
 class PortTest(unittest.TestCase):
-    def test_port_from_linux_mint_setups_unit(self):
+    def test_port_from_local_ai_setups_unit(self):
         self.assertEqual(
             cs.port_from_exec_start(exec_start("main.py", "--listen", "127.0.0.1", "--port", "8190")), 8190
         )
@@ -55,7 +55,7 @@ class DescribeTest(unittest.TestCase):
     def test_missing_points_to_the_installer(self):
         info = cs.describe("not-found", "inactive", False, 8188)
         self.assertEqual(info["state"], "missing")
-        self.assertIn("linux-mint-setup", info["install"])
+        self.assertIn("local-ai-setup", info["install"])
         self.assertNotIn("url", info)
 
     def test_started_by_gimphoto(self):

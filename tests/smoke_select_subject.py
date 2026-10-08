@@ -50,7 +50,7 @@ def check():
             return f"{name} succeeded without the local AI"
         message = result.index(1) if result.length() > 1 else ""
         message = getattr(message, "message", str(message))
-        if "linux-mint-setup" not in message:
+        if "local-ai-setup" not in message:
             return f"{name}: the error does not say where to install the local AI: {message!r}"
         _ok, non_empty, x1, y1, x2, y2 = Gimp.Selection.bounds(img)
         if (non_empty, x1, y1, x2, y2) != (True, 8, 8, 24, 24):

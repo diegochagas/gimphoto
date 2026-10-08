@@ -26,7 +26,7 @@
 # layers), as Photoshop's "Sample All Layers". ComfyUI is found and started
 # by GIMPhoto's comfyui-service plug-in (its gimphoto-comfyui parasite); the
 # HTTP API is in comfyui_api.py next to it. Without ComfyUI, a message says where to
-# install it (linux-mint-setup).
+# install it (local-ai-setup).
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by

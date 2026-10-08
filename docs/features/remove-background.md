@@ -74,7 +74,7 @@ The model sees that layer only, not the layers above or below it. Parts
 of the layer outside the canvas are masked too.
 
 **Needs** the local AI: ComfyUI with the `birefnet` model set, installed by
-[linux-mint-setup's ComfyUI steps](https://github.com/diegochagas/linux-mint-setup#local-ai-image-models-comfyui).
+[local-ai-setup](https://github.com/diegochagas/local-ai-setup).
 GIMPhoto starts and stops it ([ComfyUI with GIMPhoto](comfyui-with-gimphoto.md)).
 Without it, Remove Background says so and where to install it, and the
 layer is left alone.
@@ -99,7 +99,7 @@ layer is left alone.
 
 **Tests:**
 - `scripts/smoke`: the procedure is registered. With ComfyUI recorded as
-  missing, it fails with a message naming linux-mint-setup, and leaves the
+  missing, it fails with a message naming local-ai-setup, and leaves the
   layer without a mask and the selection unchanged. Tests never call the
   real ComfyUI.
 - On the built app, with the real ComfyUI:

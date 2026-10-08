@@ -324,7 +324,7 @@ def transform(manifest, series, plugins=(), defaults=False, gegl_ops=(), brandin
     m["app-id"] = APP_ID
     # The own profile; and the user's systemd on the session bus, so the
     # comfyui-service plug-in can start and stop the local ComfyUI service
-    # (installed by linux-mint-setup) with GIMPhoto. Only that bus name: no
+    # (installed by local-ai-setup) with GIMPhoto. Only that bus name: no
     # flatpak-spawn --host.
     m["finish-args"] = [
         *m["finish-args"],

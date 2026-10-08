@@ -65,7 +65,7 @@ so.
 
 **Needs** the local AI: ComfyUI with the `klein` (or `qwen`) model set,
 installed by
-[linux-mint-setup's ComfyUI steps](https://github.com/diegochagas/linux-mint-setup#local-ai-image-models-comfyui).
+[local-ai-setup](https://github.com/diegochagas/local-ai-setup).
 GIMPhoto starts and stops it ([ComfyUI with GIMPhoto](comfyui-with-gimphoto.md)).
 Without it, Photo Restoration says so and where to install it, and the
 image is left alone.
@@ -100,7 +100,7 @@ image is left alone.
   `python-wheels.tsv` is a pinned PyPI cp314 wheel.
 - `scripts/smoke`:
   - the procedure is registered;
-  - without the local AI it names linux-mint-setup and adds no layer;
+  - without the local AI it names local-ai-setup and adds no layer;
   - `tests/smoke_restore_mask.py`, run with the app's own Python on its
     numpy, scipy and Pillow: a white blotch on a grey "scan", painted over
     in the "model's" picture, is the one region in the mask, and nothing

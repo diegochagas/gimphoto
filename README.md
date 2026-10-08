@@ -36,7 +36,7 @@ screenshots of each feature are on its page.
 | **Merge Layers / Merge Visible** (Ctrl+E / Ctrl+Shift+E): the selected layers into one (one layer: merge down; a group: merge it), and every visible layer at once with no dialog | Layer › Merge Layers | plug-in + keymap + core patch | [merge-layers.md](docs/features/merge-layers.md) |
 | **Shape tools** (U) in the toolbox, one group as Photoshop's flyout: Rectangle, Ellipse, Triangle, Polygon, Star, Line and Custom Shape (heart, arrow, speech bubble…), drawn as vector layers, fill and stroke in Tool Options | Shape tools (U) | core patch + icons | [shape-tool.md](docs/features/shape-tool.md) |
 | **Smart Objects**: Convert to Smart Object, Edit Contents, Replace Contents, in the Layers panel's right-click menu; scale and transform without losing quality; kept in XCF and PSD, both ways with Photoshop | Layer › Smart Objects | plug-ins + core patch | [smart-objects.md](docs/features/smart-objects.md) |
-| **ComfyUI with GIMPhoto**: the local AI backend (ComfyUI, installed by linux-mint-setup) starts when GIMPhoto opens and stops when it closes, freeing the GPU | — (Photoshop's AI runs in Adobe's cloud) | plug-in + sandbox permission | [comfyui-with-gimphoto.md](docs/features/comfyui-with-gimphoto.md) |
+| **ComfyUI with GIMPhoto**: the local AI backend (ComfyUI, installed by local-ai-setup) starts when GIMPhoto opens and stops when it closes, freeing the GPU | — (Photoshop's AI runs in Adobe's cloud) | plug-in + sandbox permission | [comfyui-with-gimphoto.md](docs/features/comfyui-with-gimphoto.md) |
 | **Properties panel** above Layers: the selected layer's kind; Transform (W/H linked, X/Y, rotation, flips); Align and Distribute (one layer to the canvas, several to each other); Quick Actions (Remove Background, Select Subject) | Properties panel | core patch + defaults | [properties-panel.md](docs/features/properties-panel.md) |
 | **Select Subject** (AI): the main subject of the picture becomes the selection, from *Select › Subject* or the Properties panel's Quick Action; BiRefNet on the local ComfyUI, nothing uploaded | Select › Subject | plug-in + local AI | [select-subject.md](docs/features/select-subject.md) |
 | **Object Selection tool** (AI, W): drag a box around an object and the object becomes the selection; Shift adds, Ctrl subtracts; SAM 2.1 on the local ComfyUI, nothing uploaded | Object Selection tool (W) | core patch + plug-in + local AI | [object-selection.md](docs/features/object-selection.md) |
@@ -88,10 +88,23 @@ GIMPhoto's patches ─────┘                                     │
   longer do are adapted in a normal git checkout (see
   [CONTRIBUTING.md](CONTRIBUTING.md#updating-gimp)).
 
-## Install (build it yourself)
+## Install
 
-Releases with ready-made Flatpak bundles will come with the first feature.
-Until then, build it, on any Linux with Flatpak, without sudo:
+From the latest [release](https://github.com/diegochagas/gimphoto/releases/latest)
+(x86_64, any Linux with Flatpak and Flathub, no sudo):
+
+```bash
+curl -fLO https://github.com/diegochagas/gimphoto/releases/latest/download/GIMPhoto.flatpak
+flatpak install --user GIMPhoto.flatpak    # fetches the GNOME runtime from Flathub
+flatpak run io.github.diegochagas.GIMPhoto
+```
+
+[linux-mint-setup](https://github.com/diegochagas/linux-mint-setup) does the
+same (checking the bundle's SHA-256). The AI tools need the local ComfyUI
+from [local-ai-setup](https://github.com/diegochagas/local-ai-setup); without
+it they say so and the rest of GIMPhoto works as usual.
+
+### Build it yourself
 
 ```bash
 git clone --recursive https://github.com/diegochagas/gimphoto.git && cd gimphoto
@@ -104,6 +117,13 @@ flatpak run io.github.diegochagas.GIMPhoto
 GIMPhoto then also appears in the applications menu. Later builds only
 recompile what changed. To remove it, with its profile:
 `flatpak uninstall --user --delete-data io.github.diegochagas.GIMPhoto`.
+
+### Releases
+
+Pushing a tag `vX.Y.Z-N` (GIMP's version, then GIMPhoto's release number
+for it, e.g. `v3.2.6-1`) runs `.github/workflows/release.yml`: it builds
+the Flatpak bundle (about 1-2 hours) and publishes it as `GIMPhoto.flatpak`
+on a GitHub release for the tag.
 
 ## Scripts
 

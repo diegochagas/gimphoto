@@ -56,7 +56,7 @@ expression), or lower the layer's opacity.
 
 **Needs** the local AI: ComfyUI with the `klein` (or `qwen`) model set,
 installed by
-[linux-mint-setup's ComfyUI steps](https://github.com/diegochagas/linux-mint-setup#local-ai-image-models-comfyui).
+[local-ai-setup](https://github.com/diegochagas/local-ai-setup).
 GIMPhoto starts and stops it ([ComfyUI with GIMPhoto](comfyui-with-gimphoto.md)).
 Without it, Modern Photo says so and where to install it, and the image is
 left alone.
@@ -94,7 +94,7 @@ left alone.
   for black and white photos; the edit is asked at the model's working size
   and comes back at the photo's.
 - `scripts/smoke`: the procedure is registered; without the local AI it
-  names linux-mint-setup and adds no layer; `tests/smoke_modern_photo.py`
+  names local-ai-setup and adds no layer; `tests/smoke_modern_photo.py`
   runs the black-and-white check on GIMP images (a Grayscale-mode one, a
   sepia one and a red and blue one) through the plug-in's own thumbnail.
 - On the built app, with the real ComfyUI: the screenshots above.

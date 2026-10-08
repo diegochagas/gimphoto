@@ -84,14 +84,14 @@ class ClientTest(unittest.TestCase):
         with self.assertRaises(api.ComfyUIError) as caught:
             api.subject(URL, b"PNG")
         self.assertIn("LoadRembgByBiRefNetModel", str(caught.exception))
-        self.assertIn("linux-mint-setup", str(caught.exception))
+        self.assertIn("local-ai-setup", str(caught.exception))
 
     def test_a_missing_node_says_how_to_install_it(self):
         api.urlopen = FakeComfyUI(nodes=("Sam2Segmentation",))
         with self.assertRaises(api.ComfyUIError) as caught:
             api.segment(URL, b"PNG", [[0, 0, 10, 10]])
         self.assertIn("BBoxFromJSON", str(caught.exception))
-        self.assertIn("linux-mint-setup", str(caught.exception))
+        self.assertIn("local-ai-setup", str(caught.exception))
 
     def test_waits_for_a_booting_comfyui(self):
         fake = api.urlopen = FakeComfyUI(up_after=3)
@@ -137,10 +137,10 @@ class ClientTest(unittest.TestCase):
         with self.assertRaises(api.ComfyUIError) as caught:
             api.remove(URL, b"IMAGE", b"MASK")
         self.assertIn("INPAINT_LoadInpaintModel", str(caught.exception))
-        self.assertIn("linux-mint-setup", str(caught.exception))
+        self.assertIn("local-ai-setup", str(caught.exception))
 
-    def test_missing_message_points_to_linux_mint_setup(self):
-        self.assertIn("linux-mint-setup", api.missing_message("Select Subject"))
+    def test_missing_message_points_to_local_ai_setup(self):
+        self.assertIn("local-ai-setup", api.missing_message("Select Subject"))
 
 
 if __name__ == "__main__":
