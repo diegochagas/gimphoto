@@ -898,7 +898,8 @@
                         "../patches/0016-Adjustment-layers-Layer-New-Adjustment-Layer-applied.patch",
                         "../patches/0017-Clipping-masks-Create-Release-Clipping-Mask-Alt-clic.patch",
                         "../patches/0018-Fill-layers-Layer-New-Fill-Layer-submenu-Layer-Conte.patch",
-                        "../patches/0019-Single-instance-in-a-Flatpak-the-bus-name-follows-th.patch"
+                        "../patches/0019-Single-instance-in-a-Flatpak-the-bus-name-follows-th.patch",
+                        "../patches/0020-Vibrance-Colors-Vibrance-and-Layer-New-Adjustment-La.patch"
                     ]
                 }
             ],
@@ -1051,7 +1052,8 @@
                 "cc -shared -fPIC -O2 -Wall -I. -DGETTEXT_PACKAGE='\"gimphoto\"' $(pkg-config --cflags gegl-0.4) -o gradient-overlay.so gradient-overlay.c $(pkg-config --libs gegl-0.4) -lm",
                 "c++ -shared -fPIC -O2 -Wall -I. -DGETTEXT_PACKAGE='\"gimphoto\"' $(pkg-config --cflags gegl-0.4 maxflow) -o paint-select.so paint-select.cc $(pkg-config --libs gegl-0.4 maxflow) -lm",
                 "cc -shared -fPIC -O2 -Wall -I. -DGETTEXT_PACKAGE='\"gimphoto\"' $(pkg-config --cflags gegl-0.4) -o pattern-overlay.so pattern-overlay.c $(pkg-config --libs gegl-0.4) -lm",
-                "install -Dm 755 -t ${FLATPAK_DEST}/lib/gegl-0.4 gradient-overlay.so paint-select.so pattern-overlay.so"
+                "cc -shared -fPIC -O2 -Wall -I. -DGETTEXT_PACKAGE='\"gimphoto\"' $(pkg-config --cflags gegl-0.4) -o vibrance.so vibrance.c $(pkg-config --libs gegl-0.4) -lm",
+                "install -Dm 755 -t ${FLATPAK_DEST}/lib/gegl-0.4 gradient-overlay.so paint-select.so pattern-overlay.so vibrance.so"
             ]
         },
         {
