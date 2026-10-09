@@ -57,4 +57,12 @@ if [[ -d work/gimp/app/actions ]]; then
 else
     echo "== keymap: skipped (no work/gimp; scripts/source creates it)"
 fi
+# the website (site/): types and unit tests, where its packages are
+# installed (cd site && npm ci); its own workflow always runs them
+if [[ -d site/node_modules ]]; then
+    echo "== site"
+    npm --prefix site run --silent check
+else
+    echo "== site: skipped (no site/node_modules; cd site && npm ci)"
+fi
 echo "check: OK"

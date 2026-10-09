@@ -1,0 +1,75 @@
+# GIMPhoto's website (site/): checked on every pull request that touches it
+# or what it shows (the README's feature table, docs/features, docs/images),
+# and published to GitHub Pages from main.
+name: site
+on:
+  push:
+    branches: [main]
+    paths: [site/**, README.md, docs/**, branding/**, .github/workflows/site.yml]
+  pull_request:
+    paths: [site/**, README.md, docs/**, branding/**, .github/workflows/site.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: site-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npx playwright install --with-deps chromium
+      # builds the site with the /gimphoto base path and tests it in Chromium
+      # at desktop and phone width; nothing outside the runner is called
+      - run: npm run e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: site-screenshots
+          path: work/site-e2e/screenshots/
+          if-no-files-found: ignore
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci
+      - run: npm run build
+        env:
+          SITE_BASE_PATH: /gimphoto
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/out
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -37,6 +37,11 @@ by hand) + a patch series (`patches/`) + a generator
   on its own page; a PR that changes what GIMPhoto looks like also updates
   `docs/images/gimphoto.png`.
 - No personal paths, IPs, tokens or real user data in code, tests or docs.
+- **The website** (`site/`, Next.js) builds its feature catalogue from the
+  README's feature table and `docs/features/`: a documented feature appears
+  there by itself. Its texts are in English and Portuguese
+  (`site/content/`); its checks run in `scripts/check` (when
+  `site/node_modules` exists) and in `.github/workflows/site.yml`.
 
 ## Testing and shipping (dev-playbook)
 

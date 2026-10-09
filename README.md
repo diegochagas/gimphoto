@@ -17,6 +17,11 @@ with its own tools and interface on top for people who know Photoshop.
 The features are tracked as [GitHub issues](../../issues) on the
 [project board](https://github.com/users/diegochagas/projects/1).
 
+**Website:** [diegochagas.github.io/gimphoto](https://diegochagas.github.io/gimphoto/)
+(English and Portuguese): every feature with its screenshots and tests, the
+roadmap, and how to [support GIMPhoto's development](https://diegochagas.github.io/gimphoto/#donate).
+Its source is in [`site/`](site/README.md).
+
 ## Features
 
 Every change GIMPhoto makes to GIMP, each with its own page: how to use
