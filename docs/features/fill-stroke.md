@@ -106,10 +106,12 @@ tints white half way and leaves red outside the selection; Black, 50% Gray
 and White; a pattern paints; Preserve Transparency leaves transparent
 pixels transparent and unlocks the alpha again (without it they are
 filled); History brings back the layer as saved inside the selection
-only; a 4 px stroke lands inside, centred on or outside a square
+only, in place from a smaller offset layer and keeping transparency with
+*Preserve Transparency*; a 4 px stroke lands inside, centred on or outside a square
 selection, which is kept, with no channel left behind; with nothing
-selected the layer's shape is stroked; `gimphoto-fill` and
-`gimphoto-stroke` run with arguments. Content-Aware without the local AI
+selected the layer's shape is stroked; the layer stays the selected one; `gimphoto-fill` and
+`gimphoto-stroke` are in the Edit menu and run with arguments, and
+Content-Aware refuses two layers at once. Content-Aware without the local AI
 says where to install it and changes nothing
 (`tests/smoke_select_subject.py`).
 
@@ -117,6 +119,9 @@ says where to install it and changes nothing
 
 - *History* reads the saved file: not GIMP's undo history, and not a
   snapshot from a History panel (GIMP has none).
+- *Content-Aware* fills one layer at a time (each run of the AI sees the
+  picture as it is, so a second layer would get a fill made from the
+  first one's result); the other contents fill every selected layer.
 - *Content-Aware* has no options (Photoshop's *Color Adaptation*, or the
   separate *Content-Aware Fill* workspace with its sampling area): LaMa
   decides from the picture around the selection.

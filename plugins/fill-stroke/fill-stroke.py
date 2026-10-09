@@ -83,6 +83,9 @@ def run(procedure, run_mode, image, drawables, config, data):
             raise ValueError("Select a layer, a layer mask or a channel.")
         for drawable in drawables:
             F.check_drawable(drawable)
+        if is_fill and get("contents") == "content-aware" and len(drawables) > 1:
+            # one AI run fills one layer (a second would see the first fill)
+            raise ValueError("Content-Aware fills one layer at a time: select one.")
         image.undo_group_start()
         try:
             for drawable in drawables:
@@ -146,7 +149,7 @@ class FillStroke(Gimp.PlugIn):
             procedure.add_choice_argument(
                 "contents", "Co_ntents", "What to fill with", choice(F.CONTENTS), "foreground", flags
             )
-            procedure.add_color_argument("color", "Co_lor", "The colour, for Contents: Color", False, black, flags)
+            procedure.add_color_argument("color", "Color", "The colour, for Contents: Color", False, black, flags)
             procedure.add_pattern_argument(
                 "pattern", "_Pattern", "The pattern, for Contents: Pattern", False, None, True, flags
             )
@@ -161,7 +164,7 @@ class FillStroke(Gimp.PlugIn):
                 name,
             )
             procedure.add_int_argument("width", "_Width", "Width of the stroke, in px", 1, 250, 3, flags)
-            procedure.add_color_argument("color", "Co_lor", "Colour of the stroke", False, black, flags)
+            procedure.add_color_argument("color", "Color", "Colour of the stroke", False, black, flags)
             procedure.add_choice_argument(
                 "location", "Loc_ation", "Where the stroke goes", choice(F.LOCATIONS), "center", flags
             )

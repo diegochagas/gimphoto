@@ -199,6 +199,8 @@ def paste_source(image, drawable, source, mode, opacity):
     mode and opacity, then source removed. A named buffer: the clipboard is
     left alone."""
     try:
+        # GIMP pastes a named buffer back where it was copied from (the
+        # smoke test checks it with an offset layer)
         name = Gimp.edit_named_copy([source], "gimphoto-fill-source")
         try:
             floating = Gimp.edit_named_paste(drawable, name, True)

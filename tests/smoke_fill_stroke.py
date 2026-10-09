@@ -4,11 +4,12 @@
 # selection; a Multiply green at 50% tints white half way; Black, 50% Gray
 # and White; a pattern paints; Preserve Transparency leaves transparent
 # pixels transparent (and without it they are filled); History brings back
-# the layer as saved inside the selection only; Stroke puts a 4 px line
+# the layer as saved inside the selection only, in place from an offset
+# layer and keeping transparency when asked; Stroke puts a 4 px line
 # inside, centred on or outside a square selection, keeps the selection,
 # and strokes a layer's shape when nothing is selected; the gimphoto-fill
 # and gimphoto-stroke procedures are in the Edit menu and run with
-# arguments.
+# arguments; Content-Aware refuses several layers at once.
 # Writes "ok" or a reason to the file in GIMPHOTO_SMOKE_OUT.
 import importlib.util
 import os
@@ -110,6 +111,53 @@ def check_fill(F):
     if img.get_selected_layers() != [layer]:
         return "history: the layer is no longer the selected one"
     img.delete()
+
+    # History from a smaller, offset layer through a selection that is not
+    # centred on it: in place (left half red, right half blue)
+    img, _paper = white_image()
+    patch = Gimp.Layer.new(img, "patch", 32, 32, Gimp.ImageType.RGBA_IMAGE, 100, Gimp.LayerMode.NORMAL)
+    img.insert_layer(patch, None, 0)
+    patch.set_offsets(16, 16)
+    Gimp.context_push()
+    try:
+        Gimp.context_set_foreground(Gegl.Color.new("#ff0000"))
+        img.select_rectangle(Gimp.ChannelOps.REPLACE, 16, 16, 16, 32)
+        patch.edit_fill(Gimp.FillType.FOREGROUND)
+        Gimp.context_set_foreground(Gegl.Color.new("#0000ff"))
+        img.select_rectangle(Gimp.ChannelOps.REPLACE, 32, 16, 16, 32)
+        patch.edit_fill(Gimp.FillType.FOREGROUND)
+    finally:
+        Gimp.context_pop()
+    with tempfile.TemporaryDirectory() as tmp:
+        xcf = Gio.File.new_for_path(os.path.join(tmp, "offset.xcf"))
+        Gimp.Selection.none(img)
+        Gimp.file_save(Gimp.RunMode.NONINTERACTIVE, img, xcf, None)
+        if img.get_file() is None:
+            img.set_file(xcf)
+        F.fill(img, patch, "black")
+        img.select_rectangle(Gimp.ChannelOps.REPLACE, 0, 0, 40, 64)
+        F.fill(img, patch, "history")
+        red, blue, outside = srgb(patch, 4, 14), srgb(patch, 20, 14), srgb(patch, 28, 14)
+    if red[:3] != (255, 0, 0) or blue[:3] != (0, 0, 255) or outside[:3] != (0, 0, 0):
+        return f"history on an offset layer: {red}, {blue}, outside the selection {outside}"
+    img.delete()
+
+    # History with Preserve Transparency: transparent pixels stay so
+    img, layer = white_image(alpha=True)
+    with tempfile.TemporaryDirectory() as tmp:
+        xcf = Gio.File.new_for_path(os.path.join(tmp, "alpha.xcf"))
+        Gimp.file_save(Gimp.RunMode.NONINTERACTIVE, img, xcf, None)
+        if img.get_file() is None:
+            img.set_file(xcf)
+        img.select_rectangle(Gimp.ChannelOps.REPLACE, 0, 0, 32, 64)
+        layer.edit_clear()
+        Gimp.Selection.none(img)
+        F.fill(img, layer, "black", preserve=True)
+        F.fill(img, layer, "history", preserve=True)
+        left, right = srgb(layer, 10, 10), srgb(layer, 48, 10)
+    if left[3] != 0 or right != (255, 255, 255, 255):
+        return f"history with Preserve Transparency: left {left}, right {right}"
+    img.delete()
     return "ok"
 
 
@@ -180,6 +228,20 @@ def check_procedures():
         return f"procedures: filled {srgb(layer, 10, 10)}, stroked {srgb(layer, 33, 10)}"
     if srgb(layer, 40, 10)[:3] != (255, 255, 255):
         return f"procedures: outside the stroke {srgb(layer, 40, 10)}"
+
+    # Content-Aware fills one layer at a time (before any AI is asked)
+    second = Gimp.Layer.new(img, "second", 64, 64, Gimp.ImageType.RGB_IMAGE, 100, Gimp.LayerMode.NORMAL)
+    img.insert_layer(second, None, 0)
+    proc = Gimp.get_pdb().lookup_procedure("gimphoto-fill")
+    config = proc.create_config()
+    config.set_property("run-mode", Gimp.RunMode.NONINTERACTIVE)
+    config.set_property("image", img)
+    config.set_core_object_array("drawables", [layer, second])
+    config.set_property("contents", "content-aware")
+    result = proc.run(config)
+    message = str(getattr(result.index(1), "message", result.index(1))) if result.length() > 1 else ""
+    if result.index(0) == Gimp.PDBStatusType.SUCCESS or "one layer at a time" not in message:
+        return f"Content-Aware on two layers: {result.index(0)}, {message!r}"
     img.delete()
     return "ok"
 
