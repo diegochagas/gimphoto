@@ -37,6 +37,12 @@ by hand) + a patch series (`patches/`) + a generator
   on its own page; a PR that changes what GIMPhoto looks like also updates
   `docs/images/gimphoto.png`.
 - No personal paths, IPs, tokens or real user data in code, tests or docs.
+- **The website** ([diegochagas/gimphoto-site](https://github.com/diegochagas/gimphoto-site))
+  builds its feature catalogue from this README's feature table and
+  `docs/features/` (each page's *Before and after* table, its screenshots,
+  and its **Tests:** / **Smoke test** text): a documented feature appears
+  there with its next daily build. Keep those formats; the site's tests
+  read them.
 
 ## Testing and shipping (dev-playbook)
 
