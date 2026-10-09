@@ -56,6 +56,7 @@ screenshots of each feature are on its page.
 | **Fill layers**: *Layer › New Fill Layer › Solid Color / Gradient / Pattern* adds a layer filled live by a colour, a two-colour gradient (Photoshop's five styles) or a GIMP pattern, masked by the selection; *Layer Content Options* or a double-click changes it later; kept in the XCF | Layer › New Fill Layer | plug-in + small core hook | [fill-layers.md](docs/features/fill-layers.md) |
 | **Fill and Stroke dialogs**: *Edit › Fill* (Shift+F5 / Shift+Backspace) with Photoshop's contents (colours, Pattern, History, Content-Aware by the local AI), mode, opacity and Preserve Transparency; *Edit › Stroke* inside, centred on or outside the selection; the last settings are remembered | Edit › Fill… / Stroke… | plug-in + local AI (Content-Aware) | [fill-stroke.md](docs/features/fill-stroke.md) |
 | **One GIMPhoto for every image you open**: opening an image from the file manager while GIMPhoto is open adds it as a new tab there instead of starting another GIMPhoto | Photoshop opens files in the running instance | small core patch | [single-instance.md](docs/features/single-instance.md) |
+| **Vibrance**: *Colors › Vibrance* and *Layer › New Adjustment Layer › Vibrance* raise saturation most where colours are dull and spare skin tones, with Photoshop's plain Saturation slider beside it | Image › Adjustments › Vibrance | GEGL operation + small core patch | [vibrance.md](docs/features/vibrance.md) |
 
 Apart from these, GIMPhoto is plain GIMP, with its own user profile.
 

@@ -1,0 +1,84 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Diego Chagas <drochachagas@gmail.com>
+Date: Fri, 9 Oct 2026 10:32:02 -0300
+Subject: [PATCH] Vibrance: Colors > Vibrance and Layer > New Adjustment Layer
+ > Vibrance
+
+Photoshop's Vibrance adjustment, GIMPhoto's gimphoto:vibrance GEGL
+operation (gegl/vibrance.c): in the Colors menu next to Saturation, and
+as an adjustment layer after Exposure, where Photoshop lists it.
+
+diff --git a/app/actions/filters-actions.c b/app/actions/filters-actions.c
+index ffab83c2d3..427e3fe2e8 100644
+--- a/app/actions/filters-actions.c
++++ b/app/actions/filters-actions.c
+@@ -595,6 +595,12 @@ static const GimpStringActionEntry filters_interactive_actions[] =
+     "gegl:saturation",
+     GIMP_HELP_FILTER_SATURATION },
+ 
++  /*  GIMPhoto: Photoshop's Vibrance (gegl/vibrance.c)  */
++  { "filters-vibrance", GIMP_ICON_GEGL,
++    NC_("filters-action", "_Vibrance..."), NULL, { NULL }, NULL,
++    "gimphoto:vibrance",
++    GIMP_HELP_FILTER_SATURATION },
++
+   { "filters-semi-flatten", GIMP_ICON_GEGL,
+     NC_("filters-action", "_Semi-Flatten..."), NULL, { NULL }, NULL,
+     "gimp:semi-flatten",
+@@ -1076,6 +1082,7 @@ filters_actions_update (GimpActionGroup *group,
+   SET_SENSITIVE ("filters-noise-hsv",               writable && !gray);
+   SET_SENSITIVE ("filters-red-eye-removal",         writable && !gray);
+   SET_SENSITIVE ("filters-saturation",              writable && !gray);
++  SET_SENSITIVE ("filters-vibrance",                writable && !gray);
+   SET_SENSITIVE ("filters-semi-flatten",            writable && alpha);
+   SET_SENSITIVE ("filters-sepia",                   writable && !gray);
+   SET_SENSITIVE ("filters-threshold-alpha",         writable && alpha);
+diff --git a/app/actions/layers-actions.c b/app/actions/layers-actions.c
+index 3742afacf0..570f42db94 100644
+--- a/app/actions/layers-actions.c
++++ b/app/actions/layers-actions.c
+@@ -78,6 +78,12 @@ static const GimpStringActionEntry layers_new_adjustment_actions[] =
+     "filters-exposure",
+     GIMP_HELP_LAYER_NEW },
+ 
++  { "layers-new-adjustment-vibrance", GIMP_ICON_GEGL,
++    NC_("layers-action", "_Vibrance..."), NULL, { NULL },
++    NC_("layers-action", "Add an adjustment layer: Vibrance on everything below it"),
++    "filters-vibrance",
++    GIMP_HELP_LAYER_NEW },
++
+   { "layers-new-adjustment-hue-saturation", GIMP_ICON_TOOL_HUE_SATURATION,
+     NC_("layers-action", "_Hue-Saturation..."), NULL, { NULL },
+     NC_("layers-action", "Add an adjustment layer: Hue-Saturation on everything below it"),
+diff --git a/menus/image-menu.ui.in.in b/menus/image-menu.ui.in.in
+index 2bb4b28df3..3224ac8fae 100644
+--- a/menus/image-menu.ui.in.in
++++ b/menus/image-menu.ui.in.in
+@@ -432,6 +432,7 @@
+             <item><attribute name="action">app.layers-new-adjustment-levels</attribute></item>
+             <item><attribute name="action">app.layers-new-adjustment-curves</attribute></item>
+             <item><attribute name="action">app.layers-new-adjustment-exposure</attribute></item>
++            <item><attribute name="action">app.layers-new-adjustment-vibrance</attribute></item>
+             <item><attribute name="action">app.layers-new-adjustment-hue-saturation</attribute></item>
+             <item><attribute name="action">app.layers-new-adjustment-color-balance</attribute></item>
+             <item><attribute name="action">app.layers-new-adjustment-mono-mixer</attribute></item>
+@@ -573,6 +574,7 @@
+         <item><attribute name="action">app.filters-hue-chroma</attribute></item>
+         <item><attribute name="action">app.filters-hue-saturation</attribute></item>
+         <item><attribute name="action">app.filters-saturation</attribute></item>
++        <item><attribute name="action">app.filters-vibrance</attribute></item>
+         <item><attribute name="action">app.filters-exposure</attribute></item>
+         <item><attribute name="action">app.filters-shadows-highlights</attribute></item>
+         <item><attribute name="action">app.filters-brightness-contrast</attribute></item>
+diff --git a/menus/layers-menu.ui b/menus/layers-menu.ui
+index 461da821e7..d12fa06c8f 100644
+--- a/menus/layers-menu.ui
++++ b/menus/layers-menu.ui
+@@ -54,6 +54,7 @@
+             <item><attribute name="action">app.layers-new-adjustment-levels</attribute></item>
+             <item><attribute name="action">app.layers-new-adjustment-curves</attribute></item>
+             <item><attribute name="action">app.layers-new-adjustment-exposure</attribute></item>
++            <item><attribute name="action">app.layers-new-adjustment-vibrance</attribute></item>
+             <item><attribute name="action">app.layers-new-adjustment-hue-saturation</attribute></item>
+             <item><attribute name="action">app.layers-new-adjustment-color-balance</attribute></item>
+             <item><attribute name="action">app.layers-new-adjustment-mono-mixer</attribute></item>

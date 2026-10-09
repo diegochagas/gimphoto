@@ -44,6 +44,8 @@
 #     it only where its base has pixels, also after a save and through a PSD;
 #   - fill layers (Solid Color, Gradient, Pattern) paint, are masked by the
 #     selection, read their settings back and survive an XCF;
+#   - Vibrance raises dull colours more than vivid ones, spares skin tones
+#     and keeps greys grey, in Colors and as an adjustment layer;
 #   - an image opened while GIMPhoto is open is handed to that GIMPhoto
 #     (GIMP's single instance, through a bus name under the app ID);
 #   - Edit > Fill fills with each kind of contents, mode and opacity, keeps
@@ -273,6 +275,20 @@ if [[ "$adjustment_result" == ok ]] &&
     echo "ok   adjustment layers: compiled in; an Invert adjustment layer applies to the layer below through its mask, also after an XCF save"
 else
     echo "FAIL adjustment layers: ${adjustment_result:-the actions are not in GIMP}" >&2
+    status=1
+fi
+# Vibrance (gegl/vibrance.c): dull colours gain more than vivid ones, skin
+# tones are spared, greys stay grey; in Colors and as an adjustment layer
+vibrance_report="$(mktemp /tmp/gimphoto-smoke.XXXXXX)"
+flatpak run --filesystem="$PWD/tests:ro" --env=GIMPHOTO_SMOKE_OUT="$vibrance_report" "$app" -i --batch-interpreter=python-fu-eval \
+    -b "exec(open('$PWD/tests/smoke_vibrance.py').read())" --quit >/dev/null 2>&1 || true
+vibrance_result="$(cat "$vibrance_report")"
+rm -f "$vibrance_report"
+if [[ "$vibrance_result" == ok ]] &&
+    flatpak run --command=sh "$app" -c 'grep -q "layers-new-adjustment-vibrance" /app/bin/gimp-3.* && grep -q "filters-vibrance" /app/bin/gimp-3.*' 2>/dev/null; then
+    echo "ok   Vibrance: dull colours gain more than vivid ones, skin tones spared, greys stay grey; in Colors and Layer > New Adjustment Layer"
+else
+    echo "FAIL Vibrance: ${vibrance_result:-the menu entries are not in GIMP}" >&2
     status=1
 fi
 # Single instance: an image opened while GIMPhoto is open goes to that
