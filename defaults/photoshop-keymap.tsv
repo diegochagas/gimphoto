@@ -53,6 +53,7 @@ edit-paste-into	<Primary><Alt><Shift>v	Edit > Paste Special > Paste Into (Ctrl+A
 edit-fill-fg	<Alt>BackSpace	Fill with Foreground Color (Alt+Backspace)
 edit-fill-bg	<Primary>BackSpace	Fill with Background Color (Ctrl+Backspace)
 edit-clear	BackSpace,Delete	Edit > Clear (Backspace / Delete)
+gimphoto-fill	<Shift>F5,<Shift>BackSpace	Edit > Fill... (Shift+F5 / Shift+Backspace)
 dialogs-preferences	<Primary>k	Edit > Preferences > General (Ctrl+K)
 dialogs-keyboard-shortcuts	<Primary><Alt><Shift>k	Edit > Keyboard Shortcuts (Ctrl+Alt+Shift+K)
 

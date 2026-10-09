@@ -93,6 +93,7 @@ own GIMP shortcut too, unless Photoshop uses that key for something else.
 | Fill with Foreground Color (Alt+Backspace) | Alt+Backspace | `edit-fill-fg` | Ctrl+, |
 | Fill with Background Color (Ctrl+Backspace) | Ctrl+Backspace | `edit-fill-bg` | Ctrl+. |
 | Edit > Clear (Backspace / Delete) | Backspace, Delete | `edit-clear` | Delete |
+| Edit > Fill... (Shift+F5 / Shift+Backspace) | Shift+F5, Shift+Backspace | `gimphoto-fill` | – |
 | Edit > Preferences > General (Ctrl+K) | Ctrl+K | `dialogs-preferences` | – |
 | Edit > Keyboard Shortcuts (Ctrl+Alt+Shift+K) | Ctrl+Alt+Shift+K | `dialogs-keyboard-shortcuts` | – |
 | Image > Adjustments > Levels (Ctrl+L) | Ctrl+L | `filters-levels` | – |

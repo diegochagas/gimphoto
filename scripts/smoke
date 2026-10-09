@@ -27,8 +27,8 @@
 #     it) is left alone by runs without a user interface, and the sandbox
 #     may talk to the user's systemd to start and stop it with GIMPhoto;
 #   - Select Subject, Object Selection, Remove Background, Generative Fill,
-#     Generate Image, the Remove tool, Photo Restoration and Modern Photo
-#     (AI), without the local AI, say where to install it and leave the
+#     Generate Image, the Remove tool, Photo Restoration, Modern Photo and
+#     Edit > Fill's Content-Aware (AI), without the local AI, say where to install it and leave the
 #     selection and the layers alone (no ComfyUI is called); the Object
 #     Selection and Remove tools are compiled in; a Generative Fill layer keeps its variations
 #     through an XCF save and can be changed again; Photo Restoration's
@@ -44,6 +44,9 @@
 #     it only where its base has pixels, also after a save and through a PSD;
 #   - fill layers (Solid Color, Gradient, Pattern) paint, are masked by the
 #     selection, read their settings back and survive an XCF;
+#   - Edit > Fill fills with each kind of contents, mode and opacity, keeps
+#     transparency when asked, brings back the saved layer (History); Edit >
+#     Stroke draws inside, centred on or outside the selection and keeps it;
 #   - a profile saved before a default shortcut moved (Ctrl+E to Merge
 #     Layers) gets the move once, keeping its own shortcuts;
 #   - a profile with a layout saved before GIMPhoto's current default gets
@@ -206,7 +209,7 @@ flatpak run --env=GIMPHOTO_SMOKE_OUT="$subject_report" "$app" -i --batch-interpr
 subject_result="$(cat "$subject_report")"
 rm -f "$subject_report"
 if [[ "$subject_result" == ok ]]; then
-    echo "ok   AI commands (Select Subject, Object Selection, Remove Background, Generative Fill, Generate Image, Remove tool, Photo Restoration, Modern Photo) without the local AI say where to install it, nothing changed"
+    echo "ok   AI commands (Select Subject, Object Selection, Remove Background, Generative Fill, Generate Image, Remove tool, Photo Restoration, Modern Photo, Content-Aware Fill) without the local AI say where to install it, nothing changed"
 else
     echo "FAIL AI selections without the local AI: ${subject_result:-did not run}" >&2
     status=1
@@ -268,6 +271,20 @@ if [[ "$adjustment_result" == ok ]] &&
     echo "ok   adjustment layers: compiled in; an Invert adjustment layer applies to the layer below through its mask, also after an XCF save"
 else
     echo "FAIL adjustment layers: ${adjustment_result:-the actions are not in GIMP}" >&2
+    status=1
+fi
+# Edit > Fill and Edit > Stroke (the fill-stroke plug-in): contents, mode
+# and opacity, Preserve Transparency, History, the three stroke locations,
+# the procedures with arguments
+fs_report="$(mktemp /tmp/gimphoto-smoke.XXXXXX)"
+flatpak run --filesystem="$PWD/tests:ro" --env=GIMPHOTO_SMOKE_OUT="$fs_report" "$app" -i --batch-interpreter=python-fu-eval \
+    -b "exec(open('$PWD/tests/smoke_fill_stroke.py').read())" --quit >/dev/null 2>&1 || true
+fs_result="$(cat "$fs_report")"
+rm -f "$fs_report"
+if [[ "$fs_result" == ok ]]; then
+    echo "ok   Edit > Fill and Stroke: contents, modes, Preserve Transparency, History, Inside/Center/Outside strokes, the procedures"
+else
+    echo "FAIL Edit > Fill and Stroke: ${fs_result:-did not run}" >&2
     status=1
 fi
 # Fill layers (the fill-layers plug-in as a module): Solid Color masked by

@@ -12,3 +12,4 @@
 1	<Primary>e	layers-merge-down	gimphoto-merge-layers
 1	<Primary><Shift>e	image-merge-layers	layers-merge-layers-last-values
 2	<Primary><Alt>g	-	layers-clipping-mask
+3	<Shift>F5	-	gimphoto-fill
