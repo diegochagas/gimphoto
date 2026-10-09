@@ -1,0 +1,55 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Diego Chagas <drochachagas@gmail.com>
+Date: Fri, 9 Oct 2026 05:49:20 -0300
+Subject: [PATCH] Single instance in a Flatpak: the bus name follows the app ID
+
+GIMP finds a running instance through the session-bus name
+org.gimp.GIMP.UI. A Flatpak may only own names under its app ID, so
+GIMPhoto (io.github.diegochagas.GIMPhoto) never owned it and every launch
+with a file started a new GIMPhoto. In a Flatpak whose ID is not
+org.gimp.GIMP the name is <app ID>.UI.
+
+diff --git a/app/gui/gimpdbusservice.h b/app/gui/gimpdbusservice.h
+index a2891333b3..03465e7bdf 100644
+--- a/app/gui/gimpdbusservice.h
++++ b/app/gui/gimpdbusservice.h
+@@ -27,12 +27,38 @@
+ /* service name and path should really be org.gimp.GIMP and
+  * /org/gimp/GIMP and only the interface be called UI.
+  */
+-#define GIMP_DBUS_SERVICE_NAME   "org.gimp.GIMP.UI"
++#define GIMP_DBUS_SERVICE_NAME   (gimp_dbus_service_name ())
+ #define GIMP_DBUS_SERVICE_PATH   "/org/gimp/GIMP/UI"
+ #define GIMP_DBUS_INTERFACE_NAME "org.gimp.GIMP.UI"
+ #define GIMP_DBUS_INTERFACE_PATH "/org/gimp/GIMP/UI"
+ 
+ 
++/*  GIMPhoto: the name a running GIMP owns on the session bus, which a
++ *  second launch looks for to hand it the files to open. A Flatpak may
++ *  only own names under its app ID: org.gimp.GIMP.UI suits the official
++ *  GIMP Flatpak (org.gimp.GIMP), so a Flatpak with another ID uses
++ *  <app ID>.UI, else no instance owns a name and every launch starts a
++ *  new one. Also keeps GIMP and a fork from handing files to each other.
++ */
++static inline const gchar *
++gimp_dbus_service_name (void)
++{
++  static gchar *name = NULL;
++
++  if (! name)
++    {
++      const gchar *app_id = g_getenv ("FLATPAK_ID");
++
++      if (app_id && *app_id && g_strcmp0 (app_id, "org.gimp.GIMP") != 0)
++        name = g_strconcat (app_id, ".UI", NULL);
++      else
++        name = g_strdup ("org.gimp.GIMP.UI");
++    }
++
++  return name;
++}
++
++
+ #define GIMP_TYPE_DBUS_SERVICE            (gimp_dbus_service_get_type ())
+ #define GIMP_DBUS_SERVICE(obj)            (G_TYPE_CHECK_INSTANCE_CAST ((obj), GIMP_TYPE_DBUS_SERVICE, GimpDBusService))
+ #define GIMP_DBUS_SERVICE_CLASS(klass)    (G_TYPE_CHECK_CLASS_CAST ((klass), GIMP_TYPE_DBUS_SERVICE, GimpDBusServiceClass))

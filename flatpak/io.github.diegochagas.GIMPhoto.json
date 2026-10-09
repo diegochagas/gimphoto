@@ -897,7 +897,8 @@
                         "../patches/0015-Default-shortcut-updates-reach-existing-profiles.patch",
                         "../patches/0016-Adjustment-layers-Layer-New-Adjustment-Layer-applied.patch",
                         "../patches/0017-Clipping-masks-Create-Release-Clipping-Mask-Alt-clic.patch",
-                        "../patches/0018-Fill-layers-Layer-New-Fill-Layer-submenu-Layer-Conte.patch"
+                        "../patches/0018-Fill-layers-Layer-New-Fill-Layer-submenu-Layer-Conte.patch",
+                        "../patches/0019-Single-instance-in-a-Flatpak-the-bus-name-follows-th.patch"
                     ]
                 }
             ],
