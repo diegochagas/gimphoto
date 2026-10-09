@@ -1,7 +1,8 @@
 # Run by scripts/smoke inside the installed GIMPhoto (python-fu-eval):
 # GIMPhoto's AI commands without the local AI: Select Subject, Object
 # Selection, Remove Background, Generative Fill, Generate Image, the
-# Remove tool, Photo Restoration and Modern Photo. GIMPhoto recorded
+# Remove tool, Photo Restoration, Modern Photo and Edit > Fill's
+# Content-Aware. GIMPhoto recorded
 # ComfyUI as missing (the gimphoto-comfyui parasite comfyui-service.py
 # writes), so the command fails at once with a message saying where to
 # install it, and leaves the selection and the layers (no mask, no new
@@ -33,6 +34,9 @@ def check():
         ("gimphoto-modern-photo", {"drawables": [layer]}),
         # what the Remove tool sends: one stroke
         ("gimphoto-remove", {"drawable": layer, "strokes": '[{"size": 10, "points": [40, 40, 50, 50]}]'}),
+        # Edit > Fill's Content-Aware, and the LaMa source it runs
+        ("gimphoto-fill", {"drawables": [layer], "contents": "content-aware"}),
+        ("gimphoto-content-aware-source", {}),
     ):
         proc = Gimp.get_pdb().lookup_procedure(name)
         if proc is None:

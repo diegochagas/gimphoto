@@ -61,6 +61,9 @@ FILL_PROC = "gimphoto-generative-fill"
 IMAGE_PROC = "gimphoto-generate-image"
 EDIT_PROC = "gimphoto-generative-edit"
 REMOVE_PROC = "gimphoto-remove"
+# Edit > Fill's Content-Aware (the fill-stroke plug-in): the selection
+# filled by LaMa, as a layer the caller composites with its own mode
+CONTENT_AWARE_PROC = "gimphoto-content-aware-source"
 # The Remove tool's brush: hard and round, so the area sent is the area
 # painted (the client grows it a little for the model)
 REMOVE_BRUSH = "2. Hardness 100"
@@ -1016,6 +1019,65 @@ def remove(image, layer, strokes, model):
     Gimp.displays_flush()
 
 
+def content_aware_source(image):
+    """Edit > Fill's Content-Aware: the selection filled from around it by
+    the local LaMa (as the Remove tool does, nothing uploaded), returned as
+    a new layer at the top of the image covering the selection and the
+    picture around it. The caller composites it into the drawable with the
+    selection as mask, and removes it."""
+    box = selection_box(image)
+    if box is None:
+        raise api.ComfyUIError("Content-Aware fills a selection: make one first.")
+    # before anything changes: a message when the local AI is missing
+    url = ai.ready_url("Content-Aware Fill")
+    tmp = tempfile.mkdtemp(prefix="gimphoto-content-aware-")
+    Gimp.progress_init("Content-Aware Fill")
+    try:
+        image_path = os.path.join(tmp, "image.png")
+        mask_path = os.path.join(tmp, "mask.png")
+        width, height = image.get_width(), image.get_height()
+        # the area and some picture around it, as the Remove tool sends
+        x, y, w, h = grown(box, max(LAMA_CONTEXT, max(box[2:]) // 2), width, height)
+        visible_png(image, image_path, (x, y, w, h))
+        selection_png(image, mask_path, (x, y, w, h))
+        with open(image_path, "rb") as f:
+            image_png = f.read()
+        with open(mask_path, "rb") as f:
+            mask_png = f.read()
+
+        def working(elapsed):
+            Gimp.progress_set_text("Content-Aware Fill… %d s" % elapsed)
+            Gimp.progress_pulse()
+
+        result = api.remove(url, image_png, mask_png, progress=working)
+        result_path = os.path.join(tmp, "result.png")
+        with open(result_path, "wb") as f:
+            f.write(result)
+        layer = Gimp.file_load_layer(Gimp.RunMode.NONINTERACTIVE, image, Gio.File.new_for_path(result_path))
+        image.insert_layer(layer, None, 0)
+        if (layer.get_width(), layer.get_height()) != (w, h):
+            layer.scale(w, h, False)
+        layer.set_offsets(x, y)
+        layer.set_name("Content-Aware")
+        return layer
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+        Gimp.progress_end()
+
+
+def run_content_aware(procedure, config, data):
+    image = config.get_property("image")
+    try:
+        layer = content_aware_source(image)
+    except Exception as e:
+        return procedure.new_return_values(Gimp.PDBStatusType.EXECUTION_ERROR, GLib.Error(str(e)))
+    values = procedure.new_return_values(Gimp.PDBStatusType.SUCCESS, GLib.Error())
+    # the layer in the return value's slot (as GIMP's palette-offset does)
+    values.remove(1)
+    values.insert(1, GObject.Value(Gimp.Layer, layer))
+    return values
+
+
 def run_remove(procedure, config, data):
     image = config.get_property("image")
     drawable = config.get_property("drawable")
@@ -1038,11 +1100,13 @@ class GenerativeFill(Gimp.PlugIn):
         return False
 
     def do_query_procedures(self):
-        return [FILL_PROC, IMAGE_PROC, EDIT_PROC, REMOVE_PROC]
+        return [FILL_PROC, IMAGE_PROC, EDIT_PROC, REMOVE_PROC, CONTENT_AWARE_PROC]
 
     def do_create_procedure(self, name):
         if name == REMOVE_PROC:
             return self.remove_procedure(name)
+        if name == CONTENT_AWARE_PROC:
+            return self.content_aware_procedure(name)
         if name == EDIT_PROC:
             return self.edit_procedure(name)
         fill = name == FILL_PROC
@@ -1080,6 +1144,25 @@ class GenerativeFill(Gimp.PlugIn):
             procedure.add_string_argument(
                 "model", "Model", "qwen (Qwen-Image-Edit) or klein (FLUX.2 klein)", "qwen", flags
             )
+        return procedure
+
+    def content_aware_procedure(self, name):
+        """Run by Edit > Fill (the fill-stroke plug-in) for Content-Aware;
+        no menu entry."""
+        procedure = Gimp.Procedure.new(self, name, Gimp.PDBProcType.PLUGIN, run_content_aware, None)
+        procedure.set_documentation(
+            "The selection filled from around it (AI), as a layer",
+            "For Edit > Fill's Content-Aware: the local LaMa (the Remove tool's model, nothing "
+            "uploaded) fills the selection from the visible picture around it. Returns a new "
+            "layer at the top of the image, covering the selection and some picture around it; "
+            "the caller composites it with the selection as mask and removes it.",
+            name,
+        )
+        procedure.set_attribution("GIMPhoto", "GIMPhoto contributors", "2026")
+        flags = GObject.ParamFlags.READWRITE
+        procedure.add_enum_argument("run-mode", "Run mode", "", Gimp.RunMode, Gimp.RunMode.NONINTERACTIVE, flags)
+        procedure.add_image_argument("image", "Image", "", False, flags)
+        procedure.add_layer_return_value("layer", "Layer", "The filled picture", False, flags)
         return procedure
 
     def remove_procedure(self, name):
