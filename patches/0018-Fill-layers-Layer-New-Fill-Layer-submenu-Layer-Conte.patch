@@ -1,0 +1,159 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: GIMPhoto scripts <gimphoto@localhost>
+Date: Thu, 8 Oct 2026 18:56:15 -0300
+Subject: [PATCH] Fill layers: Layer > New Fill Layer submenu, Layer Content
+ Options on double click
+
+The New Fill Layer submenu (the fill-layers plug-in's Solid Color,
+Gradient and Pattern) and Layer Content Options after New Adjustment
+Layer in the Layer menu and the Layers panel's menu; a double click on a
+layer with the gimphoto-fill parasite runs Layer Content Options; the
+Properties panel names it Fill Layer. gimp-drawable-filter-update on a
+filter already on a drawable records GIMP's Edit filter undo, as the
+filter dialogs do, so a plug-in's changes to an effect can be undone.
+
+diff --git a/app/actions/layers-commands.c b/app/actions/layers-commands.c
+index 04ccfb25b3..b016ff208e 100644
+--- a/app/actions/layers-commands.c
++++ b/app/actions/layers-commands.c
+@@ -261,6 +261,33 @@ layers_edit_smart_object (GimpLayer *layer)
+   return TRUE;
+ }
+ 
++/*  GIMPhoto: a double click on a fill layer (the fill-layers plug-in's
++ *  "gimphoto-fill" parasite) opens its Layer Content Options, as
++ *  Photoshop does. Returns FALSE when that is not possible.
++ */
++static gboolean
++layers_edit_fill (GimpLayer *layer)
++{
++  GList      *managers;
++  GimpAction *action = NULL;
++
++  if (! gimp_item_parasite_find (GIMP_ITEM (layer), "gimphoto-fill"))
++    return FALSE;
++
++  managers = gimp_ui_managers_from_name ("<Image>");
++
++  if (managers)
++    action = gimp_ui_manager_find_action (managers->data, "plug-in",
++                                          "gimphoto-fill-layer-edit");
++
++  if (! action || ! gimp_action_is_sensitive (action, NULL))
++    return FALSE;
++
++  gimp_action_activate (action);
++
++  return TRUE;
++}
++
+ /*  GIMPhoto: a double click on an adjustment layer opens its adjustment
+  *  again (the filter it carries), as Photoshop's Properties panel does.
+  *  Returns FALSE when it has none, so the caller opens the attributes as
+@@ -374,6 +401,8 @@ layers_edit_cmd_callback (GimpAction *action,
+     return;
+   else if (layers_edit_adjustment (layers->data))
+     return;
++  else if (layers_edit_fill (layers->data))
++    return;
+   else if (gimp_item_is_vector_layer (GIMP_ITEM (layers->data)))
+     layers_edit_vector_cmd_callback (action, value, data);
+   else
+diff --git a/app/pdb/drawable-filter-cmds.c b/app/pdb/drawable-filter-cmds.c
+index 2f48fc32f6..efe79963e9 100644
+--- a/app/pdb/drawable-filter-cmds.c
++++ b/app/pdb/drawable-filter-cmds.c
+@@ -354,6 +354,17 @@ drawable_filter_update_invoker (GimpProcedure         *procedure,
+ 
+   if (success)
+     {
++      GimpDrawable *drawable = gimp_drawable_filter_get_drawable (filter);
++
++      /* GIMPhoto: a change to an effect already on a drawable is undoable,
++       * as it is in GIMP's filter dialogs (nothing is recorded while a
++       * plug-in previews with the undo history frozen)
++       */
++      if (drawable && gimp_drawable_has_filter (drawable, GIMP_FILTER (filter)) &&
++          ! gimp_drawable_filter_get_temporary (filter))
++        gimp_image_undo_push_filter_modified (gimp_item_get_image (GIMP_ITEM (drawable)),
++                                              _("Edit filter"), drawable, filter);
++
+       success = gimp_drawable_filter_update (filter, propnames, propvalues,
+                                              opacity,
+                                              blend_mode, blend_space,
+diff --git a/app/widgets/gimppropertieseditor.c b/app/widgets/gimppropertieseditor.c
+index 7457929f0b..0f912fe3cf 100644
+--- a/app/widgets/gimppropertieseditor.c
++++ b/app/widgets/gimppropertieseditor.c
+@@ -456,6 +456,11 @@ gimp_properties_editor_kind (GimpLayer    *layer,
+       *icon_name = "gimphoto-adjustment-layer";
+       return _("Adjustment Layer");
+     }
++  else if (gimp_item_parasite_find (item, "gimphoto-fill"))
++    {
++      *icon_name = GIMP_ICON_LAYER;
++      return _("Fill Layer");
++    }
+   else if (gimp_item_is_vector_layer (item))
+     {
+       *icon_name = GIMP_ICON_LAYER;
+diff --git a/menus/image-menu.ui.in.in b/menus/image-menu.ui.in.in
+index 1743ade457..2bb4b28df3 100644
+--- a/menus/image-menu.ui.in.in
++++ b/menus/image-menu.ui.in.in
+@@ -449,6 +449,14 @@
+             <item><attribute name="action">app.layers-new-adjustment-shadows-highlights</attribute></item>
+           </section>
+         </submenu>
++        <!-- GIMPhoto: Photoshop's Layer > New Fill Layer, from the fill-layers plug-in -->
++        <submenu>
++          <attribute name="label" translatable="yes" context="layers-action">New _Fill Layer</attribute>
++          <item><attribute name="action">app.gimphoto-fill-layer-solid</attribute></item>
++          <item><attribute name="action">app.gimphoto-fill-layer-gradient</attribute></item>
++          <item><attribute name="action">app.gimphoto-fill-layer-pattern</attribute></item>
++        </submenu>
++        <item><attribute name="action">app.gimphoto-fill-layer-edit</attribute></item>
+         <item><attribute name="action">app.layers-new-group</attribute></item>
+         <item><attribute name="action">app.layers-duplicate</attribute></item>
+         <item><attribute name="action">app.layers-anchor</attribute></item>
+diff --git a/menus/layers-menu.ui b/menus/layers-menu.ui
+index c8045d29f1..461da821e7 100644
+--- a/menus/layers-menu.ui
++++ b/menus/layers-menu.ui
+@@ -71,6 +71,14 @@
+             <item><attribute name="action">app.layers-new-adjustment-shadows-highlights</attribute></item>
+           </section>
+         </submenu>
++        <!-- GIMPhoto: Photoshop's Layer > New Fill Layer, from the fill-layers plug-in -->
++        <submenu>
++          <attribute name="label" translatable="yes" context="layers-action">New _Fill Layer</attribute>
++          <item><attribute name="action">app.gimphoto-fill-layer-solid</attribute></item>
++          <item><attribute name="action">app.gimphoto-fill-layer-gradient</attribute></item>
++          <item><attribute name="action">app.gimphoto-fill-layer-pattern</attribute></item>
++        </submenu>
++        <item><attribute name="action">app.gimphoto-fill-layer-edit</attribute></item>
+         <item><attribute name="action">app.layers-new-group</attribute></item>
+     <!--
+         <item><attribute name="action">app.layers-raise</attribute></item>
+diff --git a/pdb/groups/drawable_filter.pdb b/pdb/groups/drawable_filter.pdb
+index f97c673d86..a068c19321 100644
+--- a/pdb/groups/drawable_filter.pdb
++++ b/pdb/groups/drawable_filter.pdb
+@@ -326,6 +326,17 @@ HELP
+     %invoke = (
+ 	code => <<'CODE'
+ {
++  GimpDrawable *drawable = gimp_drawable_filter_get_drawable (filter);
++
++  /* GIMPhoto: a change to an effect already on a drawable is undoable,
++   * as it is in GIMP's filter dialogs (nothing is recorded while a
++   * plug-in previews with the undo history frozen)
++   */
++  if (drawable && gimp_drawable_has_filter (drawable, GIMP_FILTER (filter)) &&
++      ! gimp_drawable_filter_get_temporary (filter))
++    gimp_image_undo_push_filter_modified (gimp_item_get_image (GIMP_ITEM (drawable)),
++                                          _("Edit filter"), drawable, filter);
++
+   success = gimp_drawable_filter_update (filter, propnames, propvalues,
+                                          opacity,
+                                          blend_mode, blend_space,

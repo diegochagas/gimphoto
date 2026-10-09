@@ -359,6 +359,11 @@ GRADIENT_STYLES = [
 ]
 
 
+def pattern_cache_name(name):
+    """The cache file's name (no extension) for a GIMP pattern's name."""
+    return "".join(c if c.isalnum() or c in "-_." else "_" for c in name)
+
+
 def pattern_file(name):
     """A GIMP pattern as a PNG file gimphoto:pattern-overlay can read, in the
     profile's cache (gimphoto-patterns/), made once per pattern; None if
@@ -369,8 +374,7 @@ def pattern_file(name):
     if pattern is None:
         return None
     folder = os.path.join(Gimp.directory(), "gimphoto-patterns")
-    safe = "".join(c if c.isalnum() or c in "-_." else "_" for c in name)
-    path = os.path.join(folder, safe + ".png")
+    path = os.path.join(folder, pattern_cache_name(name) + ".png")
     if not os.path.exists(path):
         os.makedirs(folder, exist_ok=True)
         _ok, width, height, _bpp = pattern.get_info()

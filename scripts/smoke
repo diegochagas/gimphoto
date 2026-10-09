@@ -42,6 +42,8 @@
 #     adjustment to the layer below, through its mask, also after a save;
 #   - clipping masks are compiled in and an XCF with a clipped layer shows
 #     it only where its base has pixels, also after a save and through a PSD;
+#   - fill layers (Solid Color, Gradient, Pattern) paint, are masked by the
+#     selection, read their settings back and survive an XCF;
 #   - a profile saved before a default shortcut moved (Ctrl+E to Merge
 #     Layers) gets the move once, keeping its own shortcuts;
 #   - a profile with a layout saved before GIMPhoto's current default gets
@@ -266,6 +268,19 @@ if [[ "$adjustment_result" == ok ]] &&
     echo "ok   adjustment layers: compiled in; an Invert adjustment layer applies to the layer below through its mask, also after an XCF save"
 else
     echo "FAIL adjustment layers: ${adjustment_result:-the actions are not in GIMP}" >&2
+    status=1
+fi
+# Fill layers (the fill-layers plug-in as a module): Solid Color masked by
+# the selection, Gradient, Pattern, their settings read back, through an XCF
+fill_report="$(mktemp /tmp/gimphoto-smoke.XXXXXX)"
+flatpak run --filesystem="$PWD/tests:ro" --env=GIMPHOTO_SMOKE_OUT="$fill_report" "$app" -i --batch-interpreter=python-fu-eval \
+    -b "exec(open('$PWD/tests/smoke_fill_layers.py').read())" --quit >/dev/null 2>&1 || true
+fill_result="$(cat "$fill_report")"
+rm -f "$fill_report"
+if [[ "$fill_result" == ok ]]; then
+    echo "ok   fill layers: Solid Color (masked by the selection), Gradient and Pattern paint, read back and survive an XCF"
+else
+    echo "FAIL fill layers: ${fill_result:-did not run}" >&2
     status=1
 fi
 # Clipping masks: compiled in, and an XCF with a clipped layer shows it only
